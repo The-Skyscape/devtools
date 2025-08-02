@@ -1,0 +1,47 @@
+<html data-theme="{{theme}}">
+
+<head>
+  <title>Setup</title>
+  {{template "app-deps"}}
+</head>
+
+<body>
+  <div class="flex flex-col items-center gap-12 py-12">
+
+    <h1 class="text-4xl font-semibold capitalize">
+      Welcome Aboard!
+    </h1>
+
+    <div class="card bg-base-300 shadow w-full max-w-sm">
+      <div class="card-body">
+        <h2 class="card-title capitalize text-center">
+          User Setup
+        </h2>
+
+        {{block "signup-form" .}}
+        <div class="space-y-3">
+          <div class="error"></div>
+
+          <form class="flex flex-col gap-y-4 mb-0" hx-post="{{host}}/_auth/signup" hx-target="previous .error">
+
+            <input class="input input-bordered" required name="name" type="text" placeholder="Your name">
+
+            <input class="input input-bordered" required name="handle" type="text" placeholder="Your Handle">
+
+            <input class="input input-bordered" required name="email" type="email" placeholder="Email address">
+
+            <input class="input input-bordered" required name="password" type="password"
+                   placeholder="A unique password">
+
+            <button class="btn btn-primary">
+              Setup
+            </button>
+          </form>
+        </div>
+        {{end}}
+      </div>
+    </div>
+  </div>
+</body>
+
+</html>

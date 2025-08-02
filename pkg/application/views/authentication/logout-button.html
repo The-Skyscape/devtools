@@ -1,0 +1,5 @@
+{{define "signout-button"}}
+<a hx-post="{{host}}/_auth/signout" class="btn btn-primary">
+  {{or . "Sign Out"}}
+</a>
+{{end}}
