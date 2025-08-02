@@ -12,17 +12,12 @@ This project follows the standard TheSkyscape DevTools application structure:
 
 ```
 project-root/
-├── cmd/
-│   └── server/
-│       └── main.go              # Application entry point
-├── internal/
-│   ├── controllers/             # HTTP handlers and request logic
-│   └── models/                  # Database models and business logic
-├── views/
-│   ├── *.html                   # Page templates (embedded at build time)
-│   └── components/              # Reusable UI components
+├── controllers/                 # HTTP handlers and request logic
+├── models/                      # Database models and business logic
+├── views/                       # Page templates (embedded at build time)
 ├── assets/                      # Static files (optional)
 ├── deployments/                 # Infrastructure configs (optional)
+├── main.go                      # Application entry point
 ├── go.mod                       # Go dependencies
 ├── go.sum
 └── README.md                    # Project-specific documentation
@@ -30,7 +25,7 @@ project-root/
 
 ## Development Patterns
 
-### 1. Database Models (`internal/models/`)
+### 1. Database Models (`models/`)
 
 Models embed `application.Model` and implement the `Table()` method:
 
@@ -67,7 +62,7 @@ func GetUserByEmail(email string) (*User, error) {
 }
 ```
 
-### 2. Controllers (`internal/controllers/`)
+### 2. Controllers (`controllers/`)
 
 Controllers embed `application.BaseController` and expose methods to templates:
 
@@ -76,7 +71,7 @@ package controllers
 
 import (
     "net/http"
-    "your-app/internal/models"
+    "your-app/models"
     "github.com/The-Skyscape/devtools/pkg/application"
 )
 
@@ -124,7 +119,7 @@ func (c *UserController) createUser(w http.ResponseWriter, r *http.Request) {
 }
 ```
 
-### 3. Main Application (`cmd/server/main.go`)
+### 3. Main Application (`main.go`)
 
 ```go
 package main
@@ -132,8 +127,8 @@ package main
 import (
     "embed"
     "os"
-    "your-app/internal/controllers"
-    "your-app/internal/models"
+    "your-app/controllers"
+    "your-app/models"
     "github.com/The-Skyscape/devtools/pkg/application"
     "github.com/The-Skyscape/devtools/pkg/authentication"
 )
@@ -238,10 +233,10 @@ export DIGITAL_OCEAN_API_KEY="your-api-key"
 
 ```bash
 # Development
-go run ./cmd/server
+go run .
 
 # Production build
-go build -o app ./cmd/server
+go build -o app .
 ./app
 ```
 
@@ -260,7 +255,7 @@ sqlite3 ~/.theskyscape/app.db "SELECT * FROM users;"
 
 ### Adding New Features
 
-1. **Create Model** (`internal/models/feature.go`):
+1. **Create Model** (`models/feature.go`):
    ```go
    type Feature struct {
        application.Model
@@ -269,19 +264,19 @@ sqlite3 ~/.theskyscape/app.db "SELECT * FROM users;"
    func (*Feature) Table() string { return "features" }
    ```
 
-2. **Add Repository** (`internal/models/database.go`):
+2. **Add Repository** (`models/database.go`):
    ```go
    var Features = database.Manage(DB, new(Feature))
    ```
 
-3. **Create Controller** (`internal/controllers/features.go`):
+3. **Create Controller** (`controllers/features.go`):
    ```go
    func Features() (string, *FeatureController) {
        return "features", &FeatureController{}
    }
    ```
 
-4. **Register Controller** (`cmd/server/main.go`):
+4. **Register Controller** (`main.go`):
    ```go
    application.WithController(controllers.Features()),
    ```
@@ -350,7 +345,7 @@ workspace.Start(user)
 go test ./...
 
 # Test specific package
-go test ./internal/controllers
+go test ./controllers
 
 # Verbose testing
 go test -v ./...
