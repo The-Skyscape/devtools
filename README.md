@@ -59,33 +59,172 @@ go get github.com/The-Skyscape/devtools
 
 ## 🏃‍♂️ Quick Start
 
-### Simple Web Application
+### 1. Install the Toolkit
+
+```bash
+go mod init your-app
+go get github.com/The-Skyscape/devtools
+```
+
+### 2. Create Project Structure
+
+```
+your-app/
+├── cmd/
+│   └── server/
+│       └── main.go              # Application entry point
+├── internal/
+│   ├── controllers/             # HTTP request handlers
+│   └── models/                  # Database models and business logic
+├── views/
+│   ├── dashboard.html           # Page templates
+│   └── includes.html            # Shared components
+├── go.mod
+└── go.sum
+```
+
+### 3. Set Up Your Models (`internal/models/database.go`)
+
+```go
+package models
+
+import (
+    "github.com/The-Skyscape/devtools/pkg/authentication"
+    "github.com/The-Skyscape/devtools/pkg/database"
+    "github.com/The-Skyscape/devtools/pkg/database/local"
+)
+
+var (
+    // DB is your application's database
+    DB = local.Database("myapp.db")
+    
+    // Auth manages user authentication
+    Auth = authentication.Manage(DB)
+    
+    // Products manages your business models
+    Products = database.Manage(DB, new(Product))
+)
+```
+
+### 4. Define Your Models (`internal/models/product.go`)
+
+```go
+package models
+
+import "github.com/The-Skyscape/devtools/pkg/application"
+
+type Product struct {
+    application.Model
+    Name        string
+    Description string
+    Price       float64
+}
+
+func (*Product) Table() string { return "products" }
+
+// Business logic methods
+func GetProductByID(id string) (*Product, error) {
+    return Products.Get(id)
+}
+
+func SearchProducts(query string) ([]*Product, error) {
+    return Products.Search("name LIKE ?", "%"+query+"%")
+}
+```
+
+### 5. Create Controllers (`internal/controllers/products.go`)
+
+```go
+package controllers
+
+import (
+    "net/http"
+    "your-app/internal/models"
+    "github.com/The-Skyscape/devtools/pkg/application"
+)
+
+func Products() (string, *ProductController) {
+    return "products", &ProductController{}
+}
+
+type ProductController struct {
+    application.BaseController
+}
+
+func (c *ProductController) Setup(app *application.App) {
+    c.BaseController.Setup(app)
+    http.Handle("GET /products", app.Serve("products.html", nil))
+    http.Handle("POST /products", app.ProtectFunc(c.createProduct, nil))
+}
+
+func (c ProductController) Handle(r *http.Request) application.Controller {
+    c.Request = r
+    return &c
+}
+
+// Template method: {{range products.AllProducts}}
+func (c *ProductController) AllProducts() ([]*models.Product, error) {
+    return models.Products.Search("")
+}
+
+func (c *ProductController) createProduct(w http.ResponseWriter, r *http.Request) {
+    product := &models.Product{
+        Name:        r.FormValue("name"),
+        Description: r.FormValue("description"),
+    }
+    if _, err := models.Products.Insert(product); err != nil {
+        c.Render(w, r, "error-message", err)
+        return
+    }
+    c.Refresh(w, r) // HTMX refresh
+}
+```
+
+### 6. Main Application (`cmd/server/main.go`)
 
 ```go
 package main
 
 import (
+    "embed"
+    "os"
+    "your-app/internal/controllers"
+    "your-app/internal/models"
     "github.com/The-Skyscape/devtools/pkg/application"
     "github.com/The-Skyscape/devtools/pkg/authentication"
-    "github.com/The-Skyscape/devtools/pkg/database/local"
 )
 
+//go:embed all:views
+var views embed.FS
+
 func main() {
-    // Initialize SQLite database
-    db := local.Database("myapp.db")
-    
-    // Setup user authentication
-    auth := authentication.Manage(db).Controller()
-    
-    // Create web application
-    app := application.New(nil,
-        application.WithController("auth", auth),
-        application.WithDaisyTheme("corporate"),
+    // Create authentication controller
+    auth := models.Auth.Controller(
+        authentication.WithCookie("myapp-session"),
+        authentication.WithSignoutURL("/dashboard"),
     )
     
-    // Start server (HTTP on :5000, HTTPS on :443 if certs available)
-    app.Start()
+    // Start application
+    application.Serve(views,
+        application.WithController("auth", auth),
+        application.WithController(controllers.Products()),
+        application.WithDaisyTheme(os.Getenv("THEME")),
+        application.WithHostPrefix(os.Getenv("PREFIX")),
+    )
 }
+```
+
+### 7. Run Your Application
+
+```bash
+# Set required environment variables
+export AUTH_SECRET="your-secret-key"
+export THEME="corporate"
+
+# Run the application
+go run ./cmd/server
+
+# Visit http://localhost:5000
 ```
 
 ### Container Management
@@ -147,63 +286,102 @@ export INTERNAL_DATA="/custom/data/directory"
 
 # Optional: Custom application port (default: 5000)
 export PORT="8080"
+
+# Optional: Application customization
+export PREFIX="/api/v1"        # Host prefix for URLs
+export THEME="corporate"       # DaisyUI theme
+export TOKEN="my-app-cookie"   # Custom cookie name
 ```
 
-### Application Structure
+### Recommended Project Structure
 
 ```
-your-project/
+your-application/
 ├── cmd/
 │   └── server/
 │       └── main.go              # Application entry point
 ├── internal/
-│   ├── handlers/                # HTTP request handlers
-│   ├── models/                  # Business logic models  
-│   └── middleware/              # Custom middleware
+│   ├── controllers/             # HTTP handlers and business logic
+│   ├── models/                  # Database models and repositories
+│   └── middleware/              # Custom middleware (optional)
 ├── views/
-│   ├── layouts/                 # Base HTML templates
-│   ├── pages/                   # Individual page templates
-│   └── components/              # Reusable UI components
-├── assets/
-│   ├── css/                     # Stylesheets (TailwindCSS/DaisyUI)
-│   ├── js/                      # JavaScript files
-│   └── images/                  # Static images
-└── deployments/
-    ├── Dockerfile               # Container configuration
-    └── docker-compose.yml       # Multi-service setup
+│   ├── *.html                   # Page templates
+│   └── components/              # Reusable UI components (optional)
+├── assets/                      # Static files (optional)
+│   ├── css/
+│   ├── js/
+│   └── images/
+├── deployments/                 # Infrastructure (optional)
+│   ├── Dockerfile
+│   └── docker-compose.yml
+├── scripts/                     # Build and deployment scripts (optional)
+├── docs/                        # Project documentation (optional)
+├── go.mod
+├── go.sum
+├── README.md
+└── INSTRUCT.md                  # Copy from TheSkyscape DevTools
 ```
 
-## 💡 Use Cases
+See the [`example/`](./example/) directory in this repository for a complete working application.
+
+## 💡 What You Can Build
 
 ### 🏗️ **Infrastructure Management Platforms**
-Build applications like **Terraform Cloud** or **AWS Console** that manage cloud resources across multiple providers.
+Applications like **Terraform Cloud** or **AWS Console** that manage cloud resources across multiple providers.
 
 ### 👨‍💻 **Development Environment Platforms**  
-Create services like **Replit**, **CodeSandbox**, or **Gitpod** with containerized development environments.
+Services like **Replit**, **CodeSandbox**, or **Gitpod** with containerized development environments.
 
 ### 🏢 **Multi-Tenant SaaS Applications**
-Develop platforms where each tenant gets isolated containers, databases, and cloud resources.
+Platforms where each tenant gets isolated containers, databases, and cloud resources.
 
 ### 📊 **DevOps & Monitoring Dashboards**
-Build comprehensive dashboards that deploy, monitor, and manage containerized applications.
+Comprehensive dashboards that deploy, monitor, and manage containerized applications.
 
 ### 🔧 **Internal Developer Tools**
-Create custom tooling for your team's deployment pipelines and development workflows.
+Custom tooling for your team's deployment pipelines and development workflows.
 
-## 🎯 Examples
+### 🌐 **Cloud-Native Web Applications**
+Any web application that needs authentication, database management, and cloud deployment capabilities.
+
+## 🎯 Implementation Examples
 
 ### Multi-Tenant Development Platform
 
 ```go
-func createTenant(tenantID string) *application.App {
+type TenantController struct {
+    application.BaseController
+    workspaces *database.Repository[*coding.Workspace]
+}
+
+func (c *TenantController) Setup(app *application.App) {
+    c.BaseController.Setup(app)
+    http.Handle("GET /workspace", app.Serve("workspace.html", c.authCheck))
+    http.Handle("POST /workspace/create", app.ProtectFunc(c.createWorkspace, false))
+}
+
+func (c TenantController) Handle(r *http.Request) application.Controller {
+    c.Request = r
+    return &c
+}
+
+func (c *TenantController) AllWorkspaces() ([]*coding.Workspace, error) {
+    return c.workspaces.Search("")
+}
+
+func createTenant(tenantID string) {
     // Isolated database per tenant
     db := local.Database(fmt.Sprintf("tenant_%s.db", tenantID))
-    auth := authentication.Manage(db).Controller()
+    auth := authentication.Manage(db)
     coding := coding.Manage(db)
     
-    return application.New(tenantViews,
-        application.WithController("auth", auth),
-        application.WithController("coding", coding),
+    authController := auth.Controller(
+        authentication.WithCookie(fmt.Sprintf("tenant-%s", tenantID)),
+    )
+    
+    application.Serve(tenantViews,
+        application.WithController("auth", authController),
+        application.WithController("workspaces", &TenantController{workspaces: coding.Workspaces}),
         application.WithHostPrefix(fmt.Sprintf("/tenant/%s", tenantID)),
     )
 }
@@ -279,6 +457,44 @@ TheSkyscape DevTools follows a **clean architecture** pattern with clear separat
 - **`Entity`** - Database model interface for ORM operations
 - **`Controller`** - Web application component interface
 
+### Template Integration
+
+Templates can access controller methods and built-in helpers:
+
+```html
+<html data-theme="{{theme}}">
+<head>
+    <title>My App</title>
+    <script src="https://unpkg.com/htmx.org"></script>
+    <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Authentication check -->
+    {{if auth.CurrentUser}}
+        <p>Welcome, {{auth.CurrentUser.Name}}!</p>
+        
+        <!-- Controller method calls -->
+        <ul>
+            {{range products.AllProducts}}
+            <li class="flex justify-between">
+                <span>{{.Name}}</span>
+                <span class="badge badge-primary">${{.Price}}</span>
+            </li>
+            {{end}}
+        </ul>
+        
+        <!-- HTMX form with auto-refresh -->
+        <form hx-post="{{host}}/products" hx-target="body">
+            <input name="name" class="input input-bordered" placeholder="Product name">
+            <button class="btn btn-primary">Add Product</button>
+        </form>
+    {{else}}
+        <a href="/signin" class="btn btn-outline">Sign In</a>
+    {{end}}
+</body>
+</html>
+```
+
 ## 🔒 Security
 
 TheSkyscape DevTools includes security best practices by default:
@@ -302,7 +518,7 @@ TheSkyscape DevTools includes security best practices by default:
 
 We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) for details.
 
-### Development Setup
+### Contributing to DevTools
 
 ```bash
 # Clone the repository
@@ -315,7 +531,10 @@ go mod download
 # Run tests
 go test ./...
 
-# Build examples
+# Run the example application
+go run ./example
+
+# Build command line tools
 go build ./cmd/create-app
 go build ./cmd/launch-app
 ```

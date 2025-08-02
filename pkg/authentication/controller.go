@@ -3,13 +3,14 @@ package authentication
 import (
 	"errors"
 	"net/http"
-	"github.com/The-Skyscape/devtools/pkg/application"
 	"time"
+
+	"github.com/The-Skyscape/devtools/pkg/application"
 )
 
-func (r *Repository) Controller(opts ...Option) *Controller {
+func (c *Collection) Controller(opts ...Option) *Controller {
 	auth := Controller{
-		Repository:   r,
+		Collection:   c,
 		cookieName:   "theskyscape",
 		setupView:    "signup.html",
 		signinView:   "signin.html",
@@ -25,7 +26,7 @@ func (r *Repository) Controller(opts ...Option) *Controller {
 
 type Controller struct {
 	application.BaseController
-	*Repository
+	*Collection
 
 	// Frontend state
 	cookieName string

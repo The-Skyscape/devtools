@@ -1,0 +1,35 @@
+<html data-theme="{{theme}}">
+
+<head>
+    {{template "includes"}}
+    <title>Example Ducks</title>
+</head>
+
+<body class="bg-base-200 min-h-screen">
+
+    <h1 class="text-2xl font-bold">
+        Get Your Ducks in Order
+    </h1>
+
+    <form action="POST" hx-post="{{host}}/" class="flex flex-col items-center justify-center w-full max-w-xs">
+        <input name="name" type="text" placeholder="Name" class="input input-bordered w-full max-w-xs">
+
+        <select name="breed" class="select select-bordered w-full max-w-xs">
+            <option value="mallard">Mallard</option>
+            <option value="redbone">Redbone</option>
+        </select>
+
+        <button type="submit" class="btn btn-primary">Spawn Duck</button>
+    </form>
+
+    <ul class="list">
+        {{range ducks.AllDucks}}
+        <li class="list-row">
+            <div class="badge badge-primary">{{.Name}}</div>
+            <div class="badge badge-secondary">{{.Breed}}</div>
+        </li>
+        {{end}}
+    </ul>
+</body>
+
+</html>

@@ -29,6 +29,14 @@ This is the **TheSkyscape DevTools** repository - a Go-based toolkit for cloud i
 - **`cmd/create-app/`** - Application creation utility (currently basic Hello World)
 - **`cmd/launch-app/`** - Application launcher utility (currently basic Hello World)
 
+### Example Application
+
+- **`example/`** - Complete working example showing proper usage patterns
+  - Uses embedded views with `//go:embed all:views`
+  - Demonstrates controller methods accessible in templates
+  - Shows HTMX integration with `c.Refresh(w, r)` 
+  - Proper MVC separation with models, controllers, and views
+
 ## Common Development Commands
 
 ### Building
@@ -54,6 +62,9 @@ go mod download
 ```bash
 go run ./cmd/create-app
 go run ./cmd/launch-app
+
+# Run the example application
+go run ./example
 ```
 
 ## Key Dependencies
@@ -76,9 +87,32 @@ go run ./cmd/launch-app
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` - AWS credentials
 - `GCP_PROJECT_ID`, `GCP_SERVICE_ACCOUNT_KEY`, `GCP_ZONE` - GCP credentials
 
+## Application Development Patterns
+
+### Controller Pattern (from example/)
+Controllers should embed `application.BaseController` and implement:
+- `Setup(app *application.App)` - Called at application startup to register routes
+- `Handle(r *http.Request) application.Controller` - Called per request, returns controller instance
+- Public methods accessible in templates (e.g., `AllDucks()` → `{{range ducks.AllDucks}}`)
+
+### Model Pattern
+Models should embed `application.Model` and implement:
+- `Table() string` method returning the database table name
+- Use `database.Manage(db, new(Model))` to get a typed repository
+
+### Application Startup Pattern
+Use `application.Serve(views, ...options)` for convenience, or `application.New()` + `app.Start()` for more control.
+
+### Template Integration
+- Controllers registered with `WithController("name", controller)` are accessible as `{{name.Method}}`
+- Built-in helpers: `{{theme}}`, `{{host}}`, `{{path}}`, `{{req}}`
+- HTMX integration: use `c.Refresh(w, r)` to trigger page refresh after form submission
+
 ## Integration Points
 
 - **Docker Runtime** - All container operations require Docker daemon
 - **SSH Keys** - Automatic SSH key generation for cloud server access (stored in `~/.ssh/`)
 - **File System** - Template views embedded at build time, external views loaded at runtime
 - **HTTP/HTTPS** - Dual-protocol web server with automatic SSL certificate detection
+- **HTMX** - Built-in support for dynamic updates with `BaseController.Refresh()`
+- **DaisyUI** - Theme integration through `WithDaisyTheme()` option

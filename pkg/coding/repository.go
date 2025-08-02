@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"path/filepath"
+
 	"github.com/The-Skyscape/devtools/pkg/authentication"
 	"github.com/The-Skyscape/devtools/pkg/database"
 
@@ -13,9 +14,9 @@ import (
 
 type Repository struct {
 	db     *database.DynamicDB
-	repos  *database.Repository[*GitRepo]
-	spaces *database.Repository[*Workspace]
-	tokens *database.Repository[*AccessToken]
+	repos  *database.Collection[*GitRepo]
+	spaces *database.Collection[*Workspace]
+	tokens *database.Collection[*AccessToken]
 }
 
 func Manage(db *database.DynamicDB) *Repository {

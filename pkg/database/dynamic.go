@@ -15,7 +15,7 @@ import (
 type DynamicDB struct {
 	Database
 	Ents  []Entity
-	Repos map[string]*Repository[Entity]
+	Repos map[string]*Collection[Entity]
 }
 
 type Entity interface {
@@ -24,7 +24,7 @@ type Entity interface {
 }
 
 func Dynamic(engine Database, opts ...DynamicDBOption) *DynamicDB {
-	db := DynamicDB{engine, []Entity{}, map[string]*Repository[Entity]{}}
+	db := DynamicDB{engine, []Entity{}, map[string]*Collection[Entity]{}}
 	for _, opt := range opts {
 		opt(&db)
 	}

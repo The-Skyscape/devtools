@@ -9,7 +9,7 @@ import (
 func (*User) Table() string { return "users" }
 
 type User struct {
-	*Repository
+	*Collection
 
 	database.Model
 	Avatar   string
