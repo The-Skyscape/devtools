@@ -45,7 +45,6 @@ export DIGITAL_OCEAN_API_KEY="your-token"
 - **`pkg/containers/`** - Docker container management with local and remote host abstractions
 - **`pkg/hosting/`** - Multi-cloud server deployment (DigitalOcean, AWS, GCP) with unified Platform interface
 - **`pkg/authentication/`** - User authentication, sessions, and JWT token management
-- **`pkg/coding/`** - Git repository management and workspace setup utilities
 - **`pkg/database/`** - Database abstraction layer supporting SQLite3 with dynamic queries
 
 ### Key Design Patterns
@@ -60,13 +59,21 @@ export DIGITAL_OCEAN_API_KEY="your-token"
 - **`cmd/create-app/`** - Application scaffolding tool with todo template generation
 - **`cmd/launch-app/`** - Cloud deployment tool with embedded resources for server setup
 
-### Example Application
+### Example Applications
 
-- **`example/`** - Complete working example showing proper usage patterns
+- **`example/`** - Simple todo application showing basic usage patterns
   - Uses embedded views with `//go:embed all:views`
   - Demonstrates controller methods accessible in templates
   - Shows HTMX integration with `c.Refresh(w, r)` 
   - Proper MVC separation with models, controllers, and views
+
+- **`workspace/`** - Production-ready GitHub-like developer platform
+  - Complete repository management with file browsing and search
+  - Containerized VS Code workspaces with Docker integration
+  - Issues and pull request management with full CRUD operations
+  - Mobile-responsive design with DaisyUI components
+  - Advanced permission system with role-based access control
+  - **Note**: Uses internal `coding` package (moved from `pkg/coding/`)
 
 ## Common Development Commands
 
@@ -111,7 +118,6 @@ go run ./example
 - **Cloud SDKs**: DigitalOcean (`godo`), AWS support planned
 - **Database**: SQLite3 driver (`mattn/go-sqlite3`) 
 - **Security**: JWT tokens (`golang-jwt/jwt`), bcrypt (`golang.org/x/crypto`)
-- **Git**: Repository management (`sosedoff/gitkit`)
 - **Migration**: Database migrations (`golang-migrate/migrate`)
 
 ## Environment Variables
