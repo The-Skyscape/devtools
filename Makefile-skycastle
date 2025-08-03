@@ -1,0 +1,73 @@
+## MIT License - Copyright (c) 2025 SkyCastle
+
+#############################################################################
+###                                                                       ###
+###    SkyCastle Automated Makefile                                       ###
+###      Relax and enjoy the view                                         ###
+###                                                                       ###
+###                             |>>>                                      ###
+###                             |                                         ###
+###               |>>>      _  _|_  _         |>>>                        ###
+###               |        |;| |;| |;|        |                           ###
+###           _  _|_  _    \\.    .  /    _  _|_  _                       ###
+###          |;|_|;|_|;|    \\:. ,  /    |;|_|;|_|;|                      ###
+###          \\..      /    ||;   . |    \\.    .  /                      ###
+###           \\.  ,  /     ||:  .  |     \\:  .  /                       ###
+###            ||:   |_   _ ||_ . _ | _   _||:   |                        ###
+###            ||:  .|||_|;|_|;|_|;|_|;|_|;||:.  |                        ###
+###            ||:   ||.    .     .      . ||:  .|	                      ###
+###            ||: . || .     . .   .  ,   ||:   |       \,/              ###
+###            ||:   ||:  ,  _______   .   ||: , |            /`\         ###
+###            ||:   || .   /+++++++\    . ||:   |                        ###
+###            ||:   ||.    |+++++++| .    ||: . |                        ###
+###         __ ||: . ||: ,  |+++++++|.  . _||_   |                        ###
+###   _--`~'   '--~~__|.    |+++++__|----'     `---,              ___     ###
+###--'                '---__|,--~'                  `~~--,_____-~'   `~---###
+#############################################################################
+
+WEBSITES := $(shell find ./websites -mindepth 1 -maxdepth 1 -type d -exec basename {} \;)
+
+.PHONY: all clean install
+
+all: build/skyrun build/skynet build/skyapp build/skyctl $(addprefix build/website/,$(WEBSITES)) 
+
+clean:
+	rm -rf build
+
+artifacts:
+	@mkdir -p ./build
+	@mkdir -p ./build/website
+	@touch ./build/skyapp
+	@touch ./build/skynet
+	@touch ./build/skyrun
+	@touch ./build/skyctl
+	@touch ./build/website/questboard
+	@touch ./build/website/armory
+	@touch ./build/website/round-table
+	@touch ./build/website/forum
+	@touch ./build/website/homepage
+	@touch ./build/website/mailpost
+
+install: artifacts
+	go install ./cmd/skyapp
+	go install ./cmd/skynet
+	go install ./cmd/skyctl
+
+build/skyapp: artifacts
+	go build -o $@ ./cmd/skyapp
+
+build/skynet: artifacts
+	@mkdir -p ./build
+	@touch ./build/skynet
+	go build -o $@ ./cmd/skynet
+
+build/skyrun: artifacts
+	@mkdir -p ./build
+	@touch ./build/skyrun
+	go build -o $@ ./cmd/skyrun
+
+build/skyctl: build/skynet
+	go build -o $@ ./cmd/skyctl
+ 
+build/website/%: artifacts
+	go build -o $@ ./websites/$*

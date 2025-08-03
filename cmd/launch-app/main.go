@@ -230,10 +230,6 @@ func saveServerConfig(config *ServerConfig) error {
 	return os.WriteFile(configPath, data, 0644)
 }
 
-func init() {
-	// Initialize any required setup here if needed
-}
-
 func main() {
 	if err := runLaunch(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
