@@ -1,270 +1,241 @@
 package main
 
 import (
+	_ "embed"
+	"encoding/json"
+	"flag"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
-	"github.com/spf13/cobra"
+	"github.com/The-Skyscape/devtools/pkg/containers"
 	"github.com/The-Skyscape/devtools/pkg/hosting"
 	"github.com/The-Skyscape/devtools/pkg/hosting/platforms/digitalocean"
+	"github.com/pkg/errors"
 )
+
+type ServerConfig struct {
+	ID        string
+	Name      string
+	IP        string
+	Size      string
+	Region    string
+	Provider  string
+	Domain    string
+	Binary    string
+	CreatedAt time.Time
+}
+
+const LAUNCH_USAGE = `
+TheSkyscape DevTools Launch Command Usage:
+
+  $ launch-app [options]
+
+Options:
+
+`
 
 var (
-	provider     string
-	region       string
-	size         string
-	domain       string
-	buildCmd     string
-	setupScript  string
-	verbose      bool
+	//go:embed resources/Dockerfile
+	dockerfile []byte
+
+	//go:embed resources/generate-certs.sh
+	generateCerts string
+
+	//go:embed resources/setup-server.sh
+	setupServer string
 )
 
-var rootCmd = &cobra.Command{
-	Use:   "launch-app [project-directory]",
-	Short: "Deploy your TheSkyscape DevTools application to the cloud",
-	Long: `Deploy your TheSkyscape DevTools application to cloud providers like DigitalOcean, AWS, or GCP.
+func runLaunch() error {
+	var (
+		provider = flag.String("provider", "digitalocean", "Cloud provider (digitalocean)")
+		region   = flag.String("region", "sfo3", "Server region")
+		size     = flag.String("size", "s-2vcpu-2gb", "Server size")
+		domain   = flag.String("domain", "", "Domain name for SSL (optional)")
+		name     = flag.String("name", "skyscape-app", "Server name")
+		binary   = flag.String("binary", "", "Path to application binary")
+	)
 
-This tool builds your application, creates a cloud server, uploads your app, 
-and configures everything needed for production deployment.
+	flag.Usage = func() {
+		fmt.Print(LAUNCH_USAGE)
+		flag.PrintDefaults()
+	}
 
-Supported providers:
-  digitalocean - DigitalOcean Droplets (default)
-  aws         - AWS EC2 (coming soon)
-  gcp         - Google Cloud Compute (coming soon)
+	flag.Parse()
 
-Examples:
-  launch-app .                                    # Deploy current directory to DigitalOcean
-  launch-app my-project --domain=myapp.com        # Deploy with custom domain
-  launch-app . --provider=digitalocean --size=s-2vcpu-4gb --region=nyc1`,
-	Args: cobra.MaximumNArgs(1),
-	Run:  launchApp,
-}
-
-func init() {
-	rootCmd.Flags().StringVarP(&provider, "provider", "p", "digitalocean", "Cloud provider (digitalocean, aws, gcp)")
-	rootCmd.Flags().StringVarP(&region, "region", "r", "nyc1", "Deployment region")
-	rootCmd.Flags().StringVarP(&size, "size", "s", "s-2vcpu-4gb", "Server size")
-	rootCmd.Flags().StringVarP(&domain, "domain", "d", "", "Custom domain to configure")
-	rootCmd.Flags().StringVar(&buildCmd, "build-cmd", "go build -o app .", "Command to build the application")
-	rootCmd.Flags().StringVar(&setupScript, "setup-script", "", "Custom setup script to run on server")
-	rootCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
-}
-
-func launchApp(cmd *cobra.Command, args []string) {
-	// Determine project directory
-	projectDir := "."
-	if len(args) > 0 {
-		projectDir = args[0]
-	}
-	
-	absPath, err := filepath.Abs(projectDir)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error resolving project path: %v\n", err)
-		os.Exit(1)
-	}
-	
-	projectName := filepath.Base(absPath)
-	
-	logStep("🚀 Deploying %s to %s", projectName, provider)
-	
-	// Validate project directory
-	if err := validateProject(absPath); err != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		os.Exit(1)
-	}
-	
-	// Build application
-	logStep("📦 Building application...")
-	if err := buildApplication(absPath); err != nil {
-		fmt.Fprintf(os.Stderr, "Build failed: %v\n", err)
-		os.Exit(1)
-	}
-	
-	// Deploy based on provider
-	switch provider {
-	case "digitalocean":
-		if err := deployToDigitalOcean(absPath, projectName); err != nil {
-			fmt.Fprintf(os.Stderr, "Deployment failed: %v\n", err)
-			os.Exit(1)
-		}
-	case "aws":
-		fmt.Fprintf(os.Stderr, "AWS deployment coming soon!\n")
-		os.Exit(1)
-	case "gcp":
-		fmt.Fprintf(os.Stderr, "GCP deployment coming soon!\n")
-		os.Exit(1)
-	default:
-		fmt.Fprintf(os.Stderr, "Unsupported provider: %s\n", provider)
-		os.Exit(1)
-	}
-}
-
-func validateProject(projectDir string) error {
-	// Check if it's a Go project
-	if _, err := os.Stat(filepath.Join(projectDir, "go.mod")); os.IsNotExist(err) {
-		return fmt.Errorf("not a Go project (no go.mod found)")
-	}
-	
-	// Check for main.go
-	if _, err := os.Stat(filepath.Join(projectDir, "main.go")); os.IsNotExist(err) {
-		return fmt.Errorf("no main.go found")
-	}
-	
-	return nil
-}
-
-func buildApplication(projectDir string) error {
-	// Change to project directory
-	originalDir, _ := os.Getwd()
-	defer os.Chdir(originalDir)
-	
-	if err := os.Chdir(projectDir); err != nil {
-		return err
-	}
-	
-	// Run build command
-	parts := strings.Fields(buildCmd)
-	cmd := exec.Command(parts[0], parts[1:]...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-	
-	if verbose {
-		logStep("Running: %s", buildCmd)
-	}
-	
-	return cmd.Run()
-}
-
-func deployToDigitalOcean(projectDir, projectName string) error {
 	// Check for API key
-	apiKey := os.Getenv("DIGITAL_OCEAN_API_KEY")
+	apiKey := digitalocean.ApiKey
 	if apiKey == "" {
-		return fmt.Errorf("DIGITAL_OCEAN_API_KEY environment variable is required")
+		return errors.New("DIGITAL_OCEAN_API_KEY environment variable is required")
 	}
-	
-	logStep("☁️  Creating DigitalOcean droplet...")
-	
-	// Connect to DigitalOcean
-	client := digitalocean.Connect(apiKey)
-	
-	// Create server configuration
-	server := &digitalocean.Server{
-		Name:   fmt.Sprintf("%s-prod", projectName),
-		Size:   size,
-		Region: region,
-		Image:  "docker-20-04",
+
+	// Check if server already exists
+	if _, err := os.Open(filepath.Join("servers", *name+".json")); err == nil {
+		config, err := loadServerConfig(*name)
+		if err != nil {
+			return errors.Wrap(err, "failed to load existing server")
+		}
+		fmt.Printf("Server already launched: http://%s\n", config.IP)
+		return nil
 	}
-	
-	// Prepare deployment options
-	var opts []hosting.LaunchOption
-	
-	// Upload application binary
-	appPath := filepath.Join(projectDir, "app")
-	opts = append(opts, hosting.WithFileUpload(appPath, "/usr/local/bin/app"))
-	
-	// Upload views directory if it exists
-	viewsPath := filepath.Join(projectDir, "views")
-	if _, err := os.Stat(viewsPath); err == nil {
-		opts = append(opts, hosting.WithFileUpload(viewsPath, "/root/views"))
-		logStep("🎨 Uploading views directory")
-	}
-	
-	// Create systemd service and setup script
-	setupScript := generateSetupScript(projectName)
-	opts = append(opts, hosting.WithBinaryData("/root/setup.sh", []byte(setupScript)))
-	opts = append(opts, hosting.WithSetupScript("bash", "/root/setup.sh"))
-	
-	// Launch server
-	deployedServer, err := client.Launch(server, opts...)
+
+	// Connect to DigitalOcean and launch server
+	fmt.Printf("☁️  Creating DigitalOcean droplet...\n")
+	deployedServer, err := digitalocean.Connect(apiKey).Launch(
+		&digitalocean.Server{
+			Name:   *name,
+			Size:   *size,
+			Region: *region,
+			Image:  "docker-20-04",
+			Status: "new",
+		},
+		hosting.WithBinaryData("/root/Dockerfile", dockerfile),
+		hosting.WithFileUpload(*binary, "/root/app"),
+		hosting.WithSetupScript(setupServer),
+	)
+
 	if err != nil {
-		return fmt.Errorf("failed to launch server: %v", err)
+		return errors.Wrap(err, "failed to launch server")
 	}
-	
-	logStep("✅ Server created successfully!")
-	logStep("📍 Server ID: %s", deployedServer.GetID())
-	logStep("🌍 IP Address: %s", deployedServer.GetIP())
-	
+
+	// Save server config
+	config := &ServerConfig{
+		ID:        deployedServer.GetID(),
+		IP:        deployedServer.GetIP(),
+		Name:      *name,
+		Size:      *size,
+		Region:    *region,
+		Provider:  *provider,
+		Domain:    *domain,
+		Binary:    *binary,
+		CreatedAt: time.Now(),
+	}
+
+	if err := saveServerConfig(config); err != nil {
+		return errors.Wrap(err, "failed to save server config")
+	}
+
+	fmt.Printf("✅ Server created successfully!\n")
+	fmt.Printf("📍 Server ID: %s\n", deployedServer.GetID())
+	fmt.Printf("🌍 IP Address: %s\n", deployedServer.GetIP())
+
+	// Build and deploy container
+	fmt.Printf("🐳 Building Docker image...\n")
+	host := containers.Remote(deployedServer)
+	if err := host.BuildImage("skyscape:latest", "."); err != nil {
+		return errors.Wrap(err, "failed to build Docker image")
+	}
+
+	// Create and launch service
+	service := &containers.Service{
+		Privileged: true,
+		Name:       "sky-app",
+		Image:      "skyscape:latest",
+		Entrypoint: "/app",
+		Network:    "host",
+		Mounts: map[string]string{
+			"/root/.skyscape":      "/root/.skyscape",
+			"/var/run/docker.sock": "/var/run/docker.sock",
+		},
+		Copied: map[string]string{
+			"/root/app":           "/app",
+			"/root/fullchain.pem": "/root/fullchain.pem",
+			"/root/privkey.pem":   "/root/privkey.pem",
+		},
+		Env: map[string]string{
+			"PORT":  "80",
+			"THEME": "corporate",
+		},
+	}
+
+	fmt.Printf("🚀 Launching application container...\n")
+	if err := host.Launch(service); err != nil {
+		return errors.Wrap(err, "failed to launch container")
+	}
+
 	// Configure domain if provided
-	if domain != "" {
-		logStep("🌐 Configuring domain: %s", domain)
-		if err := deployedServer.Alias("", domain); err != nil {
-			logStep("⚠️  Domain configuration failed: %v", err)
+	if parts := strings.SplitN(*domain, ".", 2); len(parts) == 2 {
+		sub, root := parts[0], parts[1]
+		fmt.Printf("🌐 Configuring domain: %s.%s\n", sub, root)
+		if err := deployedServer.Alias(sub, root); err != nil {
+			fmt.Printf("⚠️  Domain configuration failed: %v\n", err)
 		} else {
-			logStep("✅ Domain configured successfully!")
+			fmt.Printf("✅ Domain configured successfully!\n")
+
+			// Generate SSL certificates
+			fmt.Printf("🔒 Generating SSL certificates...\n")
+			certScript := fmt.Sprintf(generateCerts, *domain, "admin@"+*domain, apiKey)
+			if _, _, err := deployedServer.Exec(certScript); err != nil {
+				fmt.Printf("⚠️  SSL certificate generation failed: %v\n", err)
+			} else {
+				fmt.Printf("✅ SSL certificates generated!\n")
+				if err = service.Stop(); err != nil {
+					fmt.Printf("⚠️  Server stop failed: %v\n", err)
+				} else if err = service.Start(); err != nil {
+					fmt.Printf("⚠️  Server restart failed: %v\n", err)
+				}
+			}
+
+			config.Domain = *domain
+			saveServerConfig(config)
 		}
 	}
-	
-	// Final instructions
+
+	// Final output
 	fmt.Printf("\n🎉 Deployment complete!\n\n")
 	fmt.Printf("Your application is now running at:\n")
-	fmt.Printf("  🔗 http://%s:5000\n", deployedServer.GetIP())
-	if domain != "" {
-		fmt.Printf("  🔗 https://%s\n", domain)
+	fmt.Printf("  🔗 http://%s\n", deployedServer.GetIP())
+	if *domain != "" {
+		fmt.Printf("  🔗 https://%s\n", *domain)
 	}
 	fmt.Printf("\n📋 Server Details:\n")
 	fmt.Printf("  ID: %s\n", deployedServer.GetID())
 	fmt.Printf("  IP: %s\n", deployedServer.GetIP())
-	fmt.Printf("  Size: %s\n", size)
-	fmt.Printf("  Region: %s\n", region)
+	fmt.Printf("  Size: %s\n", *size)
+	fmt.Printf("  Region: %s\n", *region)
 	fmt.Printf("\n📝 To connect via SSH:\n")
 	fmt.Printf("  ssh root@%s\n", deployedServer.GetIP())
-	
+
 	return nil
 }
 
-func generateSetupScript(projectName string) string {
-	return fmt.Sprintf(`#!/bin/bash
-set -e
+func loadServerConfig(serverName string) (*ServerConfig, error) {
+	configPath := filepath.Join("servers", serverName+".json")
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return nil, err
+	}
 
-echo "🚀 Setting up %s..."
+	var config ServerConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return nil, err
+	}
 
-# Make app executable
-chmod +x /usr/local/bin/app
-
-# Create systemd service
-cat > /etc/systemd/system/%s.service << EOF
-[Unit]
-Description=%s Application
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/root
-ExecStart=/usr/local/bin/app
-EnvironmentFile=-/root/.env
-Restart=always
-RestartSec=10
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-# Reload systemd and start service
-systemctl daemon-reload
-systemctl enable %s
-systemctl start %s
-
-# Configure firewall
-ufw allow ssh
-ufw allow 5000/tcp
-ufw allow 80/tcp
-ufw allow 443/tcp
-ufw --force enable
-
-echo "✅ Setup complete! %s is running on port 5000"
-`, projectName, projectName, projectName, projectName, projectName, projectName)
+	return &config, nil
 }
 
-func logStep(format string, args ...interface{}) {
-	fmt.Printf(format+"\n", args...)
+func saveServerConfig(config *ServerConfig) error {
+	if err := os.MkdirAll("servers", 0755); err != nil {
+		return err
+	}
+
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	configPath := filepath.Join("servers", config.Name+".json")
+	return os.WriteFile(configPath, data, 0644)
+}
+
+func init() {
+	// Initialize any required setup here if needed
 }
 
 func main() {
-	if err := rootCmd.Execute(); err != nil {
+	if err := runLaunch(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
