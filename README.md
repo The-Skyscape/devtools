@@ -1,21 +1,92 @@
 # TheSkyscape DevTools
 
-[![Go Version](https://img.shields.io/badge/Go-1.24+-00ADD8?style=flat&logo=go)](https://golang.org/)
+[![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://golang.org/)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Docker](https://img.shields.io/badge/Docker-Required-2496ED?style=flat&logo=docker)](https://docker.com/)
+[![Release](https://img.shields.io/github/v/release/The-Skyscape/devtools)](https://github.com/The-Skyscape/devtools/releases)
 
 **A unified Go toolkit for building cloud-native applications with built-in authentication, database management, container orchestration, and multi-cloud deployment.**
 
 Perfect for building infrastructure management platforms, development environments, SaaS applications, and internal tools.
 
+## 🛠️ CLI Tools
+
+TheSkyscape DevTools provides two main CLI tools for rapid development:
+
+### create-app
+Scaffold new TheSkyscape applications with proper MVC structure:
+
+```bash
+# Download from releases or build locally
+make build
+
+# Create a new application
+./build/create-app my-app
+cd my-app
+go run .
+```
+
+**Generated structure:**
+```
+my-app/
+├── controllers/
+│   ├── home.go       # Home page controller
+│   └── todos.go      # Todo management controller
+├── models/
+│   ├── database.go   # Database setup and globals
+│   └── todo.go       # Todo model with Table() method
+├── views/
+│   ├── home.html     # Home page template
+│   ├── todos.html    # Todo list template
+│   ├── layout.html   # Base layout
+│   └── partials/     # Reusable components
+├── main.go           # Application entry point
+└── go.mod
+```
+
+### launch-app
+Deploy applications to DigitalOcean with automated setup:
+
+```bash
+# Build your app first
+go build -o app
+
+# Deploy to cloud
+export DIGITAL_OCEAN_API_KEY="your-token"
+./build/launch-app --name my-server --domain app.example.com --binary ./app
+```
+
+**Features:**
+- Automated DigitalOcean droplet creation
+- Docker containerization with proper networking
+- SSL certificate generation via Let's Encrypt
+- Server configuration persistence in `servers/` directory
+- Custom binary deployment with embedded Dockerfile
+
 ## 🚀 Quick Start
 
+### Option 1: Use CLI Tools (Recommended)
+```bash
+# Download from GitHub releases
+curl -L https://github.com/The-Skyscape/devtools/releases/latest/download/skyscape-devtools-linux-amd64.tar.gz | tar xz
+
+# Or build from source
+git clone https://github.com/The-Skyscape/devtools
+cd devtools
+make build
+
+# Create and run new app
+./build/create-app my-todo-app
+cd my-todo-app
+go run .
+```
+
+### Option 2: As Go Library
 ```bash
 go mod init your-app
 go get github.com/The-Skyscape/devtools
 ```
 
-## 📦 Core Features
+## 📦 Core Framework Features
 
 - **🌐 Web Framework** - MVC with embedded templates, HTMX, and DaisyUI
 - **🔐 Authentication** - JWT sessions, bcrypt hashing, role-based access
@@ -24,21 +95,9 @@ go get github.com/The-Skyscape/devtools
 - **☁️ Cloud Deployment** - DigitalOcean, AWS, GCP with SSH key management
 - **💻 Dev Workspaces** - Containerized code-server environments with Git
 
-## 🏗️ Basic Application Structure
-
-```
-your-app/
-├── controllers/     # HTTP handlers
-├── models/          # Database models  
-├── views/           # HTML templates
-├── main.go          # Application entry
-└── go.mod
-```
-
-## ⚡ Copy-Paste Patterns
+## 🏗️ Application Architecture
 
 ### Database & Models
-
 ```go
 // models/database.go
 package models
@@ -50,25 +109,24 @@ import (
 )
 
 var (
-    DB    = local.Database("app.db")
-    Auth  = authentication.Manage(DB)
-    Tasks = database.Manage(DB, new(Task))
+    DB   = local.Database("app.db")
+    Auth = authentication.Manage(DB)
+    Todos = database.Manage(DB, new(Todo))
 )
 
-// models/task.go
-type Task struct {
+// models/todo.go
+type Todo struct {
     application.Model
     Title     string
     Completed bool
 }
 
-func (*Task) Table() string { return "tasks" }
+func (*Todo) Table() string { return "todos" }
 ```
 
 ### Controllers
-
 ```go
-// controllers/tasks.go
+// controllers/todos.go
 package controllers
 
 import (
@@ -77,100 +135,116 @@ import (
     "github.com/The-Skyscape/devtools/pkg/application"
 )
 
-func Tasks() (string, *TaskController) {
-    return "tasks", &TaskController{}
+func Todos() (string, *TodosController) {
+    return "todos", &TodosController{}
 }
 
-type TaskController struct {
+type TodosController struct {
     application.BaseController
 }
 
-func (c *TaskController) Setup(app *application.App) {
+func (c *TodosController) Setup(app *application.App) {
     c.BaseController.Setup(app)
-    http.Handle("GET /", app.Serve("tasks.html", nil))
-    http.Handle("POST /tasks", app.ProtectFunc(c.createTask, nil))
+    app.Serve("GET /", "todos.html", models.Auth.Required)
+    app.ProtectFunc("POST /todos", c.createTodo, models.Auth.Required)
 }
 
-func (c TaskController) Handle(r *http.Request) application.Controller {
+func (c *TodosController) Handle(r *http.Request) application.Controller {
     c.Request = r
-    return &c
+    return c
 }
 
-// Template method: {{range tasks.AllTasks}}
-func (c *TaskController) AllTasks() ([]*models.Task, error) {
-    return models.Tasks.Search("")
+// Template method: {{range todos.AllTodos}}
+func (c *TodosController) AllTodos() ([]*models.Todo, error) {
+    return models.Todos.Search("")
 }
 
-func (c *TaskController) createTask(w http.ResponseWriter, r *http.Request) {
-    task := &models.Task{Title: r.FormValue("title")}
-    models.Tasks.Insert(task)
-    c.Refresh(w, r) // HTMX refresh
+func (c *TodosController) createTodo(w http.ResponseWriter, r *http.Request) {
+    todo := &models.Todo{Title: r.FormValue("title")}
+    if err := models.Todos.Insert(todo); err != nil {
+        c.Render(w, r, "error-message.html", err)
+        return
+    }
+    c.Refresh(w, r)
 }
 ```
 
 ### Main Application
-
 ```go
 // main.go
 package main
 
 import (
     "embed"
+    "os"
     "your-app/controllers" 
     "your-app/models"
     "github.com/The-Skyscape/devtools/pkg/application"
+    "cmp"
 )
 
 //go:embed all:views
 var views embed.FS
 
 func main() {
-    auth := models.Auth.Controller()
+    port := cmp.Or(os.Getenv("PORT"), "5000")
     
     application.Serve(views,
-        application.WithController("auth", auth),
-        application.WithController(controllers.Tasks()),
+        application.WithController("auth", models.Auth.Controller()),
+        application.WithController(controllers.Home()),
+        application.WithController(controllers.Todos()),
         application.WithDaisyTheme("corporate"),
+        application.WithPort(port),
     )
 }
 ```
 
 ### Templates with HTMX
-
 ```html
-<!-- views/tasks.html -->
+<!-- views/todos.html -->
+{{define "layout/start"}}
 <html data-theme="{{theme}}">
 <head>
     <script src="https://unpkg.com/htmx.org"></script>
     <link href="https://cdn.jsdelivr.net/npm/daisyui@3.9.4/dist/full.css" rel="stylesheet">
+    <title>Todos</title>
 </head>
-<body>
-    <form hx-post="/tasks" class="mb-4">
-        <input name="title" class="input input-bordered" placeholder="New task">
+<body class="p-4">
+{{end}}
+
+<h1 class="text-2xl font-bold mb-4">Todo List</h1>
+
+<form hx-post="/todos" class="mb-4">
+    <div class="flex gap-2">
+        <input name="title" class="input input-bordered flex-1" placeholder="New todo" required>
         <button class="btn btn-primary">Add</button>
-    </form>
-    
-    <ul>
-        {{range tasks.AllTasks}}
-        <li class="flex items-center gap-2">
-            <input type="checkbox" {{if .Completed}}checked{{end}}>
-            <span>{{.Title}}</span>
-        </li>
-        {{end}}
-    </ul>
+    </div>
+</form>
+
+<div class="space-y-2">
+    {{range todos.AllTodos}}
+        {{template "partials/todos-item.html" .}}
+    {{end}}
+</div>
+
+{{define "layout/end"}}
 </body>
 </html>
+{{end}}
 ```
 
-## 🔧 Environment Setup
+## 🔧 Environment Variables
 
 ```bash
-export AUTH_SECRET="your-jwt-secret"
+# Application
+export PORT="5000"                    # Server port
 export THEME="corporate"              # DaisyUI theme
-export PORT="8080"                    # Default: 5000
 
-# Optional: Cloud credentials
-export DIGITAL_OCEAN_API_KEY="token"
+# Security  
+export AUTH_SECRET="your-jwt-secret"  # Required for authentication
+
+# Cloud deployment
+export DIGITAL_OCEAN_API_KEY="token" # For launch-app deployments
 ```
 
 ## 🐳 Container Management
@@ -196,24 +270,29 @@ client := digitalocean.Connect(os.Getenv("DIGITAL_OCEAN_API_KEY"))
 server := &digitalocean.Server{
     Name: "app-server", Size: "s-1vcpu-1gb", Region: "nyc1", Image: "docker-20-04",
 }
-client.Launch(server, hosting.WithFileUpload("./app", "/usr/local/bin/app"))
+client.Launch(server, hosting.WithFileUpload("./app", "/root/app"))
 ```
 
-## 💻 Development Workspaces
+## 🔨 Development
 
-```go
-import "github.com/The-Skyscape/devtools/pkg/coding"
+```bash
+# Build CLI tools
+make build
 
-repo := coding.Manage(db)
-workspace, _ := repo.NewWorkspace("user-123", 8080, gitRepo)
-workspace.Start(user) // Launches code-server container
+# Install to system PATH
+make install
+
+# Clean build artifacts
+make clean
+
+# Run tests
+go test ./...
 ```
 
 ## 📚 Documentation
 
 - **[Tutorial: Todo App](docs/tutorial.md)** - Complete walkthrough
-- **[API Reference](docs/api.md)** - Package documentation
-- **[Examples](docs/examples/)** - Real-world usage patterns
+- **[API Reference](docs/api.md)** - Package documentation  
 - **[Deployment Guide](docs/deployment.md)** - Production setup
 
 ## 🤝 Contributing

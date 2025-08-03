@@ -5,22 +5,22 @@ All notable changes to TheSkyscape DevTools will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0] - 2025-01-03
 
 ### Added
-- Initial project setup and architecture
-- Core package structure with unified interfaces
-- Comprehensive documentation and examples
 
-## [1.0.0] - 2025-01-XX
+- **CLI Tools**
+  - `create-app` - Application scaffolding tool that generates complete todo applications
+  - `launch-app` - Cloud deployment tool for DigitalOcean with automated SSL setup
+  - Build system with Makefile and GitHub Actions for cross-platform releases
 
-### Added
 - **Web Application Framework** (`pkg/application/`)
   - MVC architecture with embedded template engine
-  - HTMX integration for dynamic updates
-  - DaisyUI theme support
+  - HTMX integration for dynamic updates without JavaScript
+  - DaisyUI theme support with corporate default
   - Built-in SSL/TLS support with automatic certificate detection
-  - Template helpers and functions
+  - Template helpers and functions (`{{theme}}`, `{{host}}`, etc.)
+  - Controller factory pattern with Setup() and Handle() methods
 
 - **Authentication & Authorization** (`pkg/authentication/`)
   - JWT-based session management with secure defaults
@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Role-based access control (admin/user roles)
   - Cookie-based authentication with CSRF protection
   - Flexible middleware for protecting routes
+  - Built-in signin/signup/signout templates
 
 - **Database & ORM** (`pkg/database/`)
   - Dynamic ORM built on SQLite3 with WAL mode
@@ -35,20 +36,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Type-safe repository pattern with Go generics
   - Built-in migration support via golang-migrate
   - Connection pooling and concurrent access
+  - Global database and repository management
 
 - **Container Management** (`pkg/containers/`)
   - Unified Docker abstraction for local and remote hosts
   - Service lifecycle management (create, start, stop, remove)
   - Port mapping, volume mounting, and environment configuration
   - Built-in reverse proxy for container services
-  - Image building capabilities
+  - Image building capabilities with Dockerfile support
 
 - **Multi-Cloud Deployment** (`pkg/hosting/`)
   - Platform abstraction for multiple cloud providers
   - DigitalOcean implementation with droplet management and DNS
   - Automatic SSH key generation and secure server access
   - Launch options for post-deployment configuration
-  - Server lifecycle management
+  - Server lifecycle management with JSON persistence
 
 - **Development Workspaces** (`pkg/coding/`)
   - Containerized code-server environments with Git integration
@@ -56,31 +58,61 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Per-user workspace isolation with port management
   - Automatic workspace setup and configuration
 
-- **Command Line Tools**
-  - `create-app` - Application scaffolding utility
-  - `launch-app` - Application deployment utility
+- **Application Templates**
+  - Complete todo application template with authentication
+  - HTMX-powered dynamic UI with DaisyUI styling
+  - Proper MVC separation with models, controllers, and views
+  - Database integration with todo CRUD operations
+  - Responsive design with mobile-first approach
+
+- **Build & Deployment System**
+  - Makefile with clean, elegant ASCII art design
+  - GitHub Actions for automated testing and releases
+  - Cross-platform builds (Linux, macOS, Windows)
+  - Automatic release creation on version tags
+  - Artifact uploads with 30-day retention
 
 - **Documentation**
-  - Comprehensive README with quick start guide
+  - Comprehensive README with CLI tool usage
   - Complete tutorial building a todo application
   - API reference documentation
   - Contributing guidelines and development setup
   - Example application demonstrating all features
 
-- **Security Features**
-  - Automatic SSH key management with proper permissions
-  - Secure session handling with HTTPOnly cookies and SameSite protection
-  - Environment isolation with separate data directories
-  - Built-in CSRF protection for forms
+### CLI Usage
 
-- **Performance Optimizations**
-  - Embedded assets and templates for fast startup
-  - SQLite3 WAL mode for high concurrency
-  - Template caching and pre-compilation
-  - Intelligent container lifecycle management
+**create-app**: Generate new applications
+```bash
+./build/create-app my-app
+cd my-app && go run .
+```
+
+**launch-app**: Deploy to DigitalOcean
+```bash
+export DIGITAL_OCEAN_API_KEY="your-token"
+./build/launch-app --name my-server --domain app.example.com --binary ./app
+```
+
+### Security Features
+
+- Automatic SSH key management with proper permissions
+- Secure session handling with HTTPOnly cookies and SameSite protection
+- Environment isolation with separate data directories
+- Built-in CSRF protection for forms
+- JWT signing with configurable secrets
+- SSL certificate automation via Let's Encrypt
+
+### Performance Optimizations
+
+- Embedded assets and templates for fast startup
+- SQLite3 WAL mode for high concurrency
+- Template caching and pre-compilation
+- Intelligent container lifecycle management
+- Build artifacts optimized for production deployment
 
 ### Dependencies
-- Go 1.24+ with generics support
+
+- Go 1.21+ with generics support
 - DigitalOcean SDK (`godo`) for cloud integration
 - JWT library (`golang-jwt/jwt`) for authentication
 - SQLite3 driver (`mattn/go-sqlite3`) for database
@@ -89,37 +121,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Crypto library (`golang.org/x/crypto`) for security
 
 ### Platforms Supported
+
 - **Container Hosts**: Local (Docker), Remote (SSH)
 - **Cloud Providers**: DigitalOcean (full implementation)
 - **Databases**: SQLite3 with dynamic schema
 - **Operating Systems**: Linux, macOS, Windows
 
 ### Environment Variables
-- `AUTH_SECRET` - JWT signing secret (required)
-- `DIGITAL_OCEAN_API_KEY` - Cloud provider credentials
+
+**Required:**
+- `AUTH_SECRET` - JWT signing secret (required for authentication)
+- `DIGITAL_OCEAN_API_KEY` - Cloud provider credentials (for deployment)
+
+**Optional:**
+- `PORT` - Application server port (default: 5000)
+- `THEME` - DaisyUI theme selection (default: corporate)
 - `CONGO_SSL_FULLCHAIN` - SSL certificate path
 - `CONGO_SSL_PRIVKEY` - SSL private key path
-- `INTERNAL_DATA` - Custom data directory
-- `PORT` - Application server port (default: 5000)
-- `THEME` - DaisyUI theme selection
-- `HOST_PREFIX` - URL prefix for applications
+
+### GitHub Actions Setup
+
+The project includes automated CI/CD with these workflows:
+- **Test**: Cross-platform testing with linting and security scans
+- **Build**: Artifact generation for all supported platforms
+- **Release**: Automatic releases on version tags
+
+**Required GitHub permissions**: Enable "Read and write permissions" in repository Settings → Actions → General → Workflow permissions.
 
 ## [Planned for v1.1.0]
 
 ### Planned Features
 - AWS platform implementation for `pkg/hosting/`
 - Google Cloud Platform integration
-- Comprehensive test suite with >90% coverage
-- Enhanced CLI tools with project scaffolding
-- Performance optimizations and caching improvements
-- Plugin system for extending functionality
+- Enhanced CLI tools with project templates
+- Multi-template support in create-app
+- Environment configuration management
+- Database migration commands
 
 ### Planned Improvements
 - Enhanced error handling and logging
 - Metrics and monitoring integration
 - Configuration validation and defaults
-- Database migration tooling
 - Development mode with hot reloading
+- Plugin system for extending functionality
 
 ## [Planned for v1.2.0]
 

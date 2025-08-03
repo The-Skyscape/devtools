@@ -6,6 +6,37 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is the **TheSkyscape DevTools** repository - a Go-based toolkit for cloud infrastructure management and application deployment. The project provides unified abstractions for managing containers, cloud hosting, and web applications across multiple platforms.
 
+## CLI Tools
+
+### create-app
+Application scaffolding tool that generates complete TheSkyscape applications:
+
+```bash
+./build/create-app my-app
+cd my-app
+go run .
+```
+
+**Generated structure:**
+- `controllers/` - HTTP handlers with factory functions 
+- `models/` - Database models with Table() methods
+- `views/` - HTML templates with HTMX integration
+- `main.go` - Application entry point with embedded views
+
+### launch-app  
+Cloud deployment tool for DigitalOcean with automated setup:
+
+```bash
+export DIGITAL_OCEAN_API_KEY="your-token"
+./build/launch-app --name my-server --domain app.example.com --binary ./app
+```
+
+**Features:**
+- Automated DigitalOcean droplet creation with Docker
+- SSL certificate generation via Let's Encrypt
+- Server configuration persistence as JSON files
+- Container-based deployment with proper networking
+
 ## Architecture
 
 ### Core Packages
@@ -26,8 +57,8 @@ This is the **TheSkyscape DevTools** repository - a Go-based toolkit for cloud i
 
 ### Commands
 
-- **`cmd/create-app/`** - Application creation utility (currently basic Hello World)
-- **`cmd/launch-app/`** - Application launcher utility (currently basic Hello World)
+- **`cmd/create-app/`** - Application scaffolding tool with todo template generation
+- **`cmd/launch-app/`** - Cloud deployment tool with embedded resources for server setup
 
 ### Example Application
 
@@ -39,7 +70,14 @@ This is the **TheSkyscape DevTools** repository - a Go-based toolkit for cloud i
 
 ## Common Development Commands
 
-### Building
+### Building CLI Tools
+```bash
+make build          # Build both tools
+make clean          # Clean build artifacts
+make install        # Install to system PATH
+```
+
+### Building Individual Tools
 ```bash
 go build ./cmd/create-app
 go build ./cmd/launch-app
@@ -60,10 +98,11 @@ go mod download
 
 ### Running Applications
 ```bash
-go run ./cmd/create-app
-go run ./cmd/launch-app
+# Use CLI tools (recommended)
+./build/create-app my-app
+cd my-app && go run .
 
-# Run the example application
+# Run example application
 go run ./example
 ```
 
@@ -77,23 +116,28 @@ go run ./example
 
 ## Environment Variables
 
-### Container Services
+### Application Settings
 - `PORT` - Application server port (default: 5000)
+- `AUTH_SECRET` - JWT signing secret (required for authentication)
+- `THEME` - DaisyUI theme selection (default: corporate)
+
+### SSL Configuration  
 - `CONGO_SSL_FULLCHAIN` - SSL certificate path (default: /root/fullchain.pem)
 - `CONGO_SSL_PRIVKEY` - SSL private key path (default: /root/privkey.pem)
 
 ### Cloud Platforms
-- `DIGITAL_OCEAN_API_KEY` - DigitalOcean API token
+- `DIGITAL_OCEAN_API_KEY` - DigitalOcean API token (required for launch-app)
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` - AWS credentials
 - `GCP_PROJECT_ID`, `GCP_SERVICE_ACCOUNT_KEY`, `GCP_ZONE` - GCP credentials
 
 ## Application Development Patterns
 
-### Controller Pattern (from example/)
-Controllers should embed `application.BaseController` and implement:
+### Controller Pattern (from create-app templates)
+Controllers should implement factory functions and the required methods:
+- `func Name() (string, *Controller)` - Factory function returning name and instance
 - `Setup(app *application.App)` - Called at application startup to register routes
 - `Handle(r *http.Request) application.Controller` - Called per request, returns controller instance
-- Public methods accessible in templates (e.g., `AllDucks()` → `{{range ducks.AllDucks}}`)
+- Public methods accessible in templates (e.g., `AllTodos()` → `{{range todos.AllTodos}}`)
 
 ### Model Pattern
 Models should embed `application.Model` and implement:
@@ -101,12 +145,27 @@ Models should embed `application.Model` and implement:
 - Use `database.Manage(db, new(Model))` to get a typed repository
 
 ### Application Startup Pattern
-Use `application.Serve(views, ...options)` for convenience, or `application.New()` + `app.Start()` for more control.
+Use `application.Serve(views, ...options)` for convenience:
+
+```go
+//go:embed all:views
+var views embed.FS
+
+func main() {
+    application.Serve(views,
+        application.WithController("auth", models.Auth.Controller()),
+        application.WithController(controllers.Home()),
+        application.WithController(controllers.Todos()),
+        application.WithDaisyTheme("corporate"),
+    )
+}
+```
 
 ### Template Integration
 - Controllers registered with `WithController("name", controller)` are accessible as `{{name.Method}}`
 - Built-in helpers: `{{theme}}`, `{{host}}`, `{{path}}`, `{{req}}`
 - HTMX integration: use `c.Refresh(w, r)` to trigger page refresh after form submission
+- Templates use unique filenames (no paths) due to Go's global template namespace
 
 ## Integration Points
 
@@ -116,3 +175,37 @@ Use `application.Serve(views, ...options)` for convenience, or `application.New(
 - **HTTP/HTTPS** - Dual-protocol web server with automatic SSL certificate detection
 - **HTMX** - Built-in support for dynamic updates with `BaseController.Refresh()`
 - **DaisyUI** - Theme integration through `WithDaisyTheme()` option
+
+## Project Structure (Generated by create-app)
+
+```
+my-app/
+├── controllers/
+│   ├── home.go       # Home page controller
+│   └── todos.go      # Todo CRUD controller  
+├── models/
+│   ├── database.go   # Database setup with global variables
+│   └── todo.go       # Todo model with Table() method
+├── views/
+│   ├── home.html     # Home page template
+│   ├── todos.html    # Todo list template
+│   ├── layout.html   # Shared layout components
+│   └── partials/     # Reusable template components
+├── main.go           # Application entry point
+└── go.mod
+```
+
+## CLI Usage Examples
+
+```bash
+# Create new application
+./build/create-app my-todo-app
+cd my-todo-app
+export AUTH_SECRET="your-secret-key"
+go run .
+
+# Deploy to cloud
+go build -o app
+export DIGITAL_OCEAN_API_KEY="your-token"
+../devtools/build/launch-app --name production --domain app.example.com --binary ./app
+```
