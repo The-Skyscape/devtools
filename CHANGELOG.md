@@ -5,6 +5,18 @@ All notable changes to TheSkyscape DevTools will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2025-01-03
+
+### Fixed
+- **GitHub Actions**: Fixed release creation permissions by adding `contents: write` permission
+- **CI/CD**: Resolved 403 error when creating releases from GitHub Actions workflow
+
+### Changed
+- **Installation**: Updated documentation to use direct GitHub release URLs for CLI tools
+- **Workflow**: Improved release job with explicit permissions and token configuration
+
+---
+
 ## [1.0.0] - 2025-01-03
 
 ### Added

@@ -21,14 +21,14 @@ This tutorial walks you through building a complete todo list application with T
 ### Option 1: Using create-app CLI (Recommended)
 
 ```bash
-# Download and build the CLI tools
-git clone https://github.com/The-Skyscape/devtools
-cd devtools
-make build
+# Download the CLI tool
+curl -L -o create-app https://github.com/The-Skyscape/devtools/releases/download/v1.0.1/create-app
+chmod +x create-app
 
 # Create a new todo application
-./build/create-app my-todo-app
+./create-app my-todo-app
 cd my-todo-app
+export AUTH_SECRET="your-secret"
 go run .
 ```
 
@@ -429,12 +429,16 @@ export THEME="corporate"
 Deploy your application to DigitalOcean:
 
 ```bash
+# Download launch-app tool
+curl -L -o launch-app https://github.com/The-Skyscape/devtools/releases/download/v1.0.1/launch-app
+chmod +x launch-app
+
 # Build your application
 go build -o app
 
 # Deploy using launch-app
 export DIGITAL_OCEAN_API_KEY="your-token"
-../devtools/build/launch-app --name my-todo-app --domain todos.example.com --binary ./app
+./launch-app --name my-todo-app --domain todos.example.com --binary ./app
 ```
 
 The deployment tool will:

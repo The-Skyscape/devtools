@@ -7,13 +7,12 @@
 The fastest way to get started is using the CLI tools:
 
 ```bash
-# Clone and build DevTools
-git clone https://github.com/The-Skyscape/devtools
-cd devtools
-make build
+# Download CLI tools
+curl -L -o create-app https://github.com/The-Skyscape/devtools/releases/download/v1.0.1/create-app
+chmod +x create-app
 
 # Create new application
-./build/create-app my-todo-app
+./create-app my-todo-app
 cd my-todo-app
 
 # Set required environment variable
@@ -330,12 +329,16 @@ sqlite3 app.db "SELECT * FROM todos;"
 ### Cloud Deployment
 
 ```bash
+# Download launch-app tool
+curl -L -o launch-app https://github.com/The-Skyscape/devtools/releases/download/v1.0.1/launch-app
+chmod +x launch-app
+
 # Build your application
 go build -o app
 
 # Deploy using launch-app tool
 export DIGITAL_OCEAN_API_KEY="your-token"
-../devtools/build/launch-app --name my-server --domain app.example.com --binary ./app
+./launch-app --name my-server --domain app.example.com --binary ./app
 ```
 
 The deployment tool will:
@@ -411,19 +414,20 @@ go run .
 ### Building DevTools
 
 ```bash
-git clone https://github.com/The-Skyscape/devtools
-cd devtools
-make build
+# Download pre-built CLI tools
+curl -L -o create-app https://github.com/The-Skyscape/devtools/releases/download/v1.0.1/create-app
+curl -L -o launch-app https://github.com/The-Skyscape/devtools/releases/download/v1.0.1/launch-app
+chmod +x create-app launch-app
 ```
 
 ### Using CLI Tools
 
 ```bash
 # Generate application
-./build/create-app my-app
+./create-app my-app
 
 # Deploy to cloud  
-./build/launch-app --name production --domain app.com --binary ./app
+./launch-app --name production --domain app.com --binary ./app
 ```
 
 ## Need Help?

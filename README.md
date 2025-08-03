@@ -16,12 +16,14 @@ TheSkyscape DevTools provides two main CLI tools for rapid development:
 Scaffold new TheSkyscape applications with proper MVC structure:
 
 ```bash
-# Download from releases or build locally
-make build
+# Download latest release
+curl -L -o create-app https://github.com/The-Skyscape/devtools/releases/download/v1.0.1/create-app
+chmod +x create-app
 
 # Create a new application
-./build/create-app my-app
+./create-app my-app
 cd my-app
+export AUTH_SECRET="your-secret"
 go run .
 ```
 
@@ -47,12 +49,16 @@ my-app/
 Deploy applications to DigitalOcean with automated setup:
 
 ```bash
+# Download latest release
+curl -L -o launch-app https://github.com/The-Skyscape/devtools/releases/download/v1.0.1/launch-app
+chmod +x launch-app
+
 # Build your app first
 go build -o app
 
 # Deploy to cloud
 export DIGITAL_OCEAN_API_KEY="your-token"
-./build/launch-app --name my-server --domain app.example.com --binary ./app
+./launch-app --name my-server --domain app.example.com --binary ./app
 ```
 
 **Features:**
@@ -66,17 +72,15 @@ export DIGITAL_OCEAN_API_KEY="your-token"
 
 ### Option 1: Use CLI Tools (Recommended)
 ```bash
-# Download from GitHub releases
-curl -L https://github.com/The-Skyscape/devtools/releases/latest/download/skyscape-devtools-linux-amd64.tar.gz | tar xz
-
-# Or build from source
-git clone https://github.com/The-Skyscape/devtools
-cd devtools
-make build
+# Download CLI tools
+curl -L -o create-app https://github.com/The-Skyscape/devtools/releases/download/v1.0.1/create-app
+curl -L -o launch-app https://github.com/The-Skyscape/devtools/releases/download/v1.0.1/launch-app
+chmod +x create-app launch-app
 
 # Create and run new app
-./build/create-app my-todo-app
+./create-app my-todo-app
 cd my-todo-app
+export AUTH_SECRET="your-secret"
 go run .
 ```
 

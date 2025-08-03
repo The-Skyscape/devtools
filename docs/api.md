@@ -8,9 +8,15 @@ Complete reference for TheSkyscape DevTools packages and CLI tools.
 
 Generates complete TheSkyscape applications with proper MVC structure.
 
+**Installation:**
+```bash
+curl -L -o create-app https://github.com/The-Skyscape/devtools/releases/download/v1.0.1/create-app
+chmod +x create-app
+```
+
 **Usage:**
 ```bash
-./build/create-app [app-name]
+./create-app [app-name]
 ```
 
 **Generated Structure:**
@@ -21,7 +27,7 @@ Generates complete TheSkyscape applications with proper MVC structure.
 
 **Example:**
 ```bash
-./build/create-app my-todo-app
+./create-app my-todo-app
 cd my-todo-app
 export AUTH_SECRET="your-secret"
 go run .
@@ -31,9 +37,15 @@ go run .
 
 Deploys applications to DigitalOcean with automated setup.
 
+**Installation:**
+```bash
+curl -L -o launch-app https://github.com/The-Skyscape/devtools/releases/download/v1.0.1/launch-app
+chmod +x launch-app
+```
+
 **Usage:**
 ```bash
-./build/launch-app [options]
+./launch-app [options]
 ```
 
 **Flags:**
@@ -46,7 +58,7 @@ Deploys applications to DigitalOcean with automated setup.
 **Example:**
 ```bash
 export DIGITAL_OCEAN_API_KEY="your-token"
-./build/launch-app --name production --domain app.example.com --binary ./app
+./launch-app --name production --domain app.example.com --binary ./app
 ```
 
 ---
