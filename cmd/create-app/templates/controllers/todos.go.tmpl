@@ -1,0 +1,200 @@
+package controllers
+
+import (
+	"errors"
+	"net/http"
+	"time"
+
+	"github.com/The-Skyscape/devtools/pkg/application"
+	"github.com/The-Skyscape/devtools/pkg/authentication"
+	"{{.Name}}/models"
+)
+
+// TodosController is the controller for todos
+type TodosController struct {
+	application.BaseController
+}
+
+// Setup is called when the application is started
+func (c *TodosController) Setup(app *application.App) {
+	c.BaseController.Setup(app)
+
+	auth := app.Use("auth").(*authentication.Controller)
+	http.Handle("GET /todos", app.Serve("todos.html", auth.Required))
+	http.Handle("POST /todos/create", app.ProtectFunc(c.create, auth.Required))
+	http.Handle("POST /todos/complete", app.ProtectFunc(c.complete, auth.Required))
+	http.Handle("POST /todos/uncomplete", app.ProtectFunc(c.uncomplete, auth.Required))
+	http.Handle("DELETE /todos/delete", app.ProtectFunc(c.delete, auth.Required))
+}
+
+// Handle is called when each request is handled
+func (c TodosController) Handle(req *http.Request) application.Controller {
+	c.Request = req
+	return &c
+}
+
+// AllTodos returns all todos for the current user
+func (c *TodosController) AllTodos() ([]*models.Todo, error) {
+	user := c.Auth().CurrentUser(c.Request)
+	if user == nil {
+		return nil, nil
+	}
+	return models.Todos.Search("SELECT * FROM todos WHERE user_id = ? ORDER BY created_at DESC", user.ID)
+}
+
+// PendingTodos returns pending todos for the current user
+func (c *TodosController) PendingTodos() ([]*models.Todo, error) {
+	user := c.Auth().CurrentUser(c.Request)
+	if user == nil {
+		return nil, nil
+	}
+	return models.Todos.Search("SELECT * FROM todos WHERE user_id = ? AND completed = false ORDER BY created_at DESC", user.ID)
+}
+
+// CompletedTodos returns completed todos for the current user
+func (c *TodosController) CompletedTodos() ([]*models.Todo, error) {
+	user := c.Auth().CurrentUser(c.Request)
+	if user == nil {
+		return nil, nil
+	}
+	return models.Todos.Search("SELECT * FROM todos WHERE user_id = ? AND completed = true ORDER BY updated_at DESC", user.ID)
+}
+
+// TodoStats returns todo statistics
+func (c *TodosController) TodoStats() map[string]int {
+	pending, _ := c.PendingTodos()
+	completed, _ := c.CompletedTodos()
+	return map[string]int{
+		"Total":     len(pending) + len(completed),
+		"Pending":   len(pending),
+		"Completed": len(completed),
+	}
+}
+
+// create adds a new todo
+func (c *TodosController) create(w http.ResponseWriter, r *http.Request) {
+	user := c.Auth().CurrentUser(r)
+	if user == nil {
+		c.Render(w, r, "error-message.html", errors.New("unauthorized"))
+		return
+	}
+
+	title := r.FormValue("title")
+	description := r.FormValue("description")
+	priority := r.FormValue("priority")
+	dueDateStr := r.FormValue("due_date")
+
+	if title == "" {
+		c.Render(w, r, "error-message.html", errors.New("title is required"))
+		return
+	}
+
+	todo := &models.Todo{
+		Title:       title,
+		Description: description,
+		Priority:    priority,
+		UserID:      user.ID,
+		Completed:   false,
+	}
+
+	if dueDateStr != "" {
+		if dueDate, err := time.Parse("2006-01-02", dueDateStr); err == nil {
+			todo.DueDate = dueDate
+		}
+	}
+
+	created, err := models.Todos.Insert(todo)
+	if err != nil {
+		c.Render(w, r, "error-message.html", err)
+		return
+	}
+
+	c.Render(w, r, "todos-item.html", created)
+}
+
+// complete marks a todo as completed
+func (c *TodosController) complete(w http.ResponseWriter, r *http.Request) {
+	user := c.Auth().CurrentUser(r)
+	if user == nil {
+		c.Render(w, r, "error-message.html", errors.New("unauthorized"))
+		return
+	}
+
+	id := r.FormValue("id")
+	todo, err := models.Todos.Get(id)
+	if err != nil {
+		c.Render(w, r, "error-message.html", err)
+		return
+	}
+
+	if todo.UserID != user.ID {
+		c.Render(w, r, "error-message.html", errors.New("forbidden"))
+		return
+	}
+
+	todo.Completed = true
+	if err := models.Todos.Update(todo); err != nil {
+		c.Render(w, r, "error-message.html", err)
+		return
+	}
+
+	c.Render(w, r, "todos-item.html", todo)
+}
+
+// uncomplete marks a todo as pending
+func (c *TodosController) uncomplete(w http.ResponseWriter, r *http.Request) {
+	user := c.Auth().CurrentUser(r)
+	if user == nil {
+		c.Render(w, r, "error-message.html", errors.New("unauthorized"))
+		return
+	}
+
+	id := r.FormValue("id")
+	todo, err := models.Todos.Get(id)
+	if err != nil {
+		c.Render(w, r, "error-message.html", err)
+		return
+	}
+
+	if todo.UserID != user.ID {
+		c.Render(w, r, "error-message.html", errors.New("forbidden"))
+		return
+	}
+
+	todo.Completed = false
+	if err := models.Todos.Update(todo); err != nil {
+		c.Render(w, r, "error-message.html", err)
+		return
+	}
+
+	c.Render(w, r, "todos-item.html", todo)
+}
+
+// delete removes a todo
+func (c *TodosController) delete(w http.ResponseWriter, r *http.Request) {
+	user := c.Auth().CurrentUser(r)
+	if user == nil {
+		c.Render(w, r, "error-message.html", errors.New("unauthorized"))
+		return
+	}
+
+	id := r.FormValue("id")
+	todo, err := models.Todos.Get(id)
+	if err != nil {
+		c.Render(w, r, "error-message.html", err)
+		return
+	}
+
+	if todo.UserID != user.ID {
+		c.Render(w, r, "error-message.html", errors.New("forbidden"))
+		return
+	}
+
+	if err := models.Todos.Delete(todo); err != nil {
+		c.Render(w, r, "error-message.html", err)
+		return
+	}
+
+	// Return empty response for successful deletion
+	w.WriteHeader(http.StatusOK)
+}

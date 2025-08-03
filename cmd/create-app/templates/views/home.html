@@ -1,0 +1,45 @@
+{{template "layout/start"}}
+<div class="hero min-h-96 bg-base-200">
+  <div class="hero-content text-center">
+    <div class="max-w-md">
+      <h1 class="text-5xl font-bold">{{home.AppName}}</h1>
+      <p class="py-6">{{home.AppDescription}}</p>
+
+      {{if not auth.CurrentUser}}
+      <div class="space-x-4">
+        <a href="{{host}}/auth/signin" class="btn btn-primary">Get Started</a>
+        <a href="{{host}}/auth/signup" class="btn btn-outline">Sign Up</a>
+      </div>
+      {{else}}
+      <div class="space-x-4">
+        <a href="{{host}}/todos" class="btn btn-primary">My Todos</a>
+        <span class="text-lg">Welcome back, {{auth.CurrentUser.Name}}! 👋</span>
+      </div>
+      {{end}}
+    </div>
+  </div>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8">
+  <div class="card bg-base-100 shadow-xl">
+    <div class="card-body">
+      <h2 class="card-title">✅ Task Management</h2>
+      <p>Create, organize, and track your todos with priorities and due dates.</p>
+    </div>
+  </div>
+
+  <div class="card bg-base-100 shadow-xl">
+    <div class="card-body">
+      <h2 class="card-title">⚡ Real-time Updates</h2>
+      <p>HTMX-powered interface for instant updates without page refreshes.</p>
+    </div>
+  </div>
+
+  <div class="card bg-base-100 shadow-xl">
+    <div class="card-body">
+      <h2 class="card-title">🔐 Secure & Private</h2>
+      <p>Your todos are private and secure with built-in authentication.</p>
+    </div>
+  </div>
+</div>
+{{template "layout/end"}}

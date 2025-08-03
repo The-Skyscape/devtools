@@ -1,0 +1,91 @@
+{{template "layout/start"}}
+<div class="container mx-auto">
+  <div class="flex justify-between items-center mb-6">
+    <h1 class="text-3xl font-bold">My Todos</h1>
+    <div class="stats shadow">
+      <div class="stat">
+        <div class="stat-title">Total</div>
+        <div class="stat-value text-primary">{{index (todos.TodoStats) "Total"}}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">Pending</div>
+        <div class="stat-value text-warning">{{index (todos.TodoStats) "Pending"}}</div>
+      </div>
+      <div class="stat">
+        <div class="stat-title">Completed</div>
+        <div class="stat-value text-success">{{index (todos.TodoStats) "Completed"}}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+    <!-- Add New Todo -->
+    <div class="col-span-1 lg:col-span-3">
+      <div class="card bg-base-100 shadow-xl">
+        <div class="card-body">
+          <h2 class="card-title">Add New Todo</h2>
+          <form hx-post="{{host}}/todos/create" hx-target="#todo-list" hx-swap="afterbegin">
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Title</span>
+              </label>
+              <input type="text" name="title" placeholder="What needs to be done?" class="input input-bordered" required>
+            </div>
+
+            <div class="form-control">
+              <label class="label">
+                <span class="label-text">Description</span>
+              </label>
+              <textarea name="description" placeholder="Additional details..." class="textarea textarea-bordered"></textarea>
+            </div>
+
+            <div class="flex gap-4">
+              <div class="form-control flex-1">
+                <label class="label">
+                  <span class="label-text">Priority</span>
+                </label>
+                <select name="priority" class="select select-bordered">
+                  <option value="low">Low</option>
+                  <option value="medium" selected>Medium</option>
+                  <option value="high">High</option>
+                </select>
+              </div>
+
+              <div class="form-control flex-1">
+                <label class="label">
+                  <span class="label-text">Due Date</span>
+                </label>
+                <input type="date" name="due_date" class="input input-bordered">
+              </div>
+            </div>
+
+            <div class="card-actions justify-end mt-4">
+              <button type="submit" class="btn btn-primary">Add Todo</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Pending Todos -->
+    <div class="col-span-1 lg:col-span-2">
+      <h2 class="text-2xl font-semibold mb-4">Pending Tasks</h2>
+      <div id="todo-list" class="space-y-4">
+        {{range todos.PendingTodos}}
+        {{template "todos-item.html" .}}
+        {{end}}
+      </div>
+    </div>
+
+    <!-- Completed Todos -->
+    <div class="col-span-1">
+      <h2 class="text-2xl font-semibold mb-4">Completed</h2>
+      <div class="space-y-4">
+        {{range todos.CompletedTodos}}
+        {{template "todos-item.html" .}}
+        {{end}}
+      </div>
+    </div>
+  </div>
+</div>
+{{template "layout/end"}}

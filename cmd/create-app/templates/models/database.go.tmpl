@@ -1,0 +1,18 @@
+package models
+
+import (
+	"github.com/The-Skyscape/devtools/pkg/authentication"
+	"github.com/The-Skyscape/devtools/pkg/database"
+	"github.com/The-Skyscape/devtools/pkg/database/local"
+)
+
+var (
+	// DB is the application's database
+	DB = local.Database("{{.Name}}")
+
+	// Auth is the DB's authentication collection
+	Auth = authentication.Manage(DB)
+
+	// Todos is a collection of our Todo model
+	Todos = database.Manage(DB, new(Todo))
+)

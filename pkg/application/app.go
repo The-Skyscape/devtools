@@ -13,6 +13,9 @@ import (
 )
 
 func Serve(views fs.FS, opts ...Option) {
+	log.Printf("🚀 Starting Skyscape Application...")
+	log.Printf("📱 Visit: http://localhost:%s", cmp.Or(os.Getenv("PORT"), "8080"))
+
 	app := New(views, opts...)
 	app.Start()
 }

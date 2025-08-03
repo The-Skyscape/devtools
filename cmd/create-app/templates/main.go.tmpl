@@ -1,0 +1,26 @@
+package main
+
+import (
+	"cmp"
+	"embed"
+	"log"
+	"os"
+
+	"github.com/The-Skyscape/devtools/pkg/application"
+
+	"{{.Name}}/controllers"
+	"{{.Name}}/models"
+)
+
+//go:embed views
+var views embed.FS
+
+func main() {
+	// Start application
+	application.Serve(views,
+		application.WithController("auth", models.Auth.Controller()),
+		application.WithController(controllers.Home()),
+		application.WithController(controllers.Todos()),
+		application.WithDaisyTheme(cmp.Or(os.Getenv("THEME"), "corporate")),
+	)
+}
