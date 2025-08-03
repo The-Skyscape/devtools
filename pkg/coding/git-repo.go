@@ -20,12 +20,24 @@ type GitRepo struct {
 	database.Model
 	Name        string
 	Description string
+	Visibility  string
+	UserID      string // Owner of the repository
 }
 
-func (r *Repository) NewRepo(id, name string) (repo *GitRepo, err error) {
+func (r *Repository) NewRepo(repoID, name string) (repo *GitRepo, err error) {
+	// Create model with custom ID if provided, otherwise generate one
+	var model database.Model
+	if repoID == "" {
+		model = r.repos.DB.NewModel("")
+	} else {
+		model = r.repos.DB.NewModel(repoID)
+	}
+	
 	repo, err = r.repos.Insert(&GitRepo{
-		Model: r.repos.DB.NewModel(id),
-		Name:  name,
+		Model:      model,
+		Name:       name,
+		Visibility: "private",
+		UserID:     "", // Will be set by the caller
 	})
 	if err != nil {
 		return nil, err

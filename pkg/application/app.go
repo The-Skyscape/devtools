@@ -17,7 +17,9 @@ func Serve(views fs.FS, opts ...Option) {
 	log.Printf("📱 Visit: http://localhost:%s", cmp.Or(os.Getenv("PORT"), "8080"))
 
 	app := New(views, opts...)
-	app.Start()
+	if err := app.Start(); err != nil {
+		log.Fatal(err)
+	}
 }
 
 type App struct {

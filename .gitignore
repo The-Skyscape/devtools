@@ -1,6 +1,7 @@
 # Build artifacts
 build/
 dist/
+workspace/.git
 
 # Go binaries
 *.exe

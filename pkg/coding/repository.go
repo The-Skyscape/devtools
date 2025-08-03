@@ -97,3 +97,13 @@ func (repo *Repository) Workspace(auth *authentication.Controller) http.Handler 
 		s.Proxy(8080).ServeHTTP(w, r)
 	}, false)
 }
+
+// GetRepos returns the repos collection for direct access
+func (r *Repository) GetRepos() *database.Collection[*GitRepo] {
+	return r.repos
+}
+
+// UpdateRepo updates an existing repository
+func (r *Repository) UpdateRepo(repo *GitRepo) error {
+	return r.repos.Update(repo)
+}
