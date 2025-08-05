@@ -1,23 +1,20 @@
 package main
 
 import (
-	"bytes"
 	"context"
 	_ "embed"
 	"encoding/json"
-	"flag"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/The-Skyscape/devtools/pkg/containers"
 	"github.com/The-Skyscape/devtools/pkg/hosting"
 	"github.com/The-Skyscape/devtools/pkg/hosting/platforms/digitalocean"
 	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
 )
 
 type ServerConfig struct {
@@ -32,85 +29,7 @@ type ServerConfig struct {
 	CreatedAt time.Time
 }
 
-// ipServer is a simple Server implementation that only needs an IP address for redeployment
-type ipServer struct {
-	ip string
-}
-
-func (s *ipServer) GetID() string   { return "" }
-func (s *ipServer) GetIP() string   { return s.ip }
-func (s *ipServer) GetName() string { return "" }
-
-func (s *ipServer) Launch(opts ...hosting.LaunchOption) error {
-	return errors.New("cannot launch an IP-only server")
-}
-
-func (s *ipServer) Destroy(ctx context.Context) error {
-	return errors.New("cannot destroy an IP-only server")
-}
-
-func (s *ipServer) Alias(sub, domain string) error {
-	return errors.New("cannot configure DNS for IP-only server")
-}
-
-func (s *ipServer) Env(key, value string) error {
-	return nil // No-op for IP-only server
-}
-
-func (s *ipServer) Exec(args ...string) (bytes.Buffer, bytes.Buffer, error) {
-	// Execute command via SSH
-	var stdout, stderr bytes.Buffer
-	sshArgs := append([]string{"-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=30", "root@" + s.ip}, args...)
-	cmd := exec.Command("ssh", sshArgs...)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	return stdout, stderr, err
-}
-
-func (s *ipServer) Copy(src, dst string) (bytes.Buffer, bytes.Buffer, error) {
-	var stdout, stderr bytes.Buffer
-	cmd := exec.Command("scp", "-o", "StrictHostKeyChecking=no", src, "root@"+s.ip+":"+dst)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	err := cmd.Run()
-	return stdout, stderr, err
-}
-
-func (s *ipServer) Dump(path string, data []byte) (bytes.Buffer, bytes.Buffer, error) {
-	// Create a temporary file
-	tmpFile, err := os.CreateTemp("", "dump-*")
-	if err != nil {
-		return bytes.Buffer{}, bytes.Buffer{}, err
-	}
-	defer os.Remove(tmpFile.Name())
-
-	if _, err := tmpFile.Write(data); err != nil {
-		return bytes.Buffer{}, bytes.Buffer{}, err
-	}
-	tmpFile.Close()
-
-	return s.Copy(tmpFile.Name(), path)
-}
-
-func (s *ipServer) Connect(stdin io.Reader, stdout io.Writer, stderr io.Writer, args ...string) error {
-	sshArgs := append([]string{"-o", "StrictHostKeyChecking=no", "root@" + s.ip}, args...)
-	cmd := exec.Command("ssh", sshArgs...)
-	cmd.Stdin = stdin
-	cmd.Stdout = stdout
-	cmd.Stderr = stderr
-	return cmd.Run()
-}
-
-const LAUNCH_USAGE = `
-TheSkyscape DevTools Launch Command Usage:
-
-  $ launch-app [options]
-
-Options:
-
-`
-
+// Embedded resources
 var (
 	//go:embed resources/Dockerfile
 	dockerfile []byte
@@ -120,239 +39,385 @@ var (
 
 	//go:embed resources/setup-server.sh
 	setupServer string
+
+	//go:embed resources/deploy.sh
+	deployScript string
 )
 
-func runLaunch() error {
-	var (
-		provider = flag.String("provider", "digitalocean", "Cloud provider (digitalocean)")
-		region   = flag.String("region", "sfo3", "Server region")
-		size     = flag.String("size", "s-2vcpu-2gb", "Server size")
-		domain   = flag.String("domain", "", "Domain name for SSL (optional)")
-		name     = flag.String("name", "skyscape-app", "Server name")
-		binary   = flag.String("binary", "", "Path to application binary")
-		redeploy = flag.Bool("redeploy", false, "Redeploy to existing server")
-		destroy  = flag.Bool("destroy", false, "Destroy server and remove config")
-		list     = flag.Bool("list", false, "List all servers")
-	)
+// Global flags
+var (
+	provider string
+	region   string
+	size     string
+	domain   string
+	name     string
+	binary   string
+)
 
-	flag.Usage = func() {
-		fmt.Print(LAUNCH_USAGE)
-		flag.PrintDefaults()
-	}
+// Root command
+var rootCmd = &cobra.Command{
+	Use:   "launch-app",
+	Short: "TheSkyscape DevTools Launch Command",
+	Long: `TheSkyscape DevTools Launch Command
 
-	flag.Parse()
+Deploy and manage Skyscape applications on cloud servers with integrated 
+SSL certificates, Docker containers, and domain configuration.
 
-	// Handle list command
-	if *list {
-		return listServers()
-	}
+Examples:
+  launch-app create --name my-app --binary ./my-app
+  launch-app deploy --name my-app --binary ./my-app --redeploy
+  launch-app list
+  launch-app destroy --name my-app`,
+}
 
+// Create command - creates a new server and deploys
+var createCmd = &cobra.Command{
+	Use:   "create",
+	Short: "Create a new server and deploy application",
+	Long: `Create a new cloud server and deploy your application.
+
+This command will:
+- Create a new DigitalOcean droplet
+- Install Docker and dependencies
+- Deploy your application in a container
+- Configure SSL certificates if domain is provided
+
+Examples:
+  launch-app create --name my-app --binary ./my-app
+  launch-app create --name my-app --binary ./my-app --domain app.example.com`,
+	RunE: runCreate,
+}
+
+// Deploy command - redeploy to existing server
+var deployCmd = &cobra.Command{
+	Use:   "deploy",
+	Short: "Deploy application to existing server",
+	Long: `Deploy or redeploy your application to an existing server.
+
+This command will:
+- Upload your new application binary
+- Rebuild the Docker container
+- Restart the application
+- Update SSL certificates if needed
+
+Examples:
+  launch-app deploy --name my-app --binary ./my-app-v2
+  launch-app deploy --name my-app --binary ./my-app --domain new.example.com`,
+	RunE: runDeploy,
+}
+
+// List command - list all servers
+var listCmd = &cobra.Command{
+	Use:   "list",
+	Short: "List all configured servers",
+	Long:  `List all servers that have been created and configured.`,
+	RunE:  runList,
+}
+
+// Destroy command - destroy server
+var destroyCmd = &cobra.Command{
+	Use:   "destroy",
+	Short: "Destroy a server and remove configuration",
+	Long: `Destroy a cloud server and remove its configuration.
+
+This will permanently delete the server and all its data.
+This action cannot be undone.
+
+Examples:
+  launch-app destroy --name my-app`,
+	RunE: runDestroy,
+}
+
+func init() {
+	// Global flags
+	rootCmd.PersistentFlags().StringVar(&provider, "provider", "digitalocean", "Cloud provider")
+	rootCmd.PersistentFlags().StringVar(&region, "region", "sfo3", "Server region")
+	rootCmd.PersistentFlags().StringVar(&size, "size", "s-2vcpu-2gb", "Server size")
+	rootCmd.PersistentFlags().StringVar(&domain, "domain", "", "Domain name for SSL (optional)")
+	rootCmd.PersistentFlags().StringVar(&name, "name", "", "Server name (required)")
+	rootCmd.PersistentFlags().StringVar(&binary, "binary", "", "Path to application binary")
+
+	// Mark required flags
+	createCmd.MarkPersistentFlagRequired("name")
+	createCmd.MarkPersistentFlagRequired("binary")
+	deployCmd.MarkPersistentFlagRequired("name")
+	deployCmd.MarkPersistentFlagRequired("binary")
+	destroyCmd.MarkPersistentFlagRequired("name")
+
+	// Add subcommands
+	rootCmd.AddCommand(createCmd)
+	rootCmd.AddCommand(deployCmd)
+	rootCmd.AddCommand(listCmd)
+	rootCmd.AddCommand(destroyCmd)
+}
+
+func runCreate(cmd *cobra.Command, args []string) error {
 	// Check for API key
 	apiKey := digitalocean.ApiKey
 	if apiKey == "" {
 		return errors.New("DIGITAL_OCEAN_API_KEY environment variable is required")
 	}
 
-	// Handle destroy command
-	if *destroy {
-		return destroyServer(*name, apiKey)
+	// Check if server already exists
+	if _, err := os.Open(filepath.Join("servers", name+".json")); err == nil {
+		existingConfig, err := loadServerConfig(name)
+		if err != nil {
+			return errors.Wrap(err, "failed to load existing server")
+		}
+		fmt.Printf("Server '%s' already exists at: http://%s\n", name, existingConfig.IP)
+		fmt.Printf("To redeploy, use: launch-app deploy --name %s --binary %s\n", name, binary)
+		return nil
 	}
 
-	// Check if binary path is provided
-	if *binary == "" {
-		return errors.New("--binary flag is required to specify the application binary")
+	fmt.Printf("☁️  Creating DigitalOcean droplet '%s'...\n", name)
+
+	// Connect to DigitalOcean and launch new server
+	deployedServer, err := digitalocean.Connect(apiKey).Launch(
+		&digitalocean.Server{
+			Name:   name,
+			Size:   size,
+			Region: region,
+			Image:  "docker-20-04",
+			Status: "new",
+		},
+		hosting.WithSetupScript(setupServer),
+	)
+
+	if err != nil {
+		return errors.Wrap(err, "failed to launch server")
 	}
 
+	fmt.Printf("✅ Server created successfully!\n")
+	fmt.Printf("📍 Server ID: %s\n", deployedServer.GetID())
+	fmt.Printf("🌍 IP Address: %s\n", deployedServer.GetIP())
+
+	// Wait for server to boot up and SSH to be ready
+	fmt.Printf("⏳ Waiting for server to be ready...\n")
+	if err := waitForSSH(deployedServer.GetIP(), 60); err != nil {
+		return errors.Wrap(err, "server failed to become ready")
+	}
+	fmt.Printf("✅ Server is ready for deployment!\n")
+
+	// Save server config
+	config := &ServerConfig{
+		ID:        deployedServer.GetID(),
+		IP:        deployedServer.GetIP(),
+		Name:      name,
+		Size:      size,
+		Region:    region,
+		Provider:  provider,
+		Domain:    domain,
+		Binary:    binary,
+		CreatedAt: time.Now(),
+	}
+
+	if err := saveServerConfig(config); err != nil {
+		return errors.Wrap(err, "failed to save server config")
+	}
+
+	// Now deploy the application
+	return deployApplication(deployedServer, config, apiKey, false)
+}
+
+func runDeploy(cmd *cobra.Command, args []string) error {
+	// Load existing server config
+	config, err := loadServerConfig(name)
+	if err != nil {
+		return errors.Wrap(err, "server not found - use 'launch-app list' to see available servers")
+	}
+
+	fmt.Printf("🔄 Deploying to existing server '%s' at %s...\n", name, config.IP)
+
+	// Get API key
+	apiKey := digitalocean.ApiKey
+	if apiKey == "" {
+		// For redeploy, we can work without API key but SSL operations will be skipped
+		fmt.Printf("⚠️  DIGITAL_OCEAN_API_KEY not set - SSL operations will be skipped\n")
+	}
+
+	// Get the server from platform if we have API key and server ID
 	var deployedServer hosting.Server
-	var config *ServerConfig
-
-	// Handle redeployment to existing server
-	if *redeploy {
-		// Load existing server config
-		existingConfig, err := loadServerConfig(*name)
+	if apiKey != "" && config.ID != "" {
+		platform := digitalocean.Connect(apiKey)
+		deployedServer, err = platform.GetServer(config.ID)
 		if err != nil {
-			return errors.Wrap(err, "server not found - use 'servers/' to see available servers")
+			return errors.Wrap(err, "failed to get server from platform")
 		}
-		
-		fmt.Printf("🔄 Redeploying to existing server '%s' at %s...\n", *name, existingConfig.IP)
-		
-		// Create a simple server wrapper with the stored IP address
-		deployedServer = &ipServer{ip: existingConfig.IP}
-		config = existingConfig
 	} else {
-		// Check if server already exists
-		if _, err := os.Open(filepath.Join("servers", *name+".json")); err == nil {
-			existingConfig, err := loadServerConfig(*name)
-			if err != nil {
-				return errors.Wrap(err, "failed to load existing server")
-			}
-			fmt.Printf("Server '%s' already exists at: http://%s\n", *name, existingConfig.IP)
-			fmt.Printf("To redeploy, use: --redeploy\n")
-			return nil
-		}
-
-		// Connect to DigitalOcean and launch new server
-		fmt.Printf("☁️  Creating DigitalOcean droplet...\n")
-		var err error
-		deployedServer, err = digitalocean.Connect(apiKey).Launch(
-			&digitalocean.Server{
-				Name:   *name,
-				Size:   *size,
-				Region: *region,
-				Image:  "docker-20-04",
-				Status: "new",
-			},
-			hosting.WithBinaryData("/root/Dockerfile", dockerfile),
-			hosting.WithFileUpload(*binary, "/root/app"),
-			hosting.WithSetupScript(setupServer),
-		)
-
-		if err != nil {
-			return errors.Wrap(err, "failed to launch server")
-		}
-
-		// Save server config for new server
-		config = &ServerConfig{
-			ID:        deployedServer.GetID(),
-			IP:        deployedServer.GetIP(),
-			Name:      *name,
-			Size:      *size,
-			Region:    *region,
-			Provider:  *provider,
-			Domain:    *domain,
-			Binary:    *binary,
-			CreatedAt: time.Now(),
-		}
-
-		if err := saveServerConfig(config); err != nil {
-			return errors.Wrap(err, "failed to save server config")
-		}
-
-		fmt.Printf("✅ Server created successfully!\n")
-		fmt.Printf("📍 Server ID: %s\n", deployedServer.GetID())
-		fmt.Printf("🌍 IP Address: %s\n", deployedServer.GetIP())
+		// Create a minimal server implementation for redeploy without API key
+		return errors.New("redeploy requires DIGITAL_OCEAN_API_KEY to be set")
 	}
 
-	// For redeployment, upload new binary and Dockerfile
-	if *redeploy {
-		fmt.Printf("📤 Uploading application files...\n")
-		
-		// Upload binary and Dockerfile using server methods
-		if _, _, err := deployedServer.Copy(*binary, "/root/app"); err != nil {
-			return errors.Wrap(err, "failed to upload binary")
-		}
-		
-		// Longer delay to avoid connection throttling
-		time.Sleep(3 * time.Second)
-		
-		if _, _, err := deployedServer.Dump("/root/Dockerfile", dockerfile); err != nil {
-			return errors.Wrap(err, "failed to upload Dockerfile")
-		}
-		
-		// Longer delay after file operations
-		time.Sleep(3 * time.Second)
-		
-		// Stop and remove existing container in a single command to reduce SSH connections
-		fmt.Printf("🛑 Stopping existing container...\n")
-		deployedServer.Exec("bash", "-c", "docker stop sky-app 2>/dev/null; docker rm sky-app 2>/dev/null || true")
-		
-		// Longer delay before building to let SSH recover
-		time.Sleep(5 * time.Second)
+	// Update config with new binary path and domain if provided
+	config.Binary = binary
+	if domain != "" {
+		config.Domain = domain
 	}
 
+	return deployApplication(deployedServer, config, apiKey, true)
+}
 
-	// Build and deploy container
-	fmt.Printf("🐳 Building Docker image...\n")
-	host := containers.Remote(deployedServer)
-	if err := host.BuildImage("skyscape:latest", "/root"); err != nil {
-		return errors.Wrap(err, "failed to build Docker image")
-	}
-	
-	// Longer delay after build to let SSH recover
-	time.Sleep(5 * time.Second)
+func runList(cmd *cobra.Command, args []string) error {
+	return listServers()
+}
 
-	// Create and launch service
-	service := &containers.Service{
-		Privileged: true,
-		Name:       "sky-app",
-		Image:      "skyscape:latest",
-		Entrypoint: "/app",
-		Network:    "host",
-		Mounts: map[string]string{
-			"/root/.skyscape":      "/root/.skyscape",
-			"/var/run/docker.sock": "/var/run/docker.sock",
-		},
-		Copied: map[string]string{
-			"/root/app": "/app",
-		},
-		Env: map[string]string{
-			"PORT":  "80",
-			"THEME": "corporate",
-		},
+func runDestroy(cmd *cobra.Command, args []string) error {
+	// Check for API key
+	apiKey := digitalocean.ApiKey
+	if apiKey == "" {
+		return errors.New("DIGITAL_OCEAN_API_KEY environment variable is required")
 	}
 
-	fmt.Printf("🚀 Launching application container...\n")
-	if err := host.Launch(service); err != nil {
-		return errors.Wrap(err, "failed to launch container")
+	return destroyServer(name, apiKey)
+}
+
+// deployApplication handles the core deployment logic
+func deployApplication(server hosting.Server, config *ServerConfig, apiKey string, isRedeploy bool) error {
+	fmt.Printf("🚀 Deploying application using integrated deployment script...\n")
+
+	// Upload application files
+	fmt.Printf("📤 Uploading application files...\n")
+
+	// Upload binary first
+	if _, _, err := server.Copy(binary, "/root/app"); err != nil {
+		return errors.Wrap(err, "failed to upload binary")
 	}
-	
-	// Small delay after container launch
-	time.Sleep(1 * time.Second)
 
-	// Configure domain if provided
-	if parts := strings.SplitN(*domain, ".", 2); len(parts) == 2 {
-		sub, root := parts[0], parts[1]
-		fmt.Printf("🌐 Configuring domain: %s.%s\n", sub, root)
-		if err := deployedServer.Alias(sub, root); err != nil {
-			fmt.Printf("⚠️  Domain configuration failed: %v\n", err)
-		} else {
-			fmt.Printf("✅ Domain configured successfully!\n")
+	// Upload Dockerfile
+	if _, _, err := server.Dump("/root/Dockerfile", dockerfile); err != nil {
+		return errors.Wrap(err, "failed to upload Dockerfile")
+	}
 
-			// Generate SSL certificates
-			fmt.Printf("🔒 Generating SSL certificates...\n")
-			certScript := fmt.Sprintf(generateCerts, *domain, "admin@"+*domain, apiKey)
-			if _, _, err := deployedServer.Exec(certScript); err != nil {
-				fmt.Printf("⚠️  SSL certificate generation failed: %v\n", err)
+	// Configure domain DNS if provided
+	var domainForScript string
+	if domain != "" {
+		if parts := strings.SplitN(domain, ".", 2); len(parts) == 2 {
+			sub, root := parts[0], parts[1]
+			fmt.Printf("🌐 Configuring domain: %s.%s\n", sub, root)
+			if err := server.Alias(sub, root); err != nil {
+				fmt.Printf("⚠️  Domain configuration failed: %v\n", err)
+				domainForScript = "" // Don't configure SSL if DNS failed
 			} else {
-				fmt.Printf("✅ SSL certificates generated and container restarted!\n")
+				fmt.Printf("✅ Domain configured successfully!\n")
+				domainForScript = domain
 			}
-
-			config.Domain = *domain
-			saveServerConfig(config)
+		} else {
+			fmt.Printf("⚠️  Invalid domain format: %s\n", domain)
+			domainForScript = ""
 		}
 	}
+
+	// Execute the comprehensive deploy script
+	fmt.Printf("🔧 Executing deployment script...\n")
+
+	// Prepare parameters - use original domain even if DNS config failed
+	deployDomain := domain // Use the original domain parameter
+	email := ""
+	if deployDomain != "" {
+		email = "admin@" + deployDomain
+	}
+
+	redeployFlag := "false"
+	if isRedeploy {
+		redeployFlag = "true"
+	}
+
+	// Get AUTH_SECRET from environment or generate one
+	authSecret := os.Getenv("AUTH_SECRET")
+	if authSecret == "" {
+		// Generate a secure random secret
+		authSecret = fmt.Sprintf("skyscape-%d-%s", time.Now().Unix(), config.Name)
+	}
+
+	// Execute the deployment script directly through stdin
+	// This avoids multiple SSH connections and potential throttling
+	fmt.Printf("🔧 Executing deployment script via single SSH connection...\n")
 	
-	// Save updated config for redeployment
-	if *redeploy {
-		config.Binary = *binary
-		if *domain != "" {
-			config.Domain = *domain
-		}
-		saveServerConfig(config)
+	// Prepare the script with parameters already substituted
+	deployScriptWithParams := fmt.Sprintf(`
+export DOMAIN="%s"
+export EMAIL="%s"
+export API_TOKEN="%s"
+export REDEPLOY="%s"
+export AUTH_SECRET="%s"
+
+%s
+`, deployDomain, email, apiKey, redeployFlag, authSecret, deployScript)
+
+	// Execute the script through a single SSH connection
+	scriptReader := strings.NewReader(deployScriptWithParams)
+	var stdout, stderr strings.Builder
+	
+	err := server.Connect(scriptReader, &stdout, &stderr, "/bin/bash", "-s")
+	if err != nil {
+		fmt.Printf("❌ Deployment failed:\n")
+		fmt.Printf("STDOUT: %s\n", stdout.String())
+		fmt.Printf("STDERR: %s\n", stderr.String())
+		return errors.Wrap(err, "deployment script failed")
+	}
+
+	// Show deployment output
+	fmt.Printf("📋 Deployment output:\n%s\n", stdout.String())
+	if stderr.Len() > 0 {
+		fmt.Printf("⚠️  Warnings/Errors:\n%s\n", stderr.String())
+	}
+
+	// Update config with domain if it was successfully configured
+	if domainForScript != "" {
+		config.Domain = domainForScript
+	}
+
+	// Save updated config
+	if err := saveServerConfig(config); err != nil {
+		fmt.Printf("⚠️  Failed to save server config: %v\n", err)
 	}
 
 	// Final output
 	fmt.Printf("\n🎉 Deployment complete!\n\n")
 	fmt.Printf("Your application is now running at:\n")
-	fmt.Printf("  🔗 http://%s\n", deployedServer.GetIP())
+	fmt.Printf("  🔗 http://%s\n", server.GetIP())
 	if config.Domain != "" {
 		fmt.Printf("  🔗 https://%s\n", config.Domain)
 	}
-	if *redeploy {
+
+	if isRedeploy {
 		fmt.Printf("\n✅ Application successfully redeployed to '%s'\n", config.Name)
 	} else {
 		fmt.Printf("\n📋 Server Details:\n")
-		fmt.Printf("  ID: %s\n", deployedServer.GetID())
-		fmt.Printf("  IP: %s\n", deployedServer.GetIP())
-		fmt.Printf("  Size: %s\n", *size)
-		fmt.Printf("  Region: %s\n", *region)
+		fmt.Printf("  ID: %s\n", config.ID)
+		fmt.Printf("  IP: %s\n", server.GetIP())
+		fmt.Printf("  Size: %s\n", size)
+		fmt.Printf("  Region: %s\n", region)
 	}
 	fmt.Printf("\n📝 To connect via SSH:\n")
-	fmt.Printf("  ssh root@%s\n", deployedServer.GetIP())
+	fmt.Printf("  ssh root@%s\n", server.GetIP())
 
 	return nil
 }
 
+
+// waitForSSH waits for SSH to be available on the given IP
+func waitForSSH(ip string, maxSeconds int) error {
+	start := time.Now()
+	for {
+		// Try to connect via SSH
+		cmd := exec.Command("ssh", "-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=5", "root@"+ip, "echo", "ready")
+		if err := cmd.Run(); err == nil {
+			return nil
+		}
+
+		// Check if we've exceeded the timeout
+		if time.Since(start) > time.Duration(maxSeconds)*time.Second {
+			return fmt.Errorf("SSH not available after %d seconds", maxSeconds)
+		}
+
+		// Wait before retrying
+		fmt.Printf(".")
+		time.Sleep(2 * time.Second)
+	}
+}
+
+// Configuration management functions
 func loadServerConfig(serverName string) (*ServerConfig, error) {
 	configPath := filepath.Join("servers", serverName+".json")
 	data, err := os.ReadFile(configPath)
@@ -395,30 +460,26 @@ func listServers() error {
 
 	fmt.Println("\n📋 Configured Servers:")
 	fmt.Println("────────────────────────────────────────────")
-	
+
 	for _, file := range files {
 		config, err := loadServerConfig(strings.TrimSuffix(filepath.Base(file), ".json"))
 		if err != nil {
 			continue
 		}
-		
+
 		fmt.Printf("  %-20s %s", config.Name, config.IP)
 		if config.Domain != "" {
 			fmt.Printf(" (%s)", config.Domain)
 		}
 		fmt.Printf("\n")
 	}
-	
+
 	fmt.Println("────────────────────────────────────────────")
 	fmt.Printf("\nTotal: %d server(s)\n", len(files))
 	return nil
 }
 
 func destroyServer(name string, apiKey string) error {
-	if name == "" {
-		return errors.New("--name flag is required for destroy operation")
-	}
-
 	// Load server config
 	config, err := loadServerConfig(name)
 	if err != nil {
@@ -432,10 +493,10 @@ func destroyServer(name string, apiKey string) error {
 	}
 	fmt.Printf("\nThis action cannot be undone. The server and all its data will be permanently deleted.\n")
 	fmt.Printf("\nType the server name '%s' to confirm destruction: ", config.Name)
-	
+
 	var confirmation string
 	fmt.Scanln(&confirmation)
-	
+
 	if confirmation != config.Name {
 		fmt.Println("❌ Destruction cancelled.")
 		return nil
@@ -446,7 +507,7 @@ func destroyServer(name string, apiKey string) error {
 	// Initialize platform and get server by ID
 	platform := digitalocean.Connect(apiKey)
 	ctx := context.Background()
-	
+
 	if config.ID != "" {
 		server, err := platform.GetServer(config.ID)
 		if err != nil {
@@ -476,7 +537,7 @@ func destroyServer(name string, apiKey string) error {
 }
 
 func main() {
-	if err := runLaunch(); err != nil {
+	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
 	}
