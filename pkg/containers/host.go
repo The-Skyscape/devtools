@@ -56,20 +56,16 @@ func Launch(host Host, s *Service) (err error) {
 		return errors.Wrap(err, "failed to start service command")
 	}
 
-	// Debug: Print the script being executed
-	script := buf.String()
-	// fmt.Printf("DEBUG: Executing script:\n%s\n", script)
-
 	// Use stdin with bash to handle complex multi-line scripts
 	var stderr bytes.Buffer
-	s.SetStdin(strings.NewReader(script))
+	s.SetStdin(&buf)
 	s.SetStderr(&stderr)
 	
 	if err := s.Exec("bash"); err != nil {
 		// Include stderr output in error message
 		errMsg := err.Error()
 		if stderrStr := stderr.String(); stderrStr != "" {
-			errMsg = fmt.Sprintf("%s\nStderr: %s\nScript: %s", errMsg, stderrStr, script)
+			errMsg = fmt.Sprintf("%s: %s", errMsg, stderrStr)
 		}
 		return errors.New(errMsg)
 	}

@@ -61,15 +61,10 @@ func (s *ipServer) Exec(args ...string) (bytes.Buffer, bytes.Buffer, error) {
 	// Execute command via SSH
 	var stdout, stderr bytes.Buffer
 	sshArgs := append([]string{"-o", "StrictHostKeyChecking=no", "-o", "ConnectTimeout=30", "root@" + s.ip}, args...)
-	// Debug logging
-	fmt.Printf("🔌 SSH: %s\n", strings.Join(args, " "))
 	cmd := exec.Command("ssh", sshArgs...)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	err := cmd.Run()
-	if err != nil {
-		fmt.Printf("❌ SSH Error: %v\n", err)
-	}
 	return stdout, stderr, err
 }
 
@@ -297,24 +292,6 @@ func runLaunch() error {
 	}
 
 	fmt.Printf("🚀 Launching application container...\n")
-	
-	// Debug: Test SSH connection before launch
-	fmt.Printf("🔍 Testing SSH connection...\n")
-	if _, _, err := deployedServer.Exec("echo", "SSH connection test"); err != nil {
-		fmt.Printf("❌ SSH test failed: %v\n", err)
-		fmt.Printf("⏳ Waiting 10 seconds for SSH to recover...\n")
-		time.Sleep(10 * time.Second)
-		
-		// Try again
-		if _, _, err := deployedServer.Exec("echo", "SSH connection test 2"); err != nil {
-			fmt.Printf("❌ SSH still failing after wait: %v\n", err)
-		} else {
-			fmt.Printf("✅ SSH recovered after wait\n")
-		}
-	} else {
-		fmt.Printf("✅ SSH connection OK\n")
-	}
-	
 	if err := host.Launch(service); err != nil {
 		return errors.Wrap(err, "failed to launch container")
 	}
