@@ -6,8 +6,12 @@
 
 set -e  # Exit on any error
 
-# Environment variables are set by the launcher:
-# DOMAIN, EMAIL, API_TOKEN, REDEPLOY, AUTH_SECRET
+# Script parameters (interpolated by Go)
+DOMAIN="%s"
+EMAIL="%s"
+API_TOKEN="%s"
+REDEPLOY="%s"
+AUTH_SECRET="%s"
 
 # Color codes for better output
 RED='\033[0;31m'

@@ -273,12 +273,12 @@ func runDestroy(cmd *cobra.Command, args []string) error {
 
 // deployApplication handles the core deployment logic
 func deployApplication(server hosting.Server, config *ServerConfig, apiKey string, isRedeploy bool) error {
-	fmt.Printf("🚀 Deploying application using integrated deployment script...\n")
+	fmt.Printf("🚀 Deploying application...\n")
 
 	// Upload application files
 	fmt.Printf("📤 Uploading application files...\n")
 
-	// Upload binary first
+	// Upload binary
 	if _, _, err := server.Copy(binary, "/root/app"); err != nil {
 		return errors.Wrap(err, "failed to upload binary")
 	}
@@ -289,29 +289,20 @@ func deployApplication(server hosting.Server, config *ServerConfig, apiKey strin
 	}
 
 	// Configure domain DNS if provided
-	var domainForScript string
-	if domain != "" {
+	if domain != "" && apiKey != "" {
 		if parts := strings.SplitN(domain, ".", 2); len(parts) == 2 {
 			sub, root := parts[0], parts[1]
-			fmt.Printf("🌐 Configuring domain: %s.%s\n", sub, root)
+			fmt.Printf("🌐 Configuring DNS: %s.%s -> %s\n", sub, root, server.GetIP())
 			if err := server.Alias(sub, root); err != nil {
-				fmt.Printf("⚠️  Domain configuration failed: %v\n", err)
-				domainForScript = "" // Don't configure SSL if DNS failed
+				fmt.Printf("⚠️  DNS configuration failed: %v\n", err)
 			} else {
-				fmt.Printf("✅ Domain configured successfully!\n")
-				domainForScript = domain
+				fmt.Printf("✅ DNS configured successfully!\n")
 			}
-		} else {
-			fmt.Printf("⚠️  Invalid domain format: %s\n", domain)
-			domainForScript = ""
 		}
 	}
 
-	// Execute the comprehensive deploy script
-	fmt.Printf("🔧 Executing deployment script...\n")
-
-	// Prepare parameters - use original domain even if DNS config failed
-	deployDomain := domain // Use the original domain parameter
+	// Prepare parameters
+	deployDomain := domain
 	email := ""
 	if deployDomain != "" {
 		email = "admin@" + deployDomain
@@ -325,30 +316,17 @@ func deployApplication(server hosting.Server, config *ServerConfig, apiKey strin
 	// Get AUTH_SECRET from environment or generate one
 	authSecret := os.Getenv("AUTH_SECRET")
 	if authSecret == "" {
-		// Generate a secure random secret
 		authSecret = fmt.Sprintf("skyscape-%d-%s", time.Now().Unix(), config.Name)
 	}
 
-	// Execute the deployment script directly through stdin
-	// This avoids multiple SSH connections and potential throttling
-	fmt.Printf("🔧 Executing deployment script via single SSH connection...\n")
+	// Execute the deployment script
+	fmt.Printf("🔧 Executing deployment script...\n")
 	
-	// Prepare the script with parameters already substituted
-	deployScriptWithParams := fmt.Sprintf(`
-export DOMAIN="%s"
-export EMAIL="%s"
-export API_TOKEN="%s"
-export REDEPLOY="%s"
-export AUTH_SECRET="%s"
-
-%s
-`, deployDomain, email, apiKey, redeployFlag, authSecret, deployScript)
-
-	// Execute the script through a single SSH connection
-	scriptReader := strings.NewReader(deployScriptWithParams)
-	var stdout, stderr strings.Builder
+	// Interpolate values into the deploy script
+	scriptWithValues := fmt.Sprintf(deployScript, deployDomain, email, apiKey, redeployFlag, authSecret)
 	
-	err := server.Connect(scriptReader, &stdout, &stderr, "/bin/bash", "-s")
+	// Execute the script as a single command
+	stdout, stderr, err := server.Exec("/bin/bash", "-c", scriptWithValues)
 	if err != nil {
 		fmt.Printf("❌ Deployment failed:\n")
 		fmt.Printf("STDOUT: %s\n", stdout.String())
@@ -362,10 +340,6 @@ export AUTH_SECRET="%s"
 		fmt.Printf("⚠️  Warnings/Errors:\n%s\n", stderr.String())
 	}
 
-	// Update config with domain if it was successfully configured
-	if domainForScript != "" {
-		config.Domain = domainForScript
-	}
 
 	// Save updated config
 	if err := saveServerConfig(config); err != nil {

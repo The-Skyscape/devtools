@@ -8,10 +8,11 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"github.com/The-Skyscape/devtools/pkg/hosting"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/The-Skyscape/devtools/pkg/hosting"
 
 	"github.com/digitalocean/godo"
 	"github.com/pkg/errors"
@@ -122,7 +123,9 @@ func (s *Server) Dump(path string, data []byte) (stdout, stderr bytes.Buffer, er
 		return stdout, stderr, errors.Wrap(err, "failed to copy file "+path)
 	}
 
-	_, _, err = s.Exec("chmod", "+x", path)
+	// time.Sleep(2 * time.Second)
+
+	// _, _, err = s.Exec("chmod", "+x", path)
 	return stdout, stderr, errors.Wrap(err, "failed to chmod file")
 }
 
