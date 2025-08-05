@@ -4,6 +4,7 @@ import (
 	"bytes"
 	_ "embed"
 	"encoding/json"
+	"fmt"
 	"io"
 	"strings"
 	"text/template"
@@ -55,7 +56,25 @@ func Launch(host Host, s *Service) (err error) {
 		return errors.Wrap(err, "failed to start service command")
 	}
 
-	return s.Exec("bash", "-c", buf.String())
+	// Debug: Print the script being executed
+	script := buf.String()
+	// fmt.Printf("DEBUG: Executing script:\n%s\n", script)
+
+	// Use stdin with bash to handle complex multi-line scripts
+	var stderr bytes.Buffer
+	s.SetStdin(strings.NewReader(script))
+	s.SetStderr(&stderr)
+	
+	if err := s.Exec("bash"); err != nil {
+		// Include stderr output in error message
+		errMsg := err.Error()
+		if stderrStr := stderr.String(); stderrStr != "" {
+			errMsg = fmt.Sprintf("%s\nStderr: %s\nScript: %s", errMsg, stderrStr, script)
+		}
+		return errors.New(errMsg)
+	}
+	
+	return nil
 }
 
 // ListServices returns a list of all services on
