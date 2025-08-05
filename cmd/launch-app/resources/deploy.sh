@@ -50,9 +50,9 @@ docker exec "$CONTAINER_ID" chmod +x "$CONTAINER_BINARY"
 
 # Copy SSL certificates if they exist
 if [ -f "/root/fullchain.pem" ] && [ -f "/root/privkey.pem" ]; then
-    echo "Copying SSL certificates..."
-    docker cp /root/fullchain.pem "${CONTAINER_ID}:/root/fullchain.pem"
-    docker cp /root/privkey.pem "${CONTAINER_ID}:/root/privkey.pem"
+    echo "Copying existing SSL certificates..."
+    docker cp -L /root/fullchain.pem "${CONTAINER_ID}:/root/fullchain.pem"
+    docker cp -L /root/privkey.pem "${CONTAINER_ID}:/root/privkey.pem"
 fi
 
 # Start container
@@ -77,15 +77,20 @@ else
     exit 1
 fi
 
+echo "Deployment complete!"
+
 # Handle SSL certificate generation if domain is provided
+# This runs AFTER deployment to ensure the app is running
 if [ -n "$DOMAIN" ] && [ "$DOMAIN" != "null" ]; then
     if [ ! -f "/root/fullchain.pem" ] || [ ! -f "/root/privkey.pem" ]; then
-        echo "Generating SSL certificates for $DOMAIN..."
+        echo ""
+        echo "Setting up SSL certificates for $DOMAIN..."
         
         # Install certbot if not already installed
         if ! command -v certbot >/dev/null 2>&1; then
-            apt update
-            apt install -y certbot python3-certbot-dns-digitalocean
+            echo "Installing certbot..."
+            apt-get update -qq
+            apt-get install -y -qq certbot python3-certbot-dns-digitalocean
         fi
         
         # Create DigitalOcean credentials file
@@ -93,6 +98,7 @@ if [ -n "$DOMAIN" ] && [ "$DOMAIN" != "null" ]; then
         chmod 600 ~/certbot-creds.ini
         
         # Generate certificate
+        echo "Generating SSL certificate..."
         certbot certonly \
             --dns-digitalocean \
             --dns-digitalocean-credentials ~/certbot-creds.ini \
@@ -107,15 +113,16 @@ if [ -n "$DOMAIN" ] && [ "$DOMAIN" != "null" ]; then
             cp "/etc/letsencrypt/live/$DOMAIN/fullchain.pem" /root/fullchain.pem
             cp "/etc/letsencrypt/live/$DOMAIN/privkey.pem" /root/privkey.pem
             
-            # Copy certificates into container
-            docker cp /root/fullchain.pem "${CONTAINER_NAME}:/root/fullchain.pem"
-            docker cp /root/privkey.pem "${CONTAINER_NAME}:/root/privkey.pem"
+            # Copy certificates into container using -L to follow symlinks
+            docker cp -L /root/fullchain.pem "${CONTAINER_NAME}:/root/fullchain.pem"
+            docker cp -L /root/privkey.pem "${CONTAINER_NAME}:/root/privkey.pem"
             
             # Restart container to pick up certificates
             echo "Restarting container with SSL certificates..."
             docker restart "$CONTAINER_NAME"
             
             echo "✅ SSL certificates generated and installed successfully!"
+            echo "Your site is now available at https://$DOMAIN"
         else
             echo "⚠️  Failed to generate SSL certificates. The site will run on HTTP only."
         fi
@@ -123,11 +130,10 @@ if [ -n "$DOMAIN" ] && [ "$DOMAIN" != "null" ]; then
         # Clean up credentials file
         rm -f ~/certbot-creds.ini
     else
-        echo "SSL certificates already exist, copying to container..."
-        docker cp /root/fullchain.pem "${CONTAINER_NAME}:/root/fullchain.pem"
-        docker cp /root/privkey.pem "${CONTAINER_NAME}:/root/privkey.pem"
+        echo "SSL certificates already exist, ensuring they're in the container..."
+        docker cp -L /root/fullchain.pem "${CONTAINER_NAME}:/root/fullchain.pem"
+        docker cp -L /root/privkey.pem "${CONTAINER_NAME}:/root/privkey.pem"
         docker restart "$CONTAINER_NAME"
+        echo "✅ SSL certificates updated in container"
     fi
 fi
-
-echo "Deployment complete!"
