@@ -3,6 +3,7 @@ chmod -R 777 {{dataDir}}/services/{{.Name}} && \
 docker rm -f {{.Name}} 2>/dev/null || true && \
 docker create \
   --name {{.Name}} \
+  {{if .RestartPolicy}}--restart {{.RestartPolicy}}{{end}} \
   {{if .Network}}--network {{.Network}}{{end}} \
   {{if .Privileged}}--privileged{{end}} \
   {{if .Entrypoint}}--entrypoint {{.Entrypoint}}{{end}} \

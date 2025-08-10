@@ -17,18 +17,19 @@ import (
 type Service struct {
 	Host
 
-	ID         string
-	Status     string
-	Name       string
-	Image      string
-	Network    string
-	Privileged bool
-	Entrypoint string
-	Command    string
-	Ports      map[int]int
-	Mounts     map[string]string
-	Copied     map[string]string
-	Env        map[string]string
+	ID           string
+	Status       string
+	Name         string
+	Image        string
+	Network      string
+	Privileged   bool
+	Entrypoint   string
+	Command      string
+	RestartPolicy string // e.g., "always", "unless-stopped", "on-failure"
+	Ports        map[int]int
+	Mounts       map[string]string
+	Copied       map[string]string
+	Env          map[string]string
 }
 
 // Stop stops and removes the Docker container
