@@ -96,6 +96,11 @@ func (app *App) Server() (string, http.Handler) {
 	return addr, nil
 }
 
+// SetTheme updates the application theme
+func (app *App) SetTheme(theme string) {
+	app.theme = theme
+}
+
 // Render renders a view with given data to the http writer
 func (app *App) Render(w io.Writer, r *http.Request, page string, data any) {
 	funcs := template.FuncMap{

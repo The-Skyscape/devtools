@@ -69,10 +69,14 @@ func (app *App) prepareViews() {
 
 		if tmpl, err := app.viewEngine.ParseFS(source, "views/**/*.html"); err == nil {
 			app.viewEngine = tmpl
+		} else {
+			log.Print("Failed to parse views", err)
 		}
 
 		if tmpl, err := app.viewEngine.ParseFS(source, "views/**/**/*.html"); err == nil {
 			app.viewEngine = tmpl
+		} else {
+			log.Print("Failed to parse views", err)
 		}
 	}
 }
