@@ -44,6 +44,12 @@ func (c *Collection) Signup(name, email, handle, password string, isAdmin bool) 
 		return nil, err
 	}
 
+	// Determine role based on whether this is the first user
+	role := "developer"
+	if isAdmin {
+		role = "admin"
+	}
+
 	return c.Users.Insert(&User{
 		Avatar:   fmt.Sprintf("https://robohash.org/%s?set=set4", email),
 		Name:     name,
@@ -51,6 +57,7 @@ func (c *Collection) Signup(name, email, handle, password string, isAdmin bool) 
 		Handle:   handle,
 		PassHash: passhash,
 		IsAdmin:  isAdmin,
+		Role:     role,
 	})
 }
 

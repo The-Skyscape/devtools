@@ -45,32 +45,37 @@ type Controller struct {
 	signoutRedir string
 }
 
-func (auth *Controller) Optional(app *application.App, r *http.Request) string {
-	return ""
+func (auth *Controller) Optional(app *application.App, w http.ResponseWriter, r *http.Request) bool {
+	// Optional always allows access
+	return true
 }
 
-func (auth *Controller) Required(app *application.App, r *http.Request) string {
+func (auth *Controller) Required(app *application.App, w http.ResponseWriter, r *http.Request) bool {
 	if auth.Users.Count() == 0 {
-		return "signup.html"
+		app.Render(w, r, "signup.html", nil)
+		return false
 	}
 
 	if u, _, err := auth.Authenticate(r); u != nil && err == nil {
-		return ""
+		return true
 	}
 
-	return "signin.html"
+	app.Render(w, r, "signin.html", nil)
+	return false
 }
 
-func (auth *Controller) AdminOnly(app *application.App, r *http.Request) string {
+func (auth *Controller) AdminOnly(app *application.App, w http.ResponseWriter, r *http.Request) bool {
 	if auth.Users.Count() == 0 {
-		return "signup.html"
+		app.Render(w, r, "signup.html", nil)
+		return false
 	}
 
 	if u, _, err := auth.Authenticate(r); u != nil && err == nil && u.IsAdmin {
-		return ""
+		return true
 	}
 
-	return "signin.html"
+	app.Render(w, r, "signin.html", nil)
+	return false
 }
 
 func (auth *Controller) Setup(app *application.App) {

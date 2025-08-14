@@ -2,7 +2,7 @@ package application
 
 import "net/http"
 
-type AccessCheck func(*App, *http.Request) string
+type AccessCheck func(*App, http.ResponseWriter, *http.Request) bool
 
 func (app *App) Protect(h http.Handler, accessCheck AccessCheck) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -11,8 +11,8 @@ func (app *App) Protect(h http.Handler, accessCheck AccessCheck) http.HandlerFun
 			return
 		}
 
-		if page := accessCheck(app, r); page != "" {
-			app.Render(w, r, page, nil)
+		// If accessCheck returns false, it has already handled the response
+		if !accessCheck(app, w, r) {
 			return
 		}
 

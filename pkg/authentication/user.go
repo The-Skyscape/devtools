@@ -17,6 +17,7 @@ type User struct {
 	Email    string
 	Handle   string
 	IsAdmin  bool
+	Role     string // "admin", "developer", "guest"
 	PassHash []byte
 }
 

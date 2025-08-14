@@ -18,20 +18,23 @@ func (auth *Controller) ProtectFunc(h http.HandlerFunc, adminOnly bool) http.Han
 }
 
 func (auth *Controller) Serve(name string, adminOnly bool) http.Handler {
-	return auth.App.Serve(name, func(app *application.App, r *http.Request) string {
+	return auth.App.Serve(name, func(app *application.App, w http.ResponseWriter, r *http.Request) bool {
 		if auth.Users.Count() == 0 {
-			return "setup.html"
+			app.Render(w, r, "setup.html", nil)
+			return false
 		}
 
 		if user, _, _ := auth.Authenticate(r); user != nil {
 			if !adminOnly || user.IsAdmin {
-				return ""
+				return true
 			} else {
-				return "signin.html"
+				app.Render(w, r, "signin.html", nil)
+				return false
 			}
 		}
 
-		return "signin.html"
+		app.Render(w, r, "signin.html", nil)
+		return false
 	})
 }
 

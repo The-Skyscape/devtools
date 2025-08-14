@@ -32,8 +32,8 @@ func (v *View) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if page := v.accessCheck(v.app, r); page != "" {
-		v.app.Render(w, r, page, nil)
+	// If accessCheck returns false, it has already handled the response
+	if !v.accessCheck(v.app, w, r) {
 		return
 	}
 
