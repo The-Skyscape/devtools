@@ -61,6 +61,16 @@ func (c *BaseController) Redirect(w http.ResponseWriter, r *http.Request, path s
 	http.Redirect(w, r, path, http.StatusSeeOther)
 }
 
+func (c *BaseController) RenderError(w http.ResponseWriter, r *http.Request, err error) {
+	// Standardized error rendering for consistency across controllers
+	c.Render(w, r, "error-message.html", err)
+}
+
+func (c *BaseController) RenderErrorMsg(w http.ResponseWriter, r *http.Request, msg string) {
+	// Convenience method for rendering error messages
+	c.RenderError(w, r, errors.New(msg))
+}
+
 func (c *BaseController) EventStream(w http.ResponseWriter, r *http.Request) (func(string, any), error) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")

@@ -78,3 +78,15 @@ func (c *Collection[E]) Find(query string, args ...any) (E, error) {
 			return ErrIterStop
 		})
 }
+
+// Index creates an index on the collection's table
+// Example: Repositories.Index("UserID", "Visibility")
+func (c *Collection[E]) Index(columns ...string) error {
+	return c.DB.Index(c.Ent.Table(), columns...)
+}
+
+// UniqueIndex creates a unique index on the collection's table
+// Example: Permissions.UniqueIndex("RepoID", "UserID")
+func (c *Collection[E]) UniqueIndex(columns ...string) error {
+	return c.DB.UniqueIndex(c.Ent.Table(), columns...)
+}

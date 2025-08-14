@@ -236,6 +236,40 @@ func (db *DynamicDB) Delete(ent Entity) error {
 	`, ent.Table()), db.entID(ent)).Exec()
 }
 
+// Index creates an index on the specified table and columns
+// Example: db.Index("users", "email") creates idx_users_email
+func (db *DynamicDB) Index(table string, columns ...string) error {
+	if len(columns) == 0 {
+		return nil
+	}
+	
+	// Auto-generate index name from table and columns
+	indexName := fmt.Sprintf("idx_%s_%s", table, strings.Join(columns, "_"))
+	indexName = strings.ToLower(strings.ReplaceAll(indexName, " ", "_"))
+	
+	return db.Query(fmt.Sprintf(
+		"CREATE INDEX IF NOT EXISTS %s ON %s(%s)",
+		indexName, table, strings.Join(columns, ", "),
+	)).Exec()
+}
+
+// UniqueIndex creates a unique index on the specified table and columns
+// Example: db.UniqueIndex("users", "email") creates uniq_users_email
+func (db *DynamicDB) UniqueIndex(table string, columns ...string) error {
+	if len(columns) == 0 {
+		return nil
+	}
+	
+	// Auto-generate index name from table and columns
+	indexName := fmt.Sprintf("uniq_%s_%s", table, strings.Join(columns, "_"))
+	indexName = strings.ToLower(strings.ReplaceAll(indexName, " ", "_"))
+	
+	return db.Query(fmt.Sprintf(
+		"CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s(%s)",
+		indexName, table, strings.Join(columns, ", "),
+	)).Exec()
+}
+
 func Cursor[E Entity](db *DynamicDB, ent E, query string, args ...any) *cursor[E] {
 	typeOf := reflect.TypeOf(ent)
 	return &cursor[E]{db, typeOf, ent, query, args}
