@@ -1,6 +1,7 @@
 package database
 
 import (
+	"fmt"
 	"reflect"
 	"time"
 
@@ -89,4 +90,30 @@ func (c *Collection[E]) Index(columns ...string) error {
 // Example: Permissions.UniqueIndex("RepoID", "UserID")
 func (c *Collection[E]) UniqueIndex(columns ...string) error {
 	return c.DB.UniqueIndex(c.Ent.Table(), columns...)
+}
+
+// SearchPaginated performs a paginated search with total count
+// Returns: items, total count, error
+func (c *Collection[E]) SearchPaginated(query string, limit, offset int, args ...any) ([]E, int, error) {
+	// Get total count first
+	var total int
+	countQuery := "SELECT COUNT(*) FROM " + c.Ent.Table()
+	if query != "" {
+		countQuery += " " + query
+	}
+	err := c.DB.Query(countQuery, args...).Scan(&total)
+	if err != nil {
+		return nil, 0, err
+	}
+
+	// Get paginated results
+	paginatedQuery := query + fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
+	items, err := c.Search(paginatedQuery, args...)
+	return items, total, err
+}
+
+// AllPaginated returns all items with pagination
+// Returns: items, total count, error
+func (c *Collection[E]) AllPaginated(limit, offset int) ([]E, int, error) {
+	return c.SearchPaginated("ORDER BY CreatedAt DESC", limit, offset)
 }
