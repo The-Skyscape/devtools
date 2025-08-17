@@ -114,6 +114,10 @@ func (auth *Controller) CurrentUser() *User {
 	return nil
 }
 
+func (auth *Controller) IsAuthenticated() bool {
+	return auth.CurrentUser() != nil
+}
+
 func (auth Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
 	name, handle, email, password := r.FormValue("name"), r.FormValue("handle"), r.FormValue("email"), r.FormValue("password")
 	if name == "" || handle == "" || email == "" || password == "" {
