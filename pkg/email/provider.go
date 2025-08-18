@@ -29,7 +29,7 @@ type Message struct {
 
 // Config holds email service configuration
 type Config struct {
-	Provider string // "sendgrid" or "postmark"
+	Provider string // "resend", "sendgrid" or "postmark"
 	APIKey   string
 	From     string
 	FromName string
@@ -53,6 +53,8 @@ func NewService(config *Config) (*Service, error) {
 	
 	// Initialize the provider
 	switch config.Provider {
+	case "resend":
+		s.provider = NewResendProvider(config.APIKey, s.client)
 	case "sendgrid":
 		s.provider = &SendGridProvider{
 			apiKey: config.APIKey,
