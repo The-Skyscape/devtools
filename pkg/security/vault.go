@@ -1,0 +1,368 @@
+package security
+
+import (
+	"fmt"
+	"log"
+	"time"
+
+	"github.com/The-Skyscape/devtools/pkg/containers"
+	"github.com/The-Skyscape/devtools/pkg/database"
+)
+
+// VaultConfig holds configuration for the vault service
+type VaultConfig struct {
+	Port          int
+	ContainerName string
+	DataDir       string
+	DevMode       bool
+	RootToken     string
+	Network       string
+}
+
+// VaultService manages Hashicorp Vault for secure secret storage
+type VaultService struct {
+	config   *VaultConfig
+	service  *containers.Service
+	client   *VaultClient
+	fallback Secrets
+}
+
+
+// VaultStatus represents the current status of the vault service
+type VaultStatus struct {
+	Running   bool
+	Port      int
+	DevMode   bool
+	URL       string
+	Health    string
+	RootToken string
+}
+
+// NewVaultService creates a new vault service with default configuration
+func NewVaultService(opts ...VaultOption) *VaultService {
+	config := &VaultConfig{
+		Port:          8200,
+		ContainerName: "skyscape-vault",
+		DataDir:       fmt.Sprintf("%s/vault", database.DataDir()),
+		DevMode:       true,
+		RootToken:     "skyscape-dev-token",
+		Network:       "bridge",
+	}
+	
+	// Apply options
+	for _, opt := range opts {
+		opt(config)
+	}
+	
+	return &VaultService{
+		config: config,
+		client: NewVaultClient(fmt.Sprintf("http://localhost:%d", config.Port), config.RootToken),
+	}
+}
+
+// GetService returns the container service definition for Vault
+func (v *VaultService) GetService() *containers.Service {
+	if v.service != nil {
+		return v.service
+	}
+	
+	// Create the service configuration
+	v.service = &containers.Service{
+		Name:          v.config.ContainerName,
+		Image:         "hashicorp/vault:latest",
+		Network:       v.config.Network,
+		RestartPolicy: "always",
+		Ports: map[int]int{
+			8200: v.config.Port,
+		},
+		Env: map[string]string{
+			"VAULT_DEV_ROOT_TOKEN_ID":  v.config.RootToken,
+			"VAULT_DEV_LISTEN_ADDRESS": "0.0.0.0:8200",
+			"VAULT_ADDR":               "http://0.0.0.0:8200",
+			"VAULT_API_ADDR":           "http://0.0.0.0:8200",
+		},
+	}
+	
+	// Configure for dev or production mode
+	if v.config.DevMode {
+		v.service.Command = "vault server -dev -dev-listen-address=0.0.0.0:8200"
+	} else {
+		// For production mode, mount data directory and config
+		v.service.Mounts = map[string]string{
+			v.config.DataDir:                "/vault/data",
+			v.config.DataDir + "/config":    "/vault/config",
+		}
+		v.service.Command = "vault server -config=/vault/config"
+		v.service.Env["VAULT_DISABLE_MLOCK"] = "true"
+	}
+	
+	return v.service
+}
+
+// Init initializes the vault service and starts it if not already running
+func (v *VaultService) Init() error {
+	host := &containers.LocalHost{}
+	return v.InitWithHost(host)
+}
+
+// InitWithHost initializes the vault service with a specific host
+func (v *VaultService) InitWithHost(host containers.Host) error {
+	
+	// Check if service already exists and is running
+	existing, err := containers.GetService(host, v.config.ContainerName)
+	if err == nil && existing != nil && existing.IsRunning() {
+		log.Println("Vault service already running")
+		v.service = existing
+		return nil
+	}
+	
+	log.Println("Initializing Vault service...")
+	
+	// Get the service definition
+	service := v.GetService()
+	service.Host = host
+	
+	// Launch the container
+	if err := containers.Launch(host, service); err != nil {
+		return fmt.Errorf("failed to launch vault container: %w", err)
+	}
+	
+	// Wait for vault to be ready
+	if err := service.WaitForReady(30, func() error {
+		// Simple health check - vault will respond on its API port
+		return host.Exec("curl", "-f", fmt.Sprintf("http://localhost:%d/v1/sys/health", v.config.Port))
+	}); err != nil {
+		log.Printf("Warning: Vault may not be fully ready: %v", err)
+	}
+	
+	log.Printf("Vault service started successfully on port %d", v.config.Port)
+	if v.config.DevMode {
+		log.Printf("Vault running in dev mode with root token: %s", v.config.RootToken)
+		log.Printf("Access Vault UI at: http://localhost:%d", v.config.Port)
+	}
+	
+	v.service = service
+	return nil
+}
+
+// Start starts the vault service
+func (v *VaultService) Start(host containers.Host) error {
+	
+	if v.service == nil {
+		v.service = v.GetService()
+		v.service.Host = host
+	}
+	
+	if v.IsRunning() {
+		return nil
+	}
+	
+	log.Printf("Starting Vault service on port %d", v.config.Port)
+	
+	// Launch the container
+	if err := containers.Launch(host, v.service); err != nil {
+		return fmt.Errorf("failed to launch vault container: %w", err)
+	}
+	
+	// Wait for readiness
+	time.Sleep(3 * time.Second)
+	
+	return nil
+}
+
+// Stop stops the vault service
+func (v *VaultService) Stop() error {
+	
+	if v.service == nil {
+		return nil
+	}
+	
+	log.Println("Stopping Vault service")
+	return v.service.Stop()
+}
+
+// IsRunning checks if the vault service is running
+func (v *VaultService) IsRunning() bool {
+	if v.service == nil {
+		return false
+	}
+	return v.service.IsRunning()
+}
+
+// IsAvailable returns true if Vault is running and accessible
+func (v *VaultService) IsAvailable() bool {
+	return v.IsRunning()
+}
+
+// GetStorageMode returns "vault"
+func (v *VaultService) GetStorageMode() string {
+	return "vault"
+}
+
+// Close closes the Vault service
+func (v *VaultService) Close() error {
+	return v.Stop()
+}
+
+// ListSecrets returns all secret paths (not implemented for Vault)
+func (v *VaultService) ListSecrets() ([]string, error) {
+	// Vault doesn't easily support listing all secrets
+	// Return empty list or use fallback
+	if v.fallback != nil {
+		return v.fallback.ListSecrets()
+	}
+	return []string{}, nil
+}
+
+// Restart restarts the vault service
+func (v *VaultService) Restart(host containers.Host) error {
+	if err := v.Stop(); err != nil {
+		return err
+	}
+	return v.Start(host)
+}
+
+// GetStatus returns the current status as interface{}
+func (v *VaultService) GetStatus() interface{} {
+	return v.GetVaultStatus()
+}
+
+// GetVaultStatus returns the current status of the vault service
+func (v *VaultService) GetVaultStatus() VaultStatus {
+	
+	status := VaultStatus{
+		Running:   v.IsRunning(),
+		Port:      v.config.Port,
+		DevMode:   v.config.DevMode,
+		URL:       fmt.Sprintf("http://localhost:%d", v.config.Port),
+		RootToken: v.config.RootToken,
+	}
+	
+	if status.Running {
+		status.Health = "healthy"
+	} else {
+		status.Health = "stopped"
+	}
+	
+	return status
+}
+
+// GetClient returns the Vault API client
+func (v *VaultService) GetClient() *VaultClient {
+	return v.client
+}
+
+// SetFallback sets the fallback storage backend
+func (v *VaultService) SetFallback(fallback Secrets) {
+	v.fallback = fallback
+}
+
+// HasFallback returns true if a fallback backend is configured
+func (v *VaultService) HasFallback() bool {
+	return v.fallback != nil
+}
+
+// StoreSecret stores a secret at the given path
+func (v *VaultService) StoreSecret(path string, data map[string]interface{}) error {
+	if v.client != nil {
+		return v.client.StoreSecret(path, data)
+	}
+	if v.fallback != nil {
+		return v.fallback.StoreSecret(path, data)
+	}
+	return fmt.Errorf("no storage backend available")
+}
+
+// GetSecret retrieves a secret from the given path
+func (v *VaultService) GetSecret(path string) (map[string]interface{}, error) {
+	if v.client != nil {
+		return v.client.GetSecret(path)
+	}
+	if v.fallback != nil {
+		return v.fallback.GetSecret(path)
+	}
+	return nil, fmt.Errorf("no storage backend available")
+}
+
+// DeleteSecret removes a secret at the given path
+func (v *VaultService) DeleteSecret(path string) error {
+	if v.client != nil {
+		return v.client.DeleteSecret(path)
+	}
+	if v.fallback != nil {
+		return v.fallback.DeleteSecret(path)
+	}
+	return fmt.Errorf("no storage backend available")
+}
+
+// ========== Integration-Specific Methods ==========
+
+// StoreStripeKeys stores Stripe API keys securely
+func (v *VaultService) StoreStripeKeys(secretKey, publishableKey, webhookSecret string) error {
+	data := map[string]interface{}{
+		"secret_key":      secretKey,
+		"publishable_key": publishableKey,
+		"webhook_secret":  webhookSecret,
+		"updated_at":      time.Now().Unix(),
+	}
+	return v.StoreSecret("integrations/stripe", data)
+}
+
+// GetStripeKeys retrieves Stripe API keys
+func (v *VaultService) GetStripeKeys() (secretKey, publishableKey, webhookSecret string, err error) {
+	secret, err := v.GetSecret("integrations/stripe")
+	if err != nil {
+		return "", "", "", err
+	}
+	
+	if sk, ok := secret["secret_key"].(string); ok {
+		secretKey = sk
+	}
+	if pk, ok := secret["publishable_key"].(string); ok {
+		publishableKey = pk
+	}
+	if ws, ok := secret["webhook_secret"].(string); ok {
+		webhookSecret = ws
+	}
+	
+	if secretKey == "" || publishableKey == "" {
+		return "", "", "", fmt.Errorf("incomplete Stripe configuration")
+	}
+	
+	return secretKey, publishableKey, webhookSecret, nil
+}
+
+// StoreDigitalOceanKey stores the DigitalOcean API key securely
+func (v *VaultService) StoreDigitalOceanKey(apiKey string) error {
+	data := map[string]interface{}{
+		"api_key":    apiKey,
+		"updated_at": time.Now().Unix(),
+	}
+	return v.StoreSecret("integrations/digitalocean", data)
+}
+
+// GetDigitalOceanKey retrieves the DigitalOcean API key
+func (v *VaultService) GetDigitalOceanKey() (string, error) {
+	secret, err := v.GetSecret("integrations/digitalocean")
+	if err != nil {
+		return "", err
+	}
+	
+	if apiKey, ok := secret["api_key"].(string); ok {
+		return apiKey, nil
+	}
+	
+	return "", fmt.Errorf("DigitalOcean API key not found")
+}
+
+// IsStripeConfigured checks if Stripe is properly configured
+func (v *VaultService) IsStripeConfigured() bool {
+	_, _, _, err := v.GetStripeKeys()
+	return err == nil
+}
+
+// IsDigitalOceanConfigured checks if DigitalOcean is properly configured
+func (v *VaultService) IsDigitalOceanConfigured() bool {
+	_, err := v.GetDigitalOceanKey()
+	return err == nil
+}

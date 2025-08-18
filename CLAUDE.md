@@ -45,6 +45,7 @@ export DIGITAL_OCEAN_API_KEY="your-token"
 - **`pkg/containers/`** - Docker container management with local and remote host abstractions
 - **`pkg/hosting/`** - Multi-cloud server deployment (DigitalOcean, AWS, GCP) with unified Platform interface
 - **`pkg/authentication/`** - User authentication, sessions, and JWT token management
+- **`pkg/security/`** - HashiCorp Vault integration with automatic fallback storage for secrets management
 - **`pkg/database/`** - Database abstraction layer supporting SQLite3 with dynamic queries
 
 ### Key Design Patterns
@@ -53,6 +54,8 @@ export DIGITAL_OCEAN_API_KEY="your-token"
 - **Option pattern**: Configuration through variadic option functions (e.g., `WithFileUpload()`, `WithSetupScript()`)
 - **Embedded file systems**: Views and static assets embedded using Go's `embed` package
 - **Plugin architecture**: Cloud platforms implemented as separate packages under `platforms/`
+- **Fallback pattern**: SecretsController provides automatic fallback from Vault → File → Memory storage
+- **Controller factory pattern**: Controllers return `(string, *Controller)` for registration with the app
 
 ### Commands
 
@@ -172,6 +175,42 @@ func main() {
 - Built-in helpers: `{{theme}}`, `{{host}}`, `{{path}}`, `{{req}}`
 - HTMX integration: use `c.Refresh(w, r)` to trigger page refresh after form submission
 - Templates use unique filenames (no paths) due to Go's global template namespace
+
+### Security Package (SecretsController)
+The security package provides a controller-based approach to secrets management with automatic fallback:
+
+```go
+// Initialize with Vault service
+vault := security.NewVaultService(
+    security.WithContainerName("my-vault"),
+    security.WithPort(8200),
+)
+
+// Add to application
+application.Serve(views,
+    application.WithController(security.NewController(vault)),
+    // other controllers...
+)
+```
+
+**Fallback Chain:**
+1. **Vault Container** - Attempts to start HashiCorp Vault in Docker
+2. **File Storage** - Falls back to encrypted file storage in `~/.skyscape/secrets/`
+3. **Memory Storage** - Last resort, non-persistent in-memory storage
+
+**Controller Methods for Templates:**
+- `IsVaultAvailable()` - Check if real Vault is running
+- `IsFallbackMode()` - Check if using fallback storage
+- `GetStorageMode()` - Return current storage mode (vault/file/memory)
+- `IsStripeConfigured()` - Check Stripe configuration
+- `IsDigitalOceanConfigured()` - Check DigitalOcean configuration
+- `GetVaultURL()` - Return Vault UI URL if available
+
+**Storage Backends:**
+- `MemoryBackend` - In-memory storage (non-persistent)
+- `FileBackend` - Encrypted file storage with AES-GCM
+- `EnvBackend` - Read-only environment variable storage
+- `HybridBackend` - Combines multiple backends with fallback
 
 ## Integration Points
 

@@ -94,6 +94,7 @@ go get github.com/The-Skyscape/devtools
 
 - **🌐 Web Framework** - MVC with embedded templates, HTMX, and DaisyUI
 - **🔐 Authentication** - JWT sessions, bcrypt hashing, role-based access
+- **🔒 Security** - HashiCorp Vault integration with automatic fallback storage
 - **🗄️ Database** - Dynamic ORM with SQLite3, migrations, type-safe repositories  
 - **🐳 Containers** - Docker management for local and remote hosts
 - **☁️ Cloud Deployment** - DigitalOcean, AWS, GCP with SSH key management
@@ -249,6 +250,84 @@ export AUTH_SECRET="your-jwt-secret"  # Required for authentication
 
 # Cloud deployment
 export DIGITAL_OCEAN_API_KEY="token" # For launch-app deployments
+```
+
+## 🔒 Security & Secrets Management
+
+The security package provides HashiCorp Vault integration with automatic fallback to ensure your application always works, even without Docker or Vault.
+
+### SecretsController
+
+```go
+import "github.com/The-Skyscape/devtools/pkg/security"
+
+// Create Vault service
+vault := security.NewVaultService(
+    security.WithContainerName("my-vault"),
+    security.WithPort(8200),
+    security.WithDevMode(true),
+)
+
+// Add to your application
+application.Serve(views,
+    application.WithController(security.NewController(vault)),
+    // ... other controllers
+)
+```
+
+### Storage Modes
+
+1. **Vault** (Primary) - HashiCorp Vault in Docker container for production security
+2. **File** (Fallback) - Encrypted file storage in `~/.skyscape/secrets/` when Docker/Vault unavailable
+
+### Using in Controllers
+
+```go
+func (c *AdminController) IsStripeConfigured() bool {
+    secrets := c.Use("secrets").(*security.Controller)
+    return secrets.IsStripeConfigured()
+}
+
+func (c *AdminController) saveAPIKeys(w http.ResponseWriter, r *http.Request) {
+    secrets := c.Use("secrets").(*security.Controller)
+    
+    if err := secrets.StoreStripeKeys(secretKey, publishKey, webhookSecret); err != nil {
+        c.Render(w, r, "error.html", err)
+        return
+    }
+    
+    c.Redirect(w, r, "/admin")
+}
+```
+
+### Template Usage
+
+```html
+{{if secrets.IsFallbackMode}}
+    <div class="alert alert-warning">
+        Running in fallback mode ({{secrets.GetStorageMode}})
+    </div>
+{{end}}
+
+{{if secrets.IsVaultAvailable}}
+    <a href="{{secrets.GetVaultURL}}" target="_blank">Open Vault UI</a>
+{{end}}
+```
+
+### Storage Backends
+
+```go
+// Environment variables (read-only)
+envBackend := security.NewEnvBackend("MYAPP")
+
+// Encrypted file storage
+fileBackend := security.NewFileBackend()
+
+// In-memory storage
+memoryBackend := security.NewMemoryBackend()
+
+// Hybrid with fallback chain
+hybrid := security.NewHybridBackend(envBackend, fileBackend, memoryBackend)
 ```
 
 ## 🐳 Container Management
