@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 )
 
 // Client provides a simple Vault API client
@@ -20,7 +21,9 @@ func NewClient(address, token string) *Client {
 	return &Client{
 		address: address,
 		token:   token,
-		client:  &http.Client{},
+		client: &http.Client{
+			Timeout: 5 * time.Second, // Add 5 second timeout to prevent hanging
+		},
 	}
 }
 
@@ -76,14 +79,25 @@ func (c *Client) GetSecret(path string) (map[string]interface{}, error) {
 	}
 	defer resp.Body.Close()
 	
+	body, _ := io.ReadAll(resp.Body)
+	
+	// Check for 404 or other errors
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("secret not found")
+	}
+	
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("failed to get secret: %s", body)
+		return nil, fmt.Errorf("failed to get secret (status %d): %s", resp.StatusCode, body)
 	}
 	
 	var result map[string]interface{}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+	if err := json.Unmarshal(body, &result); err != nil {
 		return nil, err
+	}
+	
+	// Check if data exists (vault returns {"data":null} for non-existent secrets)
+	if result["data"] == nil {
+		return nil, fmt.Errorf("secret not found")
 	}
 	
 	// Extract the actual secret data

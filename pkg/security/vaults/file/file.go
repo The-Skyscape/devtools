@@ -10,29 +10,17 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"sync"
 
 	"github.com/The-Skyscape/devtools/pkg/database"
 )
 
 // File implements the Secrets interface using encrypted file storage
 type File struct {
-	baseDir  string
-	key      []byte
-	commands chan command
-}
-
-// command represents a command to the file vault
-type command struct {
-	action   string
-	path     string
-	data     map[string]interface{}
-	response chan response
-}
-
-// response represents a response from the file vault
-type response struct {
-	data  interface{}
-	error error
+	baseDir string
+	key     []byte
+	mu      sync.RWMutex // Simple mutex for thread safety
+	secrets map[string]map[string]interface{}
 }
 
 // New creates a new file-based storage vault
@@ -43,8 +31,8 @@ func New(dir ...string) *File {
 	}
 	
 	return &File{
-		baseDir:  baseDir,
-		commands: make(chan command),
+		baseDir: baseDir,
+		secrets: make(map[string]map[string]interface{}),
 	}
 }
 
@@ -84,84 +72,19 @@ func (f *File) Init() error {
 		f.key = key
 	}
 	
-	// Start command processor
-	go f.run()
+	// Load existing secrets
+	if loadedSecrets, err := f.loadSecretsFromDisk(); err == nil {
+		f.secrets = loadedSecrets
+	}
 	
 	log.Printf("File: Initialized encrypted storage at %s", f.baseDir)
 	return nil
 }
 
-// run handles all commands in a single goroutine
-func (f *File) run() {
-	secrets := make(map[string]map[string]interface{})
-	
-	// Load existing secrets on startup
-	if loadedSecrets, err := f.loadSecretsFromDisk(); err == nil {
-		secrets = loadedSecrets
-	}
-	
-	for cmd := range f.commands {
-		switch cmd.action {
-		case "store":
-			// Create a copy to avoid reference issues
-			secretCopy := make(map[string]interface{})
-			for k, v := range cmd.data {
-				secretCopy[k] = v
-			}
-			secrets[cmd.path] = secretCopy
-			
-			// Save to disk
-			err := f.saveSecretsToDisk(secrets)
-			cmd.response <- response{error: err}
-			
-		case "get":
-			secret, exists := secrets[cmd.path]
-			if !exists {
-				cmd.response <- response{
-					error: fmt.Errorf("secret not found: %s", cmd.path),
-				}
-			} else {
-				// Return a copy to avoid modification
-				secretCopy := make(map[string]interface{})
-				for k, v := range secret {
-					secretCopy[k] = v
-				}
-				cmd.response <- response{data: secretCopy}
-			}
-			
-		case "delete":
-			delete(secrets, cmd.path)
-			err := f.saveSecretsToDisk(secrets)
-			cmd.response <- response{error: err}
-			
-		case "list":
-			paths := make([]string, 0, len(secrets))
-			for path := range secrets {
-				paths = append(paths, path)
-			}
-			cmd.response <- response{data: paths}
-			
-		case "close":
-			cmd.response <- response{error: nil}
-			close(f.commands)
-			return
-		}
-	}
-}
-
 // Close closes the file vault
 func (f *File) Close() error {
-	if f.commands == nil {
-		return nil
-	}
-	
-	resp := make(chan response)
-	f.commands <- command{
-		action:   "close",
-		response: resp,
-	}
-	result := <-resp
-	return result.error
+	// Nothing to close for file storage
+	return nil
 }
 
 // IsAvailable returns true (file vault is always available)
@@ -185,56 +108,59 @@ func (f *File) GetStatus() interface{} {
 
 // StoreSecret stores a secret in the file vault
 func (f *File) StoreSecret(path string, data map[string]interface{}) error {
-	resp := make(chan response)
-	f.commands <- command{
-		action:   "store",
-		path:     path,
-		data:     data,
-		response: resp,
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	
+	// Create a copy to avoid reference issues
+	secretCopy := make(map[string]interface{})
+	for k, v := range data {
+		secretCopy[k] = v
 	}
-	result := <-resp
-	return result.error
+	f.secrets[path] = secretCopy
+	
+	// Save to disk
+	return f.saveSecretsToDisk(f.secrets)
 }
 
 // GetSecret retrieves a secret from the file vault
 func (f *File) GetSecret(path string) (map[string]interface{}, error) {
-	resp := make(chan response)
-	f.commands <- command{
-		action:   "get",
-		path:     path,
-		response: resp,
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	
+	secret, exists := f.secrets[path]
+	if !exists {
+		return nil, fmt.Errorf("secret not found: %s", path)
 	}
-	result := <-resp
-	if result.error != nil {
-		return nil, result.error
+	
+	// Return a copy to avoid modification
+	secretCopy := make(map[string]interface{})
+	for k, v := range secret {
+		secretCopy[k] = v
 	}
-	return result.data.(map[string]interface{}), nil
+	
+	return secretCopy, nil
 }
 
 // DeleteSecret removes a secret from the file vault
 func (f *File) DeleteSecret(path string) error {
-	resp := make(chan response)
-	f.commands <- command{
-		action:   "delete",
-		path:     path,
-		response: resp,
-	}
-	result := <-resp
-	return result.error
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	
+	delete(f.secrets, path)
+	return f.saveSecretsToDisk(f.secrets)
 }
 
 // ListSecrets returns all secret paths
 func (f *File) ListSecrets() ([]string, error) {
-	resp := make(chan response)
-	f.commands <- command{
-		action:   "list",
-		response: resp,
+	f.mu.RLock()
+	defer f.mu.RUnlock()
+	
+	paths := make([]string, 0, len(f.secrets))
+	for path := range f.secrets {
+		paths = append(paths, path)
 	}
-	result := <-resp
-	if result.error != nil {
-		return nil, result.error
-	}
-	return result.data.([]string), nil
+	
+	return paths, nil
 }
 
 // loadSecretsFromDisk loads all secrets from disk
