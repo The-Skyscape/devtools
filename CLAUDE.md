@@ -47,6 +47,7 @@ export DIGITAL_OCEAN_API_KEY="your-token"
 - **`pkg/authentication/`** - User authentication, sessions, and JWT token management
 - **`pkg/security/`** - HashiCorp Vault integration with automatic fallback storage for secrets management
 - **`pkg/database/`** - Database abstraction layer supporting SQLite3 with dynamic queries
+- **`pkg/email/`** - Email provider abstraction with Resend, SendGrid, and Postmark implementations
 
 ### Key Design Patterns
 
@@ -138,6 +139,34 @@ go run ./example
 - `DIGITAL_OCEAN_API_KEY` - DigitalOcean API token (required for launch-app)
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` - AWS credentials
 - `GCP_PROJECT_ID`, `GCP_SERVICE_ACCOUNT_KEY`, `GCP_ZONE` - GCP credentials
+
+### Email Package
+The email package provides a unified interface for sending transactional emails:
+
+```go
+// Provider interface for email services
+type Provider interface {
+    Send(msg *Message) error
+    GetName() string
+}
+
+// Message struct
+type Message struct {
+    To          string   // Recipient email
+    From        string   // Sender email
+    FromName    string   // Sender name
+    Subject     string
+    HTMLContent string   // HTML version
+    TextContent string   // Plain text version
+    ReplyTo     string   // Optional reply-to
+    Tags        []string  // Optional tags for tracking
+}
+
+// Available providers
+- ResendProvider - Modern email API with great DX
+- SendGridProvider - Enterprise-grade delivery
+- PostmarkProvider - Transactional email specialist
+```
 
 ## Application Development Patterns
 
