@@ -2,11 +2,14 @@ package application
 
 import (
 	"embed"
+	"encoding/json"
 	"fmt"
 	"html/template"
 	"log"
 	"net/http"
 	"strings"
+	
+	"github.com/The-Skyscape/devtools/pkg/charting"
 )
 
 //go:embed all:views
@@ -174,6 +177,27 @@ func (app *App) prepareViews() {
 		},
 		"hasPrefix": func(s, prefix string) bool {
 			return strings.HasPrefix(s, prefix)
+		},
+		"jsonify": func(v interface{}) template.JS {
+			data, err := json.Marshal(v)
+			if err != nil {
+				log.Printf("jsonify error: %v", err)
+				return template.JS("{}")
+			}
+			return template.JS(data)
+		},
+		// Charting functions
+		"renderChart": func(data *charting.ChartData) template.HTML {
+			if data == nil {
+				return template.HTML("")
+			}
+			return charting.RenderLineChart(data, 600, 300)
+		},
+		"renderSparkline": func(data []float64) template.HTML {
+			return charting.RenderSparkline(data, 100, 30)
+		},
+		"placeholderChart": func(title, message string) template.HTML {
+			return charting.PlaceholderChart(title, message)
 		},
 	}
 
