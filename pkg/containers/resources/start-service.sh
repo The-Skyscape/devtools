@@ -1,6 +1,15 @@
+echo "Starting container {{.Name}} with image {{.Image}}..." && \
+echo "Checking if image exists locally..." && \
+if ! docker images --format "{{`{{.Repository}}:{{.Tag}}`}}" | grep -q "^{{.Image}}$"; then \
+  echo "Image {{.Image}} not found locally, pulling..." && \
+  docker pull {{.Image}} || { echo "Failed to pull image {{.Image}}"; exit 1; }; \
+else \
+  echo "Image {{.Image}} already exists locally"; \
+fi && \
 mkdir -p {{dataDir}}/services/{{.Name}} && \
 chmod -R 777 {{dataDir}}/services/{{.Name}} && \
 docker rm -f {{.Name}} 2>/dev/null || true && \
+echo "Creating container {{.Name}}..." && \
 docker create \
   --name {{.Name}} \
   {{if .RestartPolicy}}--restart {{.RestartPolicy}}{{end}} \

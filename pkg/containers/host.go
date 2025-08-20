@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"strings"
 	"text/template"
 
@@ -57,17 +58,33 @@ func Launch(host Host, s *Service) (err error) {
 	}
 
 	// Use stdin with bash to handle complex multi-line scripts
-	var stderr bytes.Buffer
+	var stdout, stderr bytes.Buffer
 	s.SetStdin(&buf)
+	s.SetStdout(&stdout)
 	s.SetStderr(&stderr)
 	
+	// Log the script being executed for debugging
+	log.Printf("Launching container %s with image %s", s.Name, s.Image)
+	
 	if err := s.Exec("bash"); err != nil {
-		// Include stderr output in error message
+		// Include stdout and stderr output in error message and logs
+		log.Printf("Container launch failed for %s", s.Name)
+		if stdoutStr := stdout.String(); stdoutStr != "" {
+			log.Printf("Stdout: %s", stdoutStr)
+		}
+		if stderrStr := stderr.String(); stderrStr != "" {
+			log.Printf("Stderr: %s", stderrStr)
+		}
 		errMsg := err.Error()
 		if stderrStr := stderr.String(); stderrStr != "" {
 			errMsg = fmt.Sprintf("%s: %s", errMsg, stderrStr)
 		}
 		return errors.New(errMsg)
+	}
+	
+	// Log success with output
+	if stdoutStr := stdout.String(); stdoutStr != "" {
+		log.Printf("Container %s launched successfully: %s", s.Name, strings.TrimSpace(stdoutStr))
 	}
 	
 	return nil
