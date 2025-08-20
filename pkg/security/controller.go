@@ -85,25 +85,6 @@ func (c *Controller) GetVaultURL() string {
 	return ""
 }
 
-// IsStripeConfigured checks if Stripe is configured
-func (c *Controller) IsStripeConfigured() bool {
-	secret, err := c.GetSecret("integrations/stripe")
-	if err != nil {
-		return false
-	}
-	_, hasKey := secret["secret_key"]
-	return hasKey
-}
-
-// IsDigitalOceanConfigured checks if DigitalOcean is configured
-func (c *Controller) IsDigitalOceanConfigured() bool {
-	secret, err := c.GetSecret("integrations/digitalocean")
-	if err != nil {
-		return false
-	}
-	_, hasKey := secret["api_key"]
-	return hasKey
-}
 
 // GetLastError returns the last error encountered
 func (c *Controller) GetLastError() string {
@@ -129,63 +110,6 @@ func (c *Controller) DeleteSecret(path string) error {
 	return c.Collection.DeleteSecret(path)
 }
 
-// ========== Integration-Specific Methods ==========
-
-// StoreStripeKeys stores Stripe API keys
-func (c *Controller) StoreStripeKeys(secretKey, publishableKey, webhookSecret string) error {
-	data := map[string]interface{}{
-		"secret_key":      secretKey,
-		"publishable_key": publishableKey,
-		"webhook_secret":  webhookSecret,
-	}
-	return c.StoreSecret("integrations/stripe", data)
-}
-
-// GetStripeKeys retrieves Stripe API keys
-func (c *Controller) GetStripeKeys() (secretKey, publishableKey, webhookSecret string, err error) {
-	secret, err := c.GetSecret("integrations/stripe")
-	if err != nil {
-		return "", "", "", err
-	}
-	
-	if sk, ok := secret["secret_key"].(string); ok {
-		secretKey = sk
-	}
-	if pk, ok := secret["publishable_key"].(string); ok {
-		publishableKey = pk
-	}
-	if ws, ok := secret["webhook_secret"].(string); ok {
-		webhookSecret = ws
-	}
-	
-	if secretKey == "" || publishableKey == "" {
-		return "", "", "", fmt.Errorf("incomplete Stripe configuration")
-	}
-	
-	return secretKey, publishableKey, webhookSecret, nil
-}
-
-// StoreDigitalOceanKey stores the DigitalOcean API key
-func (c *Controller) StoreDigitalOceanKey(apiKey string) error {
-	data := map[string]interface{}{
-		"api_key": apiKey,
-	}
-	return c.StoreSecret("integrations/digitalocean", data)
-}
-
-// GetDigitalOceanKey retrieves the DigitalOcean API key
-func (c *Controller) GetDigitalOceanKey() (string, error) {
-	secret, err := c.GetSecret("integrations/digitalocean")
-	if err != nil {
-		return "", err
-	}
-	
-	if apiKey, ok := secret["api_key"].(string); ok {
-		return apiKey, nil
-	}
-	
-	return "", fmt.Errorf("DigitalOcean API key not found")
-}
 
 // RestartVault attempts to restart the Vault backend
 func (c *Controller) RestartVault() error {

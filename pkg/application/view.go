@@ -187,10 +187,35 @@ func (app *App) prepareViews() {
 			return template.JS(data)
 		},
 		// Charting functions
-		"renderChart": func(data *charting.ChartData) template.HTML {
-			if data == nil {
-				return template.HTML("")
+		"renderChart": func(dataOrFunc interface{}, placeholder ...string) template.HTML {
+			// Handle function call if passed
+			var data *charting.ChartData
+			
+			// Check if it's a function that returns ChartData
+			switch v := dataOrFunc.(type) {
+			case func() interface{}:
+				if result := v(); result != nil {
+					data, _ = result.(*charting.ChartData)
+				}
+			case func() *charting.ChartData:
+				data = v()
+			case *charting.ChartData:
+				data = v
 			}
+			
+			// Return placeholder if no data
+			if data == nil || len(data.Data) == 0 {
+				title := "No data"
+				message := "No data available"
+				if len(placeholder) > 0 {
+					title = placeholder[0]
+				}
+				if len(placeholder) > 1 {
+					message = placeholder[1]
+				}
+				return charting.PlaceholderChart(title, message)
+			}
+			
 			return charting.RenderLineChart(data, 600, 300)
 		},
 		"renderSparkline": func(data []float64) template.HTML {
@@ -198,6 +223,19 @@ func (app *App) prepareViews() {
 		},
 		"placeholderChart": func(title, message string) template.HTML {
 			return charting.PlaceholderChart(title, message)
+		},
+		"chartLoader": func(endpoint, title string) template.HTML {
+			return template.HTML(fmt.Sprintf(`
+				<div hx-get="%s" 
+				     hx-trigger="load" 
+				     hx-swap="innerHTML"
+				     class="chart-container">
+					<div class="flex flex-col items-center justify-center h-48 text-base-content/60">
+						<span class="loading loading-spinner loading-md"></span>
+						<p class="text-sm mt-2">Loading %s...</p>
+					</div>
+				</div>
+			`, endpoint, title))
 		},
 	}
 
