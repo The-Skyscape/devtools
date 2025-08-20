@@ -46,7 +46,7 @@ func NewVaultService(opts ...VaultOption) *VaultService {
 		DataDir:       fmt.Sprintf("%s/vault", database.DataDir()),
 		DevMode:       true,
 		RootToken:     "skyscape-dev-token",
-		Network:       "bridge",
+		Network:       "host",
 	}
 	
 	// Apply options
@@ -72,9 +72,6 @@ func (v *VaultService) GetService() *containers.Service {
 		Image:         "hashicorp/vault:latest",
 		Network:       v.config.Network,
 		RestartPolicy: "always",
-		Ports: map[int]int{
-			8200: v.config.Port,
-		},
 		Env: map[string]string{
 			"VAULT_DEV_ROOT_TOKEN_ID":  v.config.RootToken,
 			"VAULT_DEV_LISTEN_ADDRESS": "0.0.0.0:8200",

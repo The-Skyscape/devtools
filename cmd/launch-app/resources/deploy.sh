@@ -35,6 +35,7 @@ CONTAINER_ID=$(docker create \
   --privileged \
   --restart unless-stopped \
   -v "/root/.skyscape:/root/.skyscape" \
+  -v "/root/.ssh:/root/.ssh" \
   -v "/var/run/docker.sock:/var/run/docker.sock" \
   -e PORT=80 \
   -e THEME=corporate \

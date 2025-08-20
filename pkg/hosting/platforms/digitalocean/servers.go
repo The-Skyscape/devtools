@@ -123,10 +123,13 @@ func (s *Server) Dump(path string, data []byte) (stdout, stderr bytes.Buffer, er
 		return stdout, stderr, errors.Wrap(err, "failed to copy file "+path)
 	}
 
-	// time.Sleep(2 * time.Second)
-
-	// _, _, err = s.Exec("chmod", "+x", path)
-	return stdout, stderr, errors.Wrap(err, "failed to chmod file")
+	// Make the file executable
+	_, _, err = s.Exec("chmod", "+x", path)
+	if err != nil {
+		return stdout, stderr, errors.Wrap(err, "failed to chmod file")
+	}
+	
+	return stdout, stderr, nil
 }
 
 func (server *Server) Copy(path, dst string) (stdout, stderr bytes.Buffer, _ error) {

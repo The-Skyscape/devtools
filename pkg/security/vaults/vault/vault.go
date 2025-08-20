@@ -34,7 +34,7 @@ func New(opts ...Option) *Vault {
 		DataDir:       database.DataDir() + "/vault",
 		DevMode:       true,
 		RootToken:     "skyscape-dev-token",
-		Network:       "bridge",
+		Network:       "host",
 	}
 	
 	// Apply options
