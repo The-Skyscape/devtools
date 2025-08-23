@@ -44,17 +44,19 @@ func (c *BaseController) Atoi(name string, defaultValue int) int {
 }
 
 func (c *BaseController) Refresh(w http.ResponseWriter, r *http.Request) {
+	// HTMX requests should trigger a refresh
 	if htmx := r.Header.Get("HX-Request"); htmx != "" {
-		w.Header().Add("Hx-Refresh", "true")
+		w.Header().Add("HX-Refresh", "true")
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
-	http.Redirect(w, r, c.URL.String(), http.StatusSeeOther)
+	// Non-HTMX fallback - redirect to current URL
+	http.Redirect(w, r, r.URL.String(), http.StatusSeeOther)
 }
 
 func (c *BaseController) Redirect(w http.ResponseWriter, r *http.Request, path string) {
 	if htmx := r.Header.Get("HX-Request"); htmx != "" {
-		w.Header().Add("Hx-Location", c.hostPrefix+path)
+		w.Header().Add("HX-Location", c.hostPrefix+path)
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}

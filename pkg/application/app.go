@@ -28,6 +28,7 @@ type App struct {
 	hostPrefix  string
 	views       []fs.FS
 	theme       string
+	middlewares []func(http.Handler) http.Handler
 }
 
 func New(views fs.FS, opts ...Option) *App {
@@ -35,6 +36,7 @@ func New(views fs.FS, opts ...Option) *App {
 		controllers: map[string]Controller{},
 		views:       []fs.FS{appViews},
 		theme:       "retro",
+		middlewares: []func(http.Handler) http.Handler{},
 	}
 
 	if views != nil {
@@ -66,6 +68,12 @@ func (app *App) Start() error {
 
 	app.prepareViews()
 
+	// Build middleware chain
+	var handler http.Handler = http.DefaultServeMux
+	for i := len(app.middlewares) - 1; i >= 0; i-- {
+		handler = app.middlewares[i](handler)
+	}
+
 	go func() {
 		cert := cmp.Or(os.Getenv("CONGO_SSL_FULLCHAIN"), "/root/fullchain.pem")
 		if _, err := os.Stat(cert); err != nil {
@@ -81,13 +89,13 @@ func (app *App) Start() error {
 
 		if cert != "" && key != "" {
 			log.Print("Serving Secure Congo @ https://localhost:443")
-			log.Fatal(http.ListenAndServeTLS("0.0.0.0:443", cert, key, nil))
+			log.Fatal(http.ListenAndServeTLS("0.0.0.0:443", cert, key, handler))
 		}
 	}()
 
 	addr := "0.0.0.0:" + cmp.Or(os.Getenv("PORT"), "5000")
 	log.Print("Serving Unsecure Congo @ http://" + addr)
-	return http.ListenAndServe(addr, nil)
+	return http.ListenAndServe(addr, handler)
 }
 
 func (app *App) Server() (string, http.Handler) {

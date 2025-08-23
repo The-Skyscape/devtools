@@ -5,6 +5,7 @@ import (
 	"html/template"
 	"io/fs"
 	"log"
+	"net/http"
 )
 
 // Option is a function that configures an Application
@@ -61,6 +62,14 @@ func WithHostPrefix(prefix string) Option {
 func WithDaisyTheme(theme string) Option {
 	return func(app *App) error {
 		app.theme = cmp.Or(theme, app.theme)
+		return nil
+	}
+}
+
+// WithMiddleware adds middleware to the application
+func WithMiddleware(middleware func(http.Handler) http.Handler) Option {
+	return func(app *App) error {
+		app.middlewares = append(app.middlewares, middleware)
 		return nil
 	}
 }
