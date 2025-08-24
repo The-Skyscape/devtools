@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -21,10 +22,34 @@ func Manage[E Entity](db *DynamicDB, ent E) *Collection[E] {
 	return &Collection[E]{db, ent, t}
 }
 
-func (c *Collection[E]) Count() (count int) {
-	c.DB.Query(`select count(*) from ` + c.Ent.Table()).
-		Scan(&count)
+// Count returns the count of entities matching the query
+// Example: Users.Count("") for all or Users.Count("WHERE CreatedAt >= ?", startOfMonth)
+func (c *Collection[E]) Count(query string, args ...any) (count int) {
+	countQuery := `SELECT COUNT(*) FROM ` + c.Ent.Table()
+	if query != "" {
+		countQuery += " " + query
+	}
+	c.DB.Query(countQuery, args...).Scan(&count)
 	return count
+}
+
+// First returns the first entity matching the query
+// Example: Users.First("WHERE Email = ?", email)
+func (c *Collection[E]) First(query string, args ...any) (E, error) {
+	// Add LIMIT 1 if not already in query
+	if !strings.Contains(strings.ToUpper(query), "LIMIT") {
+		query += " LIMIT 1"
+	}
+	results, err := c.Search(query, args...)
+	if err != nil {
+		var zero E
+		return zero, err
+	}
+	if len(results) == 0 {
+		var zero E
+		return zero, fmt.Errorf("no records found")
+	}
+	return results[0], nil
 }
 
 func (c *Collection[E]) New() E {

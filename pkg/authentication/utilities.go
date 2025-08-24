@@ -19,7 +19,7 @@ func (auth *Controller) ProtectFunc(h http.HandlerFunc, adminOnly bool) http.Han
 
 func (auth *Controller) Serve(name string, adminOnly bool) http.Handler {
 	return auth.App.Serve(name, func(app *application.App, w http.ResponseWriter, r *http.Request) bool {
-		if auth.Users.Count() == 0 {
+		if auth.Users.Count("") == 0 {
 			app.Render(w, r, "setup.html", nil)
 			return false
 		}
@@ -40,7 +40,7 @@ func (auth *Controller) Serve(name string, adminOnly bool) http.Handler {
 
 func (auth *Controller) Protect(fn http.Handler, adminOnly bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if auth.setupView != "" && auth.Users.Count() == 0 {
+		if auth.setupView != "" && auth.Users.Count("") == 0 {
 			auth.App.Render(w, r, auth.setupView, nil)
 			return
 		}

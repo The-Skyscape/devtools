@@ -51,7 +51,7 @@ func (auth *Controller) Optional(app *application.App, w http.ResponseWriter, r 
 }
 
 func (auth *Controller) Required(app *application.App, w http.ResponseWriter, r *http.Request) bool {
-	if auth.Users.Count() == 0 {
+	if auth.Users.Count("") == 0 {
 		app.Render(w, r, "signup.html", nil)
 		return false
 	}
@@ -65,7 +65,7 @@ func (auth *Controller) Required(app *application.App, w http.ResponseWriter, r 
 }
 
 func (auth *Controller) AdminOnly(app *application.App, w http.ResponseWriter, r *http.Request) bool {
-	if auth.Users.Count() == 0 {
+	if auth.Users.Count("") == 0 {
 		app.Render(w, r, "signup.html", nil)
 		return false
 	}
@@ -125,7 +125,7 @@ func (auth Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	user, err := auth.Signup(name, email, handle, password, auth.Users.Count() == 0)
+	user, err := auth.Signup(name, email, handle, password, auth.Users.Count("") == 0)
 	if err != nil {
 		auth.Render(w, r, "error-message", err)
 		return
