@@ -231,7 +231,7 @@ func (db *DynamicDB) Update(ent Entity) error {
 
 func (db *DynamicDB) Delete(ent Entity) error {
 	return db.Query(fmt.Sprintf(`
-		DELETE %s
+		DELETE FROM %s
 		WHERE ID = ?
 	`, ent.Table()), db.entID(ent)).Exec()
 }
