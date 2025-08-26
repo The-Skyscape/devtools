@@ -155,17 +155,23 @@ func CreateDefaultRateLimiters() map[string]*RateLimiter {
 	}
 }
 
-// GetRateLimiter returns the appropriate rate limiter for a path
-func GetRateLimiter(limiters map[string]*RateLimiter, path string) *RateLimiter {
-	// Check specific paths
-	if path == "/signin" || path == "/auth/signin" {
-		return limiters["signin"]
-	}
-	if path == "/signup" || path == "/auth/signup" {
-		return limiters["signup"]
+// GetRateLimiter returns the appropriate rate limiter for a path and method
+func GetRateLimiter(limiters map[string]*RateLimiter, path string, method string) *RateLimiter {
+	// Check specific paths - only apply strict limits to POST requests
+	if method == "POST" {
+		if path == "/signin" || path == "/auth/signin" || path == "/_auth/signin" {
+			return limiters["signin"]
+		}
+		if path == "/signup" || path == "/auth/signup" || path == "/_auth/signup" {
+			return limiters["signup"]
+		}
 	}
 	
 	// Check path prefixes
+	if len(path) >= 6 && path[:6] == "/_auth" {
+		// Internal auth endpoints get auth rate limit
+		return limiters["auth"]
+	}
 	if len(path) >= 5 && path[:5] == "/auth" {
 		return limiters["auth"]
 	}
@@ -183,10 +189,10 @@ func GetRateLimiter(limiters map[string]*RateLimiter, path string) *RateLimiter 
 	return limiters["default"]
 }
 
-// ApplyRateLimit applies rate limiting to a handler based on the request path
+// ApplyRateLimit applies rate limiting to a handler based on the request path and method
 func ApplyRateLimit(limiters map[string]*RateLimiter, handler http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		limiter := GetRateLimiter(limiters, r.URL.Path)
+		limiter := GetRateLimiter(limiters, r.URL.Path, r.Method)
 		limiter.Limit(handler).ServeHTTP(w, r)
 	})
 }
