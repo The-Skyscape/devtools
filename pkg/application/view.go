@@ -44,6 +44,9 @@ func (v *View) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) prepareViews() {
+	// Create format helpers
+	formatHelpers := NewFormatHelpers()
+	
 	funcs := template.FuncMap{
 		"req":     func() *http.Request { return nil },
 		"host":    func() string { return app.hostPrefix },
@@ -237,6 +240,11 @@ func (app *App) prepareViews() {
 				</div>
 			`, endpoint, title))
 		},
+	}
+	
+	// Add formatting helper functions
+	for name, fn := range formatHelpers.FuncMap() {
+		funcs[name] = fn
 	}
 
 	for name, ctrl := range app.controllers {

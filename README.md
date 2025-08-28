@@ -94,11 +94,17 @@ go get github.com/The-Skyscape/devtools
 
 - **🌐 Web Framework** - MVC with embedded templates, HTMX, and DaisyUI
 - **🔐 Authentication** - JWT sessions, bcrypt hashing, role-based access
+  - Email verification system with secure token management
+  - Password reset flow with configurable expiration
+  - Input validation and sanitization helpers
 - **🔒 Security** - HashiCorp Vault integration with automatic fallback storage
+- **📝 Audit Logging** - Comprehensive audit trail with risk level classification
 - **🗄️ Database** - Dynamic ORM with SQLite3, migrations, type-safe repositories  
 - **🐳 Containers** - Docker management for local and remote hosts
 - **☁️ Cloud Deployment** - DigitalOcean, AWS, GCP with SSH key management
 - **💻 Dev Workspaces** - Containerized code-server environments with Git
+- **🧪 Testing** - Comprehensive test utilities package with assertions and factories
+- **🎨 Templates** - Rich formatting helpers for dates, numbers, bytes, and more
 
 ## 🏗️ Application Architecture
 
@@ -356,6 +362,114 @@ server := &digitalocean.Server{
 client.Launch(server, hosting.WithFileUpload("./app", "/root/app"))
 ```
 
+## 🧪 Testing
+
+### Test Utilities Package
+```go
+import "github.com/The-Skyscape/devtools/pkg/testutils"
+
+// Assertions
+testutils.AssertEqual(t, expected, actual)
+testutils.AssertNotNil(t, value)
+testutils.AssertTrue(t, condition)
+testutils.AssertNoError(t, err)
+testutils.AssertContains(t, haystack, needle)
+
+// Test database
+db := testutils.SetupTestDB(t)
+defer testutils.CleanupTestDB(t, db)
+
+// Factory methods
+user := testutils.CreateTestUser(t, db, "test@example.com")
+```
+
+## 📝 Audit Logging
+
+```go
+import "github.com/The-Skyscape/devtools/pkg/audit"
+
+// Create logger
+logger := audit.NewLogger(db)
+
+// Log actions with risk levels
+logger.LogSuccess(userID, "user.create", "user_management", "user", targetID, "Created new user")
+logger.LogFailure(userID, "auth.login", "authentication", "user", targetID, "Invalid credentials")
+logger.LogUnauthorized(userID, "admin.access", "authorization", "admin", targetID)
+
+// Query audit logs
+logs, _ := logger.Query().ByUser(userID)
+logs, _ := logger.Query().ByRiskLevel(audit.RiskHigh)
+logs, _ := logger.Query().Recent(100)
+```
+
+## 🔐 Enhanced Authentication
+
+### Email Verification
+```go
+import "github.com/The-Skyscape/devtools/pkg/authentication"
+
+// Create verification token
+verification := authentication.CreateEmailVerification(userID, email, 24) // 24 hours
+
+// Check if expired
+if verification.IsExpired() {
+    // Handle expired token
+}
+
+// Mark as used
+verification.MarkAsUsed()
+```
+
+### Password Reset
+```go
+// Create reset token
+token, _ := authentication.CreatePasswordResetToken(userID, ip, userAgent, 60) // 60 minutes
+
+// Validate password strength
+config := authentication.DefaultResetPasswordConfig()
+err := authentication.ValidatePasswordStrength(password, config)
+
+// Hash password
+hashedPassword, _ := authentication.HashPassword(password)
+```
+
+### Input Validation
+```go
+// Validate inputs
+authentication.IsValidEmail("user@example.com")
+authentication.IsValidUsername("john_doe")
+authentication.IsValidName("John Doe")
+
+// With configuration
+config := authentication.DefaultValidationConfig()
+authentication.IsValidEmailWithConfig(email, config)
+
+// Check for disposable emails
+authentication.IsDisposableEmail("user@tempmail.com")
+```
+
+## 🎨 Template Helpers
+
+```go
+import "github.com/The-Skyscape/devtools/pkg/application"
+
+// Register helpers with templates
+helpers := application.NewFormatHelpers()
+tmpl.Funcs(helpers.FuncMap())
+```
+
+Available template functions:
+- `formatBytes` - Human-readable file sizes (e.g., "1.5 MB")
+- `formatPrice` - Currency formatting (e.g., "$99.99")
+- `formatPercent` - Percentage formatting (e.g., "75.5%")
+- `formatDuration` - Time duration (e.g., "2h 30m")
+- `formatDate` - Date formatting
+- `formatDateTime` - Date and time formatting
+- `formatNumber` - Number with thousands separators
+- `pluralize` - Singular/plural forms
+- `truncate` - String truncation with ellipsis
+- `timeAgo` - Relative time (e.g., "2 hours ago")
+
 ## 🔨 Development
 
 ```bash
@@ -370,6 +484,9 @@ make clean
 
 # Run tests
 go test ./...
+
+# Run tests with coverage
+go test -cover ./...
 ```
 
 ## 📚 Documentation
