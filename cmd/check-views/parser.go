@@ -74,14 +74,18 @@ func parseTemplateFile(filePath, baseDir string) ([]TemplateReference, error) {
 	lineNum := 0
 
 	// Regular expressions for different patterns
-	// Match {{controller.Method}} or {{controller.Method args}}
-	controllerMethodPattern := regexp.MustCompile(`\{\{\s*([a-zA-Z_][a-zA-Z0-9_]*)\s*\.\s*([A-Z][a-zA-Z0-9_]*)\s*[^}]*\}\}`)
+	// Only match controller.Method patterns where controller starts with lowercase
+	// and Method starts with uppercase (Go convention)
+	// This excludes .Property patterns which are object properties
+	
+	// Match {{controller.Method}} or {{controller.Method args}} but NOT {{.Property}}
+	controllerMethodPattern := regexp.MustCompile(`\{\{\s*([a-z][a-zA-Z0-9_]*)\s*\.\s*([A-Z][a-zA-Z0-9_]*)\s*[^}]*\}\}`)
 	
 	// Match {{range controller.Method}} or {{with controller.Method}}
-	rangeWithPattern := regexp.MustCompile(`\{\{\s*(?:range|with)\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\.\s*([A-Z][a-zA-Z0-9_]*)\s*[^}]*\}\}`)
+	rangeWithPattern := regexp.MustCompile(`\{\{\s*(?:range|with)\s+([a-z][a-zA-Z0-9_]*)\s*\.\s*([A-Z][a-zA-Z0-9_]*)\s*[^}]*\}\}`)
 	
-	// Match {{if controller.Method}}
-	ifPattern := regexp.MustCompile(`\{\{\s*if\s+([a-zA-Z_][a-zA-Z0-9_]*)\s*\.\s*([A-Z][a-zA-Z0-9_]*)\s*[^}]*\}\}`)
+	// Match {{if controller.Method}} - but only if it's actually a controller reference
+	ifPattern := regexp.MustCompile(`\{\{\s*if\s+([a-z][a-zA-Z0-9_]*)\s*\.\s*([A-Z][a-zA-Z0-9_]*)\s*[^}]*\}\}`)
 
 	// Track context for better error messages
 	var currentContext []string
@@ -139,30 +143,8 @@ func parseTemplateFile(filePath, baseDir string) ([]TemplateReference, error) {
 			}
 		}
 
-		// Also check for common template variables that look like controller refs
-		// but might be using a different pattern
-		if strings.Contains(line, "{{") && strings.Contains(line, ".") {
-			// Look for patterns like {{.SomeMethod}} within a {{with controller}} block
-			if len(currentContext) > 0 && regexp.MustCompile(`\{\{\s*\.\s*([A-Z][a-zA-Z0-9_]*)`).MatchString(line) {
-				matches := regexp.MustCompile(`\{\{\s*\.\s*([A-Z][a-zA-Z0-9_]*)`).FindAllStringSubmatch(line, -1)
-				for _, match := range matches {
-					if len(match) >= 2 {
-						// Use the current context controller
-						contextParts := strings.Split(currentContext[len(currentContext)-1], ".")
-						if len(contextParts) > 0 {
-							ref := TemplateReference{
-								File:       relPath,
-								Line:       lineNum,
-								Controller: contextParts[0],
-								Method:     match[1],
-								Full:       fmt.Sprintf("%s.%s", contextParts[0], match[1]),
-							}
-							refs = append(refs, ref)
-						}
-					}
-				}
-			}
-		}
+		// Don't try to parse .Property patterns - those are object properties, not controller methods
+		// Controller references are always fully qualified as controller.Method
 	}
 
 	if err := scanner.Err(); err != nil {
@@ -172,24 +154,73 @@ func parseTemplateFile(filePath, baseDir string) ([]TemplateReference, error) {
 	return refs, nil
 }
 
-// isTemplateHelper checks if a name is a built-in template helper
+// isTemplateHelper checks if a name is a built-in template helper or keyword
 func isTemplateHelper(name string) bool {
 	helpers := map[string]bool{
+		// Template keywords
+		"if":       true,
+		"else":     true,
+		"end":      true,
+		"range":    true,
+		"with":     true,
+		"template": true,
+		"define":   true,
+		"block":    true,
+		
+		// Core template functions
 		"req":      true,
 		"host":     true,
 		"theme":    true,
 		"path":     true,
 		"path_eq":  true,
-		"format":   true,
-		"date":     true,
-		"time":     true,
-		"json":     true,
-		"html":     true,
-		"url":      true,
-		"safe":     true,
+		"title":    true,
+		"prefix":   true,
+		
+		// Math functions
+		"add":      true,
+		"sub":      true,
+		"mul":      true,
+		"div":      true,
+		"float":    true,
+		
+		// String functions
+		"toString": true,
 		"slice":    true,
+		"head":     true,
+		"default":  true,
+		"set":      true,
 		"dict":     true,
-		"list":     true,
+		"hasPrefix": true,
+		"hasSuffix": true,
+		"contains": true,
+		"replace":  true,
+		"lower":    true,
+		"upper":    true,
+		"trim":     true,
+		"split":    true,
+		"join":     true,
+		"truncate": true,
+		
+		// Formatting functions (from FormatHelpers)
+		"formatBytes":     true,
+		"formatPrice":     true,
+		"formatPercent":   true,
+		"formatDuration":  true,
+		"formatDate":      true,
+		"formatDateTime":  true,
+		"formatNumber":    true,
+		"pluralize":       true,
+		
+		// JSON functions
+		"jsonify":   true,
+		
+		// Chart functions
+		"renderChart":      true,
+		"renderSparkline":  true,
+		"placeholderChart": true,
+		"chartLoader":      true,
+		
+		// Standard template functions
 		"len":      true,
 		"index":    true,
 		"and":      true,
@@ -204,6 +235,10 @@ func isTemplateHelper(name string) bool {
 		"printf":   true,
 		"print":    true,
 		"println":  true,
+		"html":     true,
+		"js":       true,
+		"url":      true,
+		"call":     true,
 	}
 	
 	return helpers[name]
