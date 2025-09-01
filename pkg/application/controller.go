@@ -73,6 +73,13 @@ func (c *BaseController) RenderErrorMsg(w http.ResponseWriter, r *http.Request, 
 	c.RenderError(w, r, errors.New(msg))
 }
 
+func (c *BaseController) RenderString(templateName string, data any) (string, error) {
+	// Render a template to a string instead of writing to ResponseWriter
+	var buf bytes.Buffer
+	c.App.Render(&buf, c.Request, templateName, data)
+	return buf.String(), nil
+}
+
 func (c *BaseController) EventStream(w http.ResponseWriter, r *http.Request) (func(string, any), error) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")

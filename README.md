@@ -120,7 +120,7 @@ import (
 )
 
 var (
-    DB   = local.Database("app.db")
+    DB   = local.Database("...")
     Auth = authentication.Manage(DB)
     Todos = database.Manage(DB, new(Todo))
 )
