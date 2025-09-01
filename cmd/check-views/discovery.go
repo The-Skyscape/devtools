@@ -87,7 +87,7 @@ func parseControllerFile(filePath string) ([]ControllerInfo, error) {
 				Methods:  []string{},
 			}
 			controllerTypes[controllerType] = info
-			controllers = append(controllers, *info)
+			// Don't append yet - we need to find methods first
 		}
 	}
 
@@ -110,10 +110,12 @@ func parseControllerFile(filePath string) ([]ControllerInfo, error) {
 		}
 	}
 
-	// Also check for embedded BaseController methods
-	for i := range controllers {
-		controllers[i].Methods = append(controllers[i].Methods, getBaseControllerMethods()...)
-		controllers[i].Methods = removeDuplicates(controllers[i].Methods)
+	// Build the final controller list with all methods
+	for _, info := range controllerTypes {
+		// Add embedded BaseController methods
+		info.Methods = append(info.Methods, getBaseControllerMethods()...)
+		info.Methods = removeDuplicates(info.Methods)
+		controllers = append(controllers, *info)
 	}
 
 	return controllers, nil
