@@ -24,7 +24,7 @@
 ### --..,___.--,--'`,---..-.--+--.,,-,,..._.--..-._.-_###
 #########################################################
 
-TOOLS := create-app launch-app
+TOOLS := create-app launch-app check-views
 
 .PHONY: all clean install
 
@@ -37,13 +37,18 @@ artifacts:
 	@mkdir -p ./build
 	@touch ./build/create-app
 	@touch ./build/launch-app
+	@touch ./build/check-views
 
 install: artifacts
 	go install ./cmd/create-app
 	go install ./cmd/launch-app
+	go install ./cmd/check-views
 
 build/create-app: artifacts
 	go build -o $@ ./cmd/create-app
 
 build/launch-app: artifacts
 	go build -o $@ ./cmd/launch-app
+
+build/check-views: artifacts
+	go build -o $@ ./cmd/check-views
