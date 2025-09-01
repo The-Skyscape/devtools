@@ -322,8 +322,8 @@ func deployApplication(server hosting.Server, config *ServerConfig, apiKey strin
 	// Execute the deployment script
 	fmt.Printf("🔧 Executing deployment script...\n")
 	
-	// Interpolate values into the deploy script
-	scriptWithValues := fmt.Sprintf(deployScript, deployDomain, email, apiKey, redeployFlag, authSecret)
+	// Interpolate values into the deploy script (including droplet size)
+	scriptWithValues := fmt.Sprintf(deployScript, deployDomain, email, apiKey, redeployFlag, authSecret, config.Size)
 	
 	// Execute the script as a single command
 	stdout, stderr, err := server.Exec("/bin/bash", "-c", scriptWithValues)

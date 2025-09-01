@@ -7,6 +7,7 @@ EMAIL="%s"
 API_TOKEN="%s"
 REDEPLOY="%s"
 AUTH_SECRET="%s"
+DROPLET_SIZE="%s"
 
 echo "Starting deployment..."
 
@@ -26,6 +27,15 @@ fi
 echo "Cleaning up existing container..."
 docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 
+# Determine AI_ENABLED based on droplet size
+AI_ENABLED="false"
+if [[ "$DROPLET_SIZE" == *"16gb"* ]] || [[ "$DROPLET_SIZE" == *"32gb"* ]]; then
+    AI_ENABLED="true"
+    echo "AI features enabled for droplet size: $DROPLET_SIZE"
+else
+    echo "AI features disabled for droplet size: $DROPLET_SIZE"
+fi
+
 # Create new container
 echo "Creating new container..."
 CONTAINER_ID=$(docker create \
@@ -40,6 +50,7 @@ CONTAINER_ID=$(docker create \
   -e PORT=80 \
   -e THEME=corporate \
   -e AUTH_SECRET="$AUTH_SECRET" \
+  -e AI_ENABLED="$AI_ENABLED" \
   "$IMAGE_NAME")
 
 # Copy binary into container
