@@ -76,12 +76,31 @@ func runValidation(cmd *cobra.Command, args []string) error {
 		for _, c := range controllers {
 			totalMethods += len(c.Methods)
 		}
-		fmt.Printf("  ✓ Found %d controllers with %d methods\n\n", len(controllers), totalMethods)
+		fmt.Printf("  ✓ Found %d controllers with %d methods\n", len(controllers), totalMethods)
+	}
+
+	if !quiet && !jsonOut {
+		fmt.Println("\n🔍 Discovering models...")
+	}
+
+	// Discover models
+	models, err := DiscoverModels(dir)
+	if err != nil {
+		return fmt.Errorf("failed to discover models: %w", err)
+	}
+
+	if !quiet && !jsonOut {
+		totalFields := 0
+		for _, m := range models {
+			totalFields += len(m.Fields)
+		}
+		fmt.Printf("  ✓ Found %d models with %d fields\n", len(models), totalFields)
 	}
 
 	if verbose && !jsonOut {
+		fmt.Println("\nControllers:")
 		for _, c := range controllers {
-			fmt.Printf("  Controller: %s (%s)\n", c.Prefix, c.Type)
+			fmt.Printf("  %s (%s)\n", c.Prefix, c.Type)
 			fmt.Printf("    File: %s\n", c.FilePath)
 			fmt.Printf("    Methods: %d\n", len(c.Methods))
 			if verbose {
@@ -90,32 +109,93 @@ func runValidation(cmd *cobra.Command, args []string) error {
 				}
 			}
 		}
+		
+		fmt.Println("\nModels:")
+		for name, m := range models {
+			fmt.Printf("  %s\n", name)
+			fmt.Printf("    File: %s\n", m.FilePath)
+			fmt.Printf("    Fields: %d\n", len(m.Fields))
+			fmt.Printf("    Methods: %d\n", len(m.Methods))
+		}
 		fmt.Println()
 	}
 
 	if !quiet && !jsonOut {
-		fmt.Println("📋 Checking templates...")
+		fmt.Println("\n🛣️  Discovering routes...")
 	}
 
-	// Parse templates
-	refs, err := ParseTemplates(dir)
+	// Discover routes
+	routes, err := DiscoverRoutes(dir)
 	if err != nil {
-		return fmt.Errorf("failed to parse templates: %w", err)
+		return fmt.Errorf("failed to discover routes: %w", err)
 	}
 
-	// Validate references
-	result := Validate(controllers, refs)
+	if !quiet && !jsonOut {
+		fmt.Printf("  ✓ Found %d routes\n", len(routes))
+	}
+
+	if !quiet && !jsonOut {
+		fmt.Println("\n📋 Parsing templates...")
+	}
+
+	// Parse templates with both methods
+	// First use regex-based parser for controller references
+	regexRefs, err := ParseTemplates(dir)
+	if err != nil {
+		return fmt.Errorf("failed to parse templates with regex: %w", err)
+	}
+	
+	// Then use AST parser for enhanced field validation
+	templateRefs, fieldRefs, err := ParseTemplatesWithAST(dir, controllers, models)
+	if err != nil {
+		return fmt.Errorf("failed to parse templates with AST: %w", err)
+	}
+	
+	// Combine regex refs with AST refs (regex is more reliable for controller refs)
+	if len(regexRefs) > 0 {
+		templateRefs = regexRefs
+	}
+
+	// Parse URL references
+	urlRefs, err := ParseHostReferences(dir)
+	if err != nil {
+		return fmt.Errorf("failed to parse URL references: %w", err)
+	}
+
+	if !quiet && !jsonOut {
+		fmt.Printf("  ✓ Found %d controller references\n", len(templateRefs))
+		fmt.Printf("  ✓ Found %d field references\n", len(fieldRefs))
+		fmt.Printf("  ✓ Found %d URL references\n", len(urlRefs))
+	}
+
+	// Validate URL references
+	urlErrors := ValidateURLReferences(urlRefs, routes)
+
+	// Validate all references
+	result := ValidateWithModels(controllers, models, templateRefs, fieldRefs)
+	
+	// Add URL errors to result
+	result.URLErrors = urlErrors
+	result.Summary.TotalURLRefs = len(urlRefs)
+	result.Summary.ValidURLRefs = len(urlRefs) - len(urlErrors)
+	result.Summary.URLErrors = len(urlErrors)
+	
+	// Update valid flag if there are URL errors
+	if len(urlErrors) > 0 {
+		result.Valid = false
+	}
 
 	// Report results
 	if jsonOut {
-		return reportJSON(result)
+		return reportEnhancedJSON(result)
 	}
 
-	reporter := NewReporter(verbose, fix, quiet)
+	reporter := NewEnhancedReporter(verbose, fix, quiet)
 	reporter.Report(result)
 
+	totalErrors := len(result.ControllerErrors) + len(result.FieldErrors) + len(result.URLErrors)
 	if !result.Valid {
-		return fmt.Errorf("validation failed with %d errors", len(result.Errors))
+		return fmt.Errorf("validation failed with %d errors", totalErrors)
 	}
 
 	return nil

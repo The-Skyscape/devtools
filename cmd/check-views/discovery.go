@@ -12,48 +12,148 @@ import (
 
 // DiscoverControllers automatically finds all controllers in the given directory
 func DiscoverControllers(dir string) ([]ControllerInfo, error) {
-	var controllers []ControllerInfo
-
 	// Find controllers directory
 	controllersDir := filepath.Join(dir, "controllers")
 	
-	// Walk through all Go files in controllers directory
+	// First, find all controller types by looking for factory functions
+	controllerMap := make(map[string]*ControllerInfo)
+	
+	// Walk through all Go files to find factory functions
 	err := filepath.WalkDir(controllersDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		// Skip directories and non-Go files
-		if d.IsDir() || !strings.HasSuffix(path, ".go") {
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
 
-		// Skip test files
-		if strings.HasSuffix(path, "_test.go") {
-			return nil
-		}
-
-		// Parse the Go file
-		fileControllers, err := parseControllerFile(path)
+		// Parse the Go file for factory functions
+		factories, err := findFactoryFunctions(path)
 		if err != nil {
 			if verbose {
-				fmt.Printf("  ⚠️  Skipping %s: %v\n", path, err)
+				fmt.Printf("  ⚠️  Error parsing %s: %v\n", path, err)
 			}
-			return nil // Continue with other files
+			return nil
 		}
 
-		controllers = append(controllers, fileControllers...)
+		// Add factories to our map
+		for _, factory := range factories {
+			controllerMap[factory.Type] = factory
+		}
+		
 		return nil
 	})
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to walk controllers directory: %w", err)
+		return nil, fmt.Errorf("failed to find factory functions: %w", err)
+	}
+
+	// Second pass: Find all methods for each controller type across ALL files
+	err = filepath.WalkDir(controllersDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// Skip directories and non-Go files
+		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
+			return nil
+		}
+
+		// Parse the Go file for methods
+		err = findControllerMethods(path, controllerMap)
+		if err != nil {
+			if verbose {
+				fmt.Printf("  ⚠️  Error finding methods in %s: %v\n", path, err)
+			}
+			return nil
+		}
+		
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to find controller methods: %w", err)
+	}
+
+	// Build the final controller list
+	var controllers []ControllerInfo
+	for _, info := range controllerMap {
+		// Add embedded BaseController methods
+		info.Methods = append(info.Methods, getBaseControllerMethods()...)
+		info.Methods = removeDuplicates(info.Methods)
+		controllers = append(controllers, *info)
 	}
 
 	// Add special controllers from devtools
 	controllers = append(controllers, getSpecialControllers()...)
 
 	return controllers, nil
+}
+
+// findFactoryFunctions finds all controller factory functions in a file
+func findFactoryFunctions(filePath string) ([]*ControllerInfo, error) {
+	var factories []*ControllerInfo
+	
+	// Parse the file
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	if err != nil {
+		return nil, err
+	}
+	
+	// Look for factory functions
+	for _, decl := range node.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil { // Skip methods, only look at functions
+			continue
+		}
+		
+		// Check if it's a factory function (returns string and *Controller)
+		prefix, controllerType := extractFactoryInfo(fn)
+		if prefix != "" && controllerType != "" {
+			factories = append(factories, &ControllerInfo{
+				Prefix:   prefix,
+				Type:     controllerType,
+				FilePath: filePath,
+				Methods:  []string{},
+			})
+		}
+	}
+	
+	return factories, nil
+}
+
+// findControllerMethods finds all methods for known controller types in a file
+func findControllerMethods(filePath string, controllerMap map[string]*ControllerInfo) error {
+	// Parse the file
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	if err != nil {
+		return err
+	}
+	
+	// Look for methods
+	for _, decl := range node.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil { // Only look at methods
+			continue
+		}
+		
+		// Get the receiver type
+		receiverType := getReceiverType(fn.Recv)
+		
+		// Check if this is a method on one of our controllers
+		if info, exists := controllerMap[receiverType]; exists {
+			// Only include exported methods (start with uppercase)
+			if fn.Name.IsExported() {
+				info.Methods = append(info.Methods, fn.Name.Name)
+			}
+		}
+	}
+	
+	return nil
 }
 
 // parseControllerFile parses a single Go file for controller definitions
