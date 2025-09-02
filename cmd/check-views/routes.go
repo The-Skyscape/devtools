@@ -472,3 +472,70 @@ func findSimilarRoute(path string, routes []RouteInfo) string {
 	
 	return ""
 }
+
+// findMostSimilar finds the most similar string from candidates using edit distance
+func findMostSimilar(target string, candidates []string) string {
+	minDist := 3 // Minimum distance threshold for suggestions
+	bestMatch := ""
+	
+	for _, candidate := range candidates {
+		dist := editDistance(target, candidate)
+		if dist < minDist {
+			minDist = dist
+			bestMatch = candidate
+		}
+	}
+	
+	return bestMatch
+}
+
+// editDistance calculates the Levenshtein distance between two strings
+func editDistance(s1, s2 string) int {
+	if len(s1) == 0 {
+		return len(s2)
+	}
+	if len(s2) == 0 {
+		return len(s1)
+	}
+	
+	// Create distance matrix
+	matrix := make([][]int, len(s1)+1)
+	for i := range matrix {
+		matrix[i] = make([]int, len(s2)+1)
+		matrix[i][0] = i
+	}
+	for j := range matrix[0] {
+		matrix[0][j] = j
+	}
+	
+	// Fill the matrix
+	for i := 1; i <= len(s1); i++ {
+		for j := 1; j <= len(s2); j++ {
+			cost := 0
+			if s1[i-1] != s2[j-1] {
+				cost = 1
+			}
+			matrix[i][j] = min(
+				matrix[i-1][j]+1,      // deletion
+				matrix[i][j-1]+1,      // insertion
+				matrix[i-1][j-1]+cost, // substitution
+			)
+		}
+	}
+	
+	return matrix[len(s1)][len(s2)]
+}
+
+// min returns the minimum of a set of integers
+func min(nums ...int) int {
+	if len(nums) == 0 {
+		return 0
+	}
+	m := nums[0]
+	for _, n := range nums[1:] {
+		if n < m {
+			m = n
+		}
+	}
+	return m
+}

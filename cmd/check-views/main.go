@@ -171,7 +171,7 @@ func runValidation(cmd *cobra.Command, args []string) error {
 	// Validate URL references
 	urlErrors := ValidateURLReferences(urlRefs, routes)
 
-	// Validate all references
+	// Validate all references using simple validation
 	result := ValidateWithModels(controllers, models, templateRefs, fieldRefs)
 	
 	// Add URL errors to result
@@ -187,11 +187,11 @@ func runValidation(cmd *cobra.Command, args []string) error {
 
 	// Report results
 	if jsonOut {
-		return reportEnhancedJSON(result)
+		return reportEnhancedJSON(*result)
 	}
 
 	reporter := NewEnhancedReporter(verbose, fix, quiet)
-	reporter.Report(result)
+	reporter.Report(*result)
 
 	totalErrors := len(result.ControllerErrors) + len(result.FieldErrors) + len(result.URLErrors)
 	if !result.Valid {
@@ -242,6 +242,38 @@ type Statistics struct {
 	TotalReferences int
 	ValidReferences int
 	Errors          int
+}
+
+// Enhanced types for better validation
+type EnhancedValidationResult struct {
+	Valid            bool
+	ControllerErrors []ValidationError
+	FieldErrors      []FieldValidationError
+	URLErrors        []URLValidationError
+	Summary          EnhancedStatistics
+}
+
+type FieldValidationError struct {
+	File       string
+	Line       int
+	Expression string
+	Fields     []string
+	Context    string
+	Problem    string
+	Suggestion string
+}
+
+type EnhancedStatistics struct {
+	TotalTemplates      int
+	TotalControllerRefs int
+	ValidControllerRefs int
+	TotalFieldRefs      int
+	ValidFieldRefs      int
+	TotalURLRefs        int
+	ValidURLRefs        int
+	ControllerErrors    int
+	FieldErrors         int
+	URLErrors           int
 }
 
 type Reporter interface {
