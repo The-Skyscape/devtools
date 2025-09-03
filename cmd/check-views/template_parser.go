@@ -7,19 +7,19 @@ import (
 )
 
 // parseTemplateTree parses a template tree and extracts references
-func parseTemplateTree(tree *parse.Tree, relPath string, controllers []ControllerInfo, models map[string]*ModelInfo) ([]TemplateReference, []FieldReference) {
+func parseTemplateTree(tree *parse.Tree, relPath string, controllers []ControllerInfo, types map[string]*TypeInfo) ([]TemplateReference, []FieldReference) {
 	var templateRefs []TemplateReference
 	var fieldRefs []FieldReference
 	
 	if tree != nil && tree.Root != nil {
-		walkNode(tree.Root, relPath, controllers, models, &templateRefs, &fieldRefs)
+		walkNode(tree.Root, relPath, controllers, types, &templateRefs, &fieldRefs)
 	}
 	
 	return templateRefs, fieldRefs
 }
 
 // walkNode recursively walks the template AST and extracts references
-func walkNode(node parse.Node, file string, controllers []ControllerInfo, models map[string]*ModelInfo, templateRefs *[]TemplateReference, fieldRefs *[]FieldReference) {
+func walkNode(node parse.Node, file string, controllers []ControllerInfo, types map[string]*TypeInfo, templateRefs *[]TemplateReference, fieldRefs *[]FieldReference) {
 	if node == nil {
 		return
 	}
@@ -27,64 +27,64 @@ func walkNode(node parse.Node, file string, controllers []ControllerInfo, models
 	switch n := node.(type) {
 	case *parse.ActionNode:
 		if n.Pipe != nil {
-			processPipe(n.Pipe, file, n.Line, controllers, models, templateRefs, fieldRefs)
+			processPipe(n.Pipe, file, n.Line, controllers, types, templateRefs, fieldRefs)
 		}
 		
 	case *parse.IfNode:
 		if n.Pipe != nil {
-			processPipe(n.Pipe, file, n.Line, controllers, models, templateRefs, fieldRefs)
+			processPipe(n.Pipe, file, n.Line, controllers, types, templateRefs, fieldRefs)
 		}
 		if n.List != nil {
-			walkNode(n.List, file, controllers, models, templateRefs, fieldRefs)
+			walkNode(n.List, file, controllers, types, templateRefs, fieldRefs)
 		}
 		if n.ElseList != nil {
-			walkNode(n.ElseList, file, controllers, models, templateRefs, fieldRefs)
+			walkNode(n.ElseList, file, controllers, types, templateRefs, fieldRefs)
 		}
 		
 	case *parse.RangeNode:
 		if n.Pipe != nil {
-			processPipe(n.Pipe, file, n.Line, controllers, models, templateRefs, fieldRefs)
+			processPipe(n.Pipe, file, n.Line, controllers, types, templateRefs, fieldRefs)
 		}
 		if n.List != nil {
-			walkNode(n.List, file, controllers, models, templateRefs, fieldRefs)
+			walkNode(n.List, file, controllers, types, templateRefs, fieldRefs)
 		}
 		if n.ElseList != nil {
-			walkNode(n.ElseList, file, controllers, models, templateRefs, fieldRefs)
+			walkNode(n.ElseList, file, controllers, types, templateRefs, fieldRefs)
 		}
 		
 	case *parse.WithNode:
 		if n.Pipe != nil {
-			processPipe(n.Pipe, file, n.Line, controllers, models, templateRefs, fieldRefs)
+			processPipe(n.Pipe, file, n.Line, controllers, types, templateRefs, fieldRefs)
 		}
 		if n.List != nil {
-			walkNode(n.List, file, controllers, models, templateRefs, fieldRefs)
+			walkNode(n.List, file, controllers, types, templateRefs, fieldRefs)
 		}
 		if n.ElseList != nil {
-			walkNode(n.ElseList, file, controllers, models, templateRefs, fieldRefs)
+			walkNode(n.ElseList, file, controllers, types, templateRefs, fieldRefs)
 		}
 		
 	case *parse.ListNode:
 		if n != nil && n.Nodes != nil {
 			for _, child := range n.Nodes {
-				walkNode(child, file, controllers, models, templateRefs, fieldRefs)
+				walkNode(child, file, controllers, types, templateRefs, fieldRefs)
 			}
 		}
 	}
 }
 
 // processPipe processes a pipe for references
-func processPipe(pipe *parse.PipeNode, file string, line int, controllers []ControllerInfo, models map[string]*ModelInfo, templateRefs *[]TemplateReference, fieldRefs *[]FieldReference) {
+func processPipe(pipe *parse.PipeNode, file string, line int, controllers []ControllerInfo, types map[string]*TypeInfo, templateRefs *[]TemplateReference, fieldRefs *[]FieldReference) {
 	if pipe == nil {
 		return
 	}
 	
 	for _, cmd := range pipe.Cmds {
-		processCommand(cmd, file, line, controllers, models, templateRefs, fieldRefs)
+		processCommand(cmd, file, line, controllers, types, templateRefs, fieldRefs)
 	}
 }
 
 // processCommand processes a command for references
-func processCommand(cmd *parse.CommandNode, file string, line int, controllers []ControllerInfo, models map[string]*ModelInfo, templateRefs *[]TemplateReference, fieldRefs *[]FieldReference) {
+func processCommand(cmd *parse.CommandNode, file string, line int, controllers []ControllerInfo, types map[string]*TypeInfo, templateRefs *[]TemplateReference, fieldRefs *[]FieldReference) {
 	if cmd == nil || len(cmd.Args) == 0 {
 		return
 	}

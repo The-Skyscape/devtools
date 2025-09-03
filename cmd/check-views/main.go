@@ -80,21 +80,45 @@ func runValidation(cmd *cobra.Command, args []string) error {
 	}
 
 	if !quiet && !jsonOut {
-		fmt.Println("\n🔍 Discovering models...")
+		fmt.Println("\n🔍 Discovering types (models, internal, templates)...")
 	}
 
-	// Discover models
-	models, err := DiscoverModels(dir)
+	// Discover all types (models, internal structs, controller returns)
+	allTypes, err := DiscoverAllTypes(dir)
 	if err != nil {
-		return fmt.Errorf("failed to discover models: %w", err)
+		return fmt.Errorf("failed to discover types: %w", err)
+	}
+
+	// For backward compatibility, extract just models
+	models := make(map[string]*ModelInfo)
+	for name, typeInfo := range allTypes {
+		if typeInfo.Source == "model" {
+			models[name] = &ModelInfo{
+				Name:     typeInfo.Name,
+				Package:  typeInfo.Package,
+				FilePath: typeInfo.FilePath,
+				Fields:   typeInfo.Fields,
+				Methods:  typeInfo.Methods,
+			}
+		}
 	}
 
 	if !quiet && !jsonOut {
 		totalFields := 0
-		for _, m := range models {
-			totalFields += len(m.Fields)
+		modelCount := 0
+		internalCount := 0
+		for _, t := range allTypes {
+			totalFields += len(t.Fields)
+			switch t.Source {
+			case "model":
+				modelCount++
+			case "internal":
+				internalCount++
+			}
 		}
-		fmt.Printf("  ✓ Found %d models with %d fields\n", len(models), totalFields)
+		fmt.Printf("  ✓ Found %d types with %d fields\n", len(allTypes), totalFields)
+		fmt.Printf("    - %d models\n", modelCount)
+		fmt.Printf("    - %d internal types\n", internalCount)
 	}
 
 	if verbose && !jsonOut {
@@ -146,7 +170,7 @@ func runValidation(cmd *cobra.Command, args []string) error {
 	}
 	
 	// Then use AST parser for enhanced field validation
-	templateRefs, fieldRefs, err := ParseTemplatesWithAST(dir, controllers, models)
+	templateRefs, fieldRefs, err := ParseTemplatesWithAST(dir, controllers, allTypes)
 	if err != nil {
 		return fmt.Errorf("failed to parse templates with AST: %w", err)
 	}
@@ -171,8 +195,8 @@ func runValidation(cmd *cobra.Command, args []string) error {
 	// Validate URL references
 	urlErrors := ValidateURLReferences(urlRefs, routes)
 
-	// Validate all references using simple validation
-	result := ValidateWithModels(controllers, models, templateRefs, fieldRefs)
+	// Validate all references using enhanced validation with all types
+	result := ValidateWithTypes(controllers, allTypes, templateRefs, fieldRefs)
 	
 	// Add URL errors to result
 	result.URLErrors = urlErrors

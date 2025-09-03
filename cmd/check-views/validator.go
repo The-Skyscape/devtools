@@ -69,6 +69,73 @@ func Validate(controllers []ControllerInfo, references []TemplateReference) Vali
 	return result
 }
 
+// ValidateFieldWithTypes validates a field/method reference by checking all types
+func ValidateFieldWithTypes(ref FieldReference, types map[string]*TypeInfo) *FieldValidationError {
+	if len(ref.Fields) == 0 {
+		return nil
+	}
+	
+	// Get the first field/method being accessed
+	fieldOrMethod := ref.Fields[0]
+	
+	// If it starts with Get, it's likely a method that should exist without Get prefix
+	possibleCorrectName := ""
+	if strings.HasPrefix(fieldOrMethod, "Get") && len(fieldOrMethod) > 3 {
+		// GetInitials -> Initials
+		possibleCorrectName = strings.TrimPrefix(fieldOrMethod, "Get")
+	}
+	
+	// Track which types have this field/method
+	var typesWithField []string
+	var typesWithMethod []string
+	var typesWithCorrectMethod []string
+	
+	// Check all types to see which ones have this field or method
+	for typeName, typeInfo := range types {
+		// Check fields
+		if _, hasField := typeInfo.Fields[fieldOrMethod]; hasField {
+			typesWithField = append(typesWithField, typeName)
+		}
+		
+		// Check methods
+		for _, method := range typeInfo.Methods {
+			if method.Name == fieldOrMethod {
+				typesWithMethod = append(typesWithMethod, typeName)
+			}
+			// Check if the correct name exists (without Get prefix)
+			if possibleCorrectName != "" && method.Name == possibleCorrectName {
+				typesWithCorrectMethod = append(typesWithCorrectMethod, typeName)
+			}
+		}
+	}
+	
+	// If we found it in any type, it's potentially valid (we just don't know the context)
+	if len(typesWithField) > 0 || len(typesWithMethod) > 0 {
+		// Valid - exists in at least one type
+		return nil
+	}
+	
+	// Not found in any type - this is definitely an error
+	problem := fmt.Sprintf("'%s' is not a field or method on any known type", fieldOrMethod)
+	suggestion := ""
+	
+	// If we found the correct name (without Get), suggest it
+	if len(typesWithCorrectMethod) > 0 {
+		suggestion = fmt.Sprintf("Did you mean '%s'? Found on: %s", 
+			possibleCorrectName, 
+			strings.Join(typesWithCorrectMethod, ", "))
+	}
+	
+	return &FieldValidationError{
+		File:       ref.File,
+		Line:       ref.Line,
+		Expression: ref.Expression,
+		Context:    ref.Context,
+		Problem:    problem,
+		Suggestion: suggestion,
+	}
+}
+
 // ValidateFieldSimple validates a field/method reference by checking all models
 func ValidateFieldSimple(ref FieldReference, models map[string]*ModelInfo) *FieldValidationError {
 	if len(ref.Fields) == 0 {
@@ -134,6 +201,56 @@ func ValidateFieldSimple(ref FieldReference, models map[string]*ModelInfo) *Fiel
 		Problem:    problem,
 		Suggestion: suggestion,
 	}
+}
+
+// ValidateWithTypes performs validation using all discovered types
+func ValidateWithTypes(controllers []ControllerInfo, types map[string]*TypeInfo, templateRefs []TemplateReference, fieldRefs []FieldReference) *EnhancedValidationResult {
+	result := EnhancedValidationResult{
+		Valid:            true,
+		ControllerErrors: []ValidationError{},
+		FieldErrors:      []FieldValidationError{},
+	}
+	
+	// Validate controller references (reuse existing logic)
+	controllerResult := Validate(controllers, templateRefs)
+	result.ControllerErrors = controllerResult.Errors
+	if len(controllerResult.Errors) > 0 {
+		result.Valid = false
+	}
+	
+	// Validate field references with enhanced type checking
+	validFieldCount := 0
+	templateFiles := make(map[string]bool)
+	
+	for _, ref := range fieldRefs {
+		templateFiles[ref.File] = true
+		
+		// Use enhanced validation with all types
+		if err := ValidateFieldWithTypes(ref, types); err != nil {
+			result.Valid = false
+			result.FieldErrors = append(result.FieldErrors, *err)
+		} else {
+			validFieldCount++
+		}
+	}
+	
+	// Also track template files from controller refs
+	for _, ref := range templateRefs {
+		templateFiles[ref.File] = true
+	}
+	
+	// Update statistics
+	result.Summary = EnhancedStatistics{
+		TotalTemplates:      len(templateFiles),
+		TotalControllerRefs: len(templateRefs),
+		ValidControllerRefs: controllerResult.Summary.ValidReferences,
+		TotalFieldRefs:      len(fieldRefs),
+		ValidFieldRefs:      validFieldCount,
+		ControllerErrors:    len(result.ControllerErrors),
+		FieldErrors:         len(result.FieldErrors),
+	}
+	
+	return &result
 }
 
 // ValidateWithModelsSimple performs validation without requiring perfect context

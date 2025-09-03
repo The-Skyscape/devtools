@@ -8,41 +8,205 @@ import (
 	"time"
 )
 
-// FormatHelpers provides template formatting functions
-type FormatHelpers struct{}
-
-// NewFormatHelpers creates a new format helper instance
-func NewFormatHelpers() *FormatHelpers {
-	return &FormatHelpers{}
-}
-
-// FuncMap returns the template function map with all formatting helpers
-func (f *FormatHelpers) FuncMap() template.FuncMap {
+// GetHelperFuncs returns the complete template function map with all helpers
+func GetHelperFuncs() template.FuncMap {
 	return template.FuncMap{
-		"formatBytes":     f.FormatBytes,
-		"formatPrice":     f.FormatPrice,
-		"formatPercent":   f.FormatPercent,
-		"formatDuration":  f.FormatDuration,
-		"formatDate":      f.FormatDate,
-		"formatDateTime":  f.FormatDateTime,
-		"formatNumber":    f.FormatNumber,
-		"pluralize":       f.Pluralize,
-		"truncate":        f.Truncate,
-		"join":            f.Join,
-		"split":           f.Split,
-		"contains":        f.Contains,
-		"hasPrefix":       f.HasPrefix,
-		"hasSuffix":       f.HasSuffix,
-		"replace":         f.Replace,
-		"title":           strings.Title,
-		"lower":           strings.ToLower,
-		"upper":           strings.ToUpper,
-		"trim":            strings.TrimSpace,
+		// Formatting functions
+		"formatBytes":     FormatBytes,
+		"formatPrice":     FormatPrice,
+		"formatPercent":   FormatPercent,
+		"formatDuration":  FormatDuration,
+		"formatDate":      FormatDate,
+		"formatDateTime":  FormatDateTime,
+		"formatNumber":    FormatNumber,
+		"timeAgo":         TimeAgo,
+		
+		// String functions
+		"pluralize":  Pluralize,
+		"truncate":   Truncate,
+		"join":       Join,
+		"split":      Split,
+		"contains":   Contains,
+		"hasPrefix":  HasPrefix,
+		"hasSuffix":  HasSuffix,
+		"replace":    Replace,
+		"title":      strings.Title,
+		"lower":      strings.ToLower,
+		"upper":      strings.ToUpper,
+		"trim":       strings.TrimSpace,
+		"slice":      SliceString,
+		
+		// Math functions
+		"add":   Add,
+		"addf":  AddFloat,
+		"sub":   Subtract,
+		"subf":  SubtractFloat,
+		"mul":   Multiply,
+		"mulf":  MultiplyFloat,
+		"div":   Divide,
+		"divf":  DivideFloat,
+		"float": ToFloat,
+		
+		// Utility functions
+		"toString": ToString,
+		"default":  Default,
+		"dict":     Dict,
+		"set":      Set,
+		"head":     Head,
 	}
 }
 
+// Math functions
+
+// Add adds two integers or floats
+func Add(a, b interface{}) interface{} {
+	switch va := a.(type) {
+	case int:
+		if vb, ok := b.(int); ok {
+			return va + vb
+		}
+	case float64:
+		if vb, ok := b.(float64); ok {
+			return va + vb
+		}
+	}
+	return 0
+}
+
+// AddFloat adds two numbers as floats
+func AddFloat(a, b interface{}) float64 {
+	var fa, fb float64
+	switch v := a.(type) {
+	case int:
+		fa = float64(v)
+	case float64:
+		fa = v
+	default:
+		fa = 0
+	}
+	switch v := b.(type) {
+	case int:
+		fb = float64(v)
+	case float64:
+		fb = v
+	default:
+		fb = 0
+	}
+	return fa + fb
+}
+
+// Subtract subtracts two integers or floats
+func Subtract(a, b interface{}) interface{} {
+	switch va := a.(type) {
+	case int:
+		if vb, ok := b.(int); ok {
+			return va - vb
+		}
+	case float64:
+		if vb, ok := b.(float64); ok {
+			return va - vb
+		}
+	}
+	return 0
+}
+
+// SubtractFloat subtracts two numbers as floats
+func SubtractFloat(a, b interface{}) float64 {
+	return AddFloat(a, MultiplyFloat(b, -1))
+}
+
+// Multiply multiplies two numbers
+func Multiply(a, b interface{}) interface{} {
+	switch va := a.(type) {
+	case int:
+		if vb, ok := b.(int); ok {
+			return va * vb
+		}
+		if vb, ok := b.(float64); ok {
+			return float64(va) * vb
+		}
+	case float64:
+		if vb, ok := b.(float64); ok {
+			return va * vb
+		}
+		if vb, ok := b.(int); ok {
+			return va * float64(vb)
+		}
+	}
+	return 0
+}
+
+// MultiplyFloat multiplies two numbers as floats
+func MultiplyFloat(a, b interface{}) float64 {
+	var fa, fb float64
+	switch v := a.(type) {
+	case int:
+		fa = float64(v)
+	case float64:
+		fa = v
+	default:
+		fa = 0
+	}
+	switch v := b.(type) {
+	case int:
+		fb = float64(v)
+	case float64:
+		fb = v
+	default:
+		fb = 0
+	}
+	return fa * fb
+}
+
+// Divide divides two numbers
+func Divide(a, b interface{}) interface{} {
+	switch va := a.(type) {
+	case int:
+		if vb, ok := b.(int); ok && vb != 0 {
+			return va / vb
+		}
+		if vb, ok := b.(float64); ok && vb != 0 {
+			return float64(va) / vb
+		}
+	case float64:
+		if vb, ok := b.(float64); ok && vb != 0 {
+			return va / vb
+		}
+		if vb, ok := b.(int); ok && vb != 0 {
+			return va / float64(vb)
+		}
+	}
+	return 0
+}
+
+// DivideFloat divides two numbers as floats
+func DivideFloat(a, b interface{}) float64 {
+	fb := ToFloat(b)
+	if fb == 0 {
+		return 0
+	}
+	return ToFloat(a) / fb
+}
+
+// ToFloat converts a value to float64
+func ToFloat(v interface{}) float64 {
+	switch val := v.(type) {
+	case int:
+		return float64(val)
+	case float64:
+		return val
+	case string:
+		var f float64
+		fmt.Sscanf(val, "%f", &f)
+		return f
+	}
+	return 0
+}
+
+// Formatting functions
+
 // FormatBytes formats bytes into human-readable sizes
-func (f *FormatHelpers) FormatBytes(bytes int64) string {
+func FormatBytes(bytes int64) string {
 	const unit = 1024
 	if bytes < unit {
 		return fmt.Sprintf("%d B", bytes)
@@ -58,17 +222,17 @@ func (f *FormatHelpers) FormatBytes(bytes int64) string {
 }
 
 // FormatPrice formats a number as currency
-func (f *FormatHelpers) FormatPrice(price float64) string {
+func FormatPrice(price float64) string {
 	return fmt.Sprintf("$%.2f", price)
 }
 
 // FormatPercent formats a number as a percentage
-func (f *FormatHelpers) FormatPercent(value float64) string {
+func FormatPercent(value float64) string {
 	return fmt.Sprintf("%.1f%%", value)
 }
 
 // FormatDuration formats a duration into human-readable format
-func (f *FormatHelpers) FormatDuration(d time.Duration) string {
+func FormatDuration(d time.Duration) string {
 	if d < time.Minute {
 		return fmt.Sprintf("%ds", int(d.Seconds()))
 	}
@@ -98,7 +262,7 @@ func (f *FormatHelpers) FormatDuration(d time.Duration) string {
 }
 
 // FormatDate formats a time as a date string
-func (f *FormatHelpers) FormatDate(t time.Time) string {
+func FormatDate(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
@@ -106,7 +270,7 @@ func (f *FormatHelpers) FormatDate(t time.Time) string {
 }
 
 // FormatDateTime formats a time as a date and time string
-func (f *FormatHelpers) FormatDateTime(t time.Time) string {
+func FormatDateTime(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
@@ -114,7 +278,7 @@ func (f *FormatHelpers) FormatDateTime(t time.Time) string {
 }
 
 // FormatNumber formats a number with thousands separators
-func (f *FormatHelpers) FormatNumber(n interface{}) string {
+func FormatNumber(n interface{}) string {
 	var num float64
 	switch v := n.(type) {
 	case int:
@@ -156,60 +320,8 @@ func (f *FormatHelpers) FormatNumber(n interface{}) string {
 	return sign + string(result) + decPart
 }
 
-// Pluralize returns singular or plural form based on count
-func (f *FormatHelpers) Pluralize(count int, singular, plural string) string {
-	if count == 1 {
-		return fmt.Sprintf("%d %s", count, singular)
-	}
-	if plural == "" {
-		plural = singular + "s"
-	}
-	return fmt.Sprintf("%d %s", count, plural)
-}
-
-// Truncate truncates a string to a maximum length
-func (f *FormatHelpers) Truncate(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	if maxLen <= 3 {
-		return s[:maxLen]
-	}
-	return s[:maxLen-3] + "..."
-}
-
-// Join joins strings with a separator
-func (f *FormatHelpers) Join(items []string, sep string) string {
-	return strings.Join(items, sep)
-}
-
-// Split splits a string by separator
-func (f *FormatHelpers) Split(s, sep string) []string {
-	return strings.Split(s, sep)
-}
-
-// Contains checks if a string contains a substring
-func (f *FormatHelpers) Contains(s, substr string) bool {
-	return strings.Contains(s, substr)
-}
-
-// HasPrefix checks if a string has a prefix
-func (f *FormatHelpers) HasPrefix(s, prefix string) bool {
-	return strings.HasPrefix(s, prefix)
-}
-
-// HasSuffix checks if a string has a suffix
-func (f *FormatHelpers) HasSuffix(s, suffix string) bool {
-	return strings.HasSuffix(s, suffix)
-}
-
-// Replace replaces all occurrences of a substring
-func (f *FormatHelpers) Replace(s, old, new string) string {
-	return strings.ReplaceAll(s, old, new)
-}
-
 // TimeAgo formats a time as "X ago" relative to now
-func (f *FormatHelpers) TimeAgo(t time.Time) string {
+func TimeAgo(t time.Time) string {
 	if t.IsZero() {
 		return "never"
 	}
@@ -255,8 +367,111 @@ func (f *FormatHelpers) TimeAgo(t time.Time) string {
 	return fmt.Sprintf("%d years ago", years)
 }
 
-// RegisterHelpers registers all formatting helpers with the template engine
-func RegisterHelpers(tmpl *template.Template) *template.Template {
-	helpers := NewFormatHelpers()
-	return tmpl.Funcs(helpers.FuncMap())
+// String functions
+
+// Pluralize returns singular or plural form based on count
+func Pluralize(count int, singular, plural string) string {
+	if count == 1 {
+		return fmt.Sprintf("%d %s", count, singular)
+	}
+	if plural == "" {
+		plural = singular + "s"
+	}
+	return fmt.Sprintf("%d %s", count, plural)
+}
+
+// Truncate truncates a string to a maximum length
+func Truncate(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	if maxLen <= 3 {
+		return s[:maxLen]
+	}
+	return s[:maxLen-3] + "..."
+}
+
+// Join joins strings with a separator
+func Join(items []string, sep string) string {
+	return strings.Join(items, sep)
+}
+
+// Split splits a string by separator
+func Split(s, sep string) []string {
+	return strings.Split(s, sep)
+}
+
+// Contains checks if a string contains a substring
+func Contains(s, substr string) bool {
+	return strings.Contains(s, substr)
+}
+
+// HasPrefix checks if a string has a prefix
+func HasPrefix(s, prefix string) bool {
+	return strings.HasPrefix(s, prefix)
+}
+
+// HasSuffix checks if a string has a suffix
+func HasSuffix(s, suffix string) bool {
+	return strings.HasSuffix(s, suffix)
+}
+
+// Replace replaces all occurrences of a substring
+func Replace(s, old, new string) string {
+	return strings.ReplaceAll(s, old, new)
+}
+
+// SliceString returns a substring from start to end
+func SliceString(s string, start, end int) string {
+	if start < 0 {
+		start = 0
+	}
+	if end > len(s) {
+		end = len(s)
+	}
+	if start > end {
+		return ""
+	}
+	return s[start:end]
+}
+
+// Utility functions
+
+// ToString converts any value to a string
+func ToString(v interface{}) string {
+	return fmt.Sprintf("%v", v)
+}
+
+// Default returns the default value if val is nil, empty, or zero
+func Default(def, val interface{}) interface{} {
+	if val == nil || val == "" || val == 0 {
+		return def
+	}
+	return val
+}
+
+// Dict creates a new map
+func Dict() map[string]interface{} {
+	return make(map[string]interface{})
+}
+
+// Set sets a key-value pair in a map
+func Set(m map[string]interface{}, key string, val interface{}) map[string]interface{} {
+	if m == nil {
+		m = make(map[string]interface{})
+	}
+	m[key] = val
+	return m
+}
+
+// Head returns the first n elements of a slice
+func Head(n int, arr interface{}) interface{} {
+	switch v := arr.(type) {
+	case []interface{}:
+		if n > len(v) {
+			return v
+		}
+		return v[:n]
+	}
+	return arr
 }

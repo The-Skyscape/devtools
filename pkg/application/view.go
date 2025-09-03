@@ -44,207 +44,86 @@ func (v *View) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) prepareViews() {
-	// Create format helpers
-	formatHelpers := NewFormatHelpers()
+	// Get all helper functions
+	helperFuncs := GetHelperFuncs()
 	
-	funcs := template.FuncMap{
-		"req":     func() *http.Request { return nil },
-		"host":    func() string { return app.hostPrefix },
-		"path":    func(parts ...string) string { return fmt.Sprintf("/%s", strings.Join(parts, "/")) },
-		"theme":   func() string { return app.theme },
-		"title":   func(title string) string { return strings.ReplaceAll(title, "_", " ") },
-		"prefix":  func(s, prefix string) bool { return strings.HasPrefix(s, prefix) },
-		"path_eq": func(parts ...string) bool { return false },
-		// Math functions
-		"add": func(a, b interface{}) interface{} {
-			switch va := a.(type) {
-			case int:
-				if vb, ok := b.(int); ok {
-					return va + vb
-				}
-			case float64:
-				if vb, ok := b.(float64); ok {
-					return va + vb
-				}
-			}
-			return 0
-		},
-		"sub": func(a, b interface{}) interface{} {
-			switch va := a.(type) {
-			case int:
-				if vb, ok := b.(int); ok {
-					return va - vb
-				}
-			case float64:
-				if vb, ok := b.(float64); ok {
-					return va - vb
-				}
-			}
-			return 0
-		},
-		"mul": func(a, b interface{}) interface{} {
-			switch va := a.(type) {
-			case int:
-				if vb, ok := b.(int); ok {
-					return va * vb
-				}
-				if vb, ok := b.(float64); ok {
-					return float64(va) * vb
-				}
-			case float64:
-				if vb, ok := b.(float64); ok {
-					return va * vb
-				}
-				if vb, ok := b.(int); ok {
-					return va * float64(vb)
-				}
-			}
-			return 0
-		},
-		"div": func(a, b interface{}) interface{} {
-			switch va := a.(type) {
-			case int:
-				if vb, ok := b.(int); ok && vb != 0 {
-					return va / vb
-				}
-				if vb, ok := b.(float64); ok && vb != 0 {
-					return float64(va) / vb
-				}
-			case float64:
-				if vb, ok := b.(float64); ok && vb != 0 {
-					return va / vb
-				}
-				if vb, ok := b.(int); ok && vb != 0 {
-					return va / float64(vb)
-				}
-			}
-			return 0
-		},
-		// Type conversion functions
-		"float": func(v interface{}) float64 {
-			switch val := v.(type) {
-			case int:
-				return float64(val)
-			case float64:
-				return val
-			case string:
-				// Try to parse string to float
-				var f float64
-				fmt.Sscanf(val, "%f", &f)
-				return f
-			}
-			return 0
-		},
-		"toString": func(v interface{}) string {
-			return fmt.Sprintf("%v", v)
-		},
-		// Utility functions
-		"slice": func(s string, start, end int) string {
-			if start < 0 {
-				start = 0
-			}
-			if end > len(s) {
-				end = len(s)
-			}
-			if start > end {
-				return ""
-			}
-			return s[start:end]
-		},
-		"head": func(n int, arr interface{}) interface{} {
-			// Simple head implementation for slices
-			switch v := arr.(type) {
-			case []interface{}:
-				if n > len(v) {
-					return v
-				}
-				return v[:n]
-			}
-			return arr
-		},
-		"default": func(def, val interface{}) interface{} {
-			if val == nil || val == "" || val == 0 {
-				return def
-			}
-			return val
-		},
-		"set": func(m map[string]interface{}, key string, val interface{}) map[string]interface{} {
-			if m == nil {
-				m = make(map[string]interface{})
-			}
-			m[key] = val
-			return m
-		},
-		"dict": func() map[string]interface{} {
-			return make(map[string]interface{})
-		},
-		"hasPrefix": func(s, prefix string) bool {
-			return strings.HasPrefix(s, prefix)
-		},
-		"jsonify": func(v interface{}) template.JS {
-			data, err := json.Marshal(v)
-			if err != nil {
-				log.Printf("jsonify error: %v", err)
-				return template.JS("{}")
-			}
-			return template.JS(data)
-		},
-		// Charting functions
-		"renderChart": func(dataOrFunc interface{}, placeholder ...string) template.HTML {
-			// Handle function call if passed
-			var data *charting.ChartData
-			
-			// Check if it's a function that returns ChartData
-			switch v := dataOrFunc.(type) {
-			case func() interface{}:
-				if result := v(); result != nil {
-					data, _ = result.(*charting.ChartData)
-				}
-			case func() *charting.ChartData:
-				data = v()
-			case *charting.ChartData:
-				data = v
-			}
-			
-			// Return placeholder if no data
-			if data == nil || len(data.Data) == 0 {
-				title := "No data"
-				message := "No data available"
-				if len(placeholder) > 0 {
-					title = placeholder[0]
-				}
-				if len(placeholder) > 1 {
-					message = placeholder[1]
-				}
-				return charting.PlaceholderChart(title, message)
-			}
-			
-			return charting.RenderLineChart(data, 600, 300)
-		},
-		"renderSparkline": func(data []float64) template.HTML {
-			return charting.RenderSparkline(data, 100, 30)
-		},
-		"placeholderChart": func(title, message string) template.HTML {
-			return charting.PlaceholderChart(title, message)
-		},
-		"chartLoader": func(endpoint, title string) template.HTML {
-			return template.HTML(fmt.Sprintf(`
-				<div hx-get="%s" 
-				     hx-trigger="load" 
-				     hx-swap="innerHTML"
-				     class="chart-container">
-					<div class="flex flex-col items-center justify-center h-48 text-base-content/60">
-						<span class="loading loading-spinner loading-md"></span>
-						<p class="text-sm mt-2">Loading %s...</p>
-					</div>
-				</div>
-			`, endpoint, title))
-		},
+	// Start with helper functions as base
+	funcs := helperFuncs
+	
+	// Add app-specific functions
+	funcs["req"] = func() *http.Request { return nil }
+	funcs["host"] = func() string { return app.hostPrefix }
+	funcs["path"] = func(parts ...string) string { return fmt.Sprintf("/%s", strings.Join(parts, "/")) }
+	funcs["theme"] = func() string { return app.theme }
+	funcs["path_eq"] = func(parts ...string) bool { return false }
+	
+	// Override the title function to use the specific behavior
+	funcs["title"] = func(title string) string { return strings.ReplaceAll(title, "_", " ") }
+	funcs["prefix"] = func(s, prefix string) bool { return strings.HasPrefix(s, prefix) }
+	
+	// JSON functions
+	funcs["jsonify"] = func(v interface{}) template.JS {
+		data, err := json.Marshal(v)
+		if err != nil {
+			log.Printf("jsonify error: %v", err)
+			return template.JS("{}")
+		}
+		return template.JS(data)
 	}
 	
-	// Add formatting helper functions
-	for name, fn := range formatHelpers.FuncMap() {
-		funcs[name] = fn
+	// Charting functions
+	funcs["renderChart"] = func(dataOrFunc interface{}, placeholder ...string) template.HTML {
+		// Handle function call if passed
+		var data *charting.ChartData
+		
+		// Check if it's a function that returns ChartData
+		switch v := dataOrFunc.(type) {
+		case func() interface{}:
+			if result := v(); result != nil {
+				data, _ = result.(*charting.ChartData)
+			}
+		case func() *charting.ChartData:
+			data = v()
+		case *charting.ChartData:
+			data = v
+		}
+		
+		// Return placeholder if no data
+		if data == nil || len(data.Data) == 0 {
+			title := "No data"
+			message := "No data available"
+			if len(placeholder) > 0 {
+				title = placeholder[0]
+			}
+			if len(placeholder) > 1 {
+				message = placeholder[1]
+			}
+			return charting.PlaceholderChart(title, message)
+		}
+		
+		return charting.RenderLineChart(data, 600, 300)
+	}
+	
+	funcs["renderSparkline"] = func(data []float64) template.HTML {
+		return charting.RenderSparkline(data, 100, 30)
+	}
+	
+	funcs["placeholderChart"] = func(title, message string) template.HTML {
+		return charting.PlaceholderChart(title, message)
+	}
+	
+	funcs["chartLoader"] = func(endpoint, title string) template.HTML {
+		return template.HTML(fmt.Sprintf(`
+			<div hx-get="%s" 
+			     hx-trigger="load" 
+			     hx-swap="innerHTML"
+			     class="chart-container">
+				<div class="flex flex-col items-center justify-center h-48 text-base-content/60">
+					<span class="loading loading-spinner loading-md"></span>
+					<p class="text-sm mt-2">Loading %s...</p>
+				</div>
+			</div>
+		`, endpoint, title))
 	}
 
 	for name, ctrl := range app.controllers {

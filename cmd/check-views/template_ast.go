@@ -24,7 +24,7 @@ type FieldReference struct {
 }
 
 // ParseTemplatesWithAST parses templates using Go's template parser
-func ParseTemplatesWithAST(dir string, controllers []ControllerInfo, models map[string]*ModelInfo) ([]TemplateReference, []FieldReference, error) {
+func ParseTemplatesWithAST(dir string, controllers []ControllerInfo, types map[string]*TypeInfo) ([]TemplateReference, []FieldReference, error) {
 	var templateRefs []TemplateReference
 	var fieldRefs []FieldReference
 	
@@ -46,7 +46,7 @@ func ParseTemplatesWithAST(dir string, controllers []ControllerInfo, models map[
 		}
 		
 		// Parse the template file
-		refs, fields, err := parseTemplateAST(path, viewsDir, controllers, models)
+		refs, fields, err := parseTemplateAST(path, viewsDir, controllers, types)
 		if err != nil {
 			// Continue with other files even if one fails
 			return nil
@@ -62,7 +62,7 @@ func ParseTemplatesWithAST(dir string, controllers []ControllerInfo, models map[
 }
 
 // parseTemplateAST parses a single template file using the AST
-func parseTemplateAST(filePath, baseDir string, controllers []ControllerInfo, models map[string]*ModelInfo) ([]TemplateReference, []FieldReference, error) {
+func parseTemplateAST(filePath, baseDir string, controllers []ControllerInfo, types map[string]*TypeInfo) ([]TemplateReference, []FieldReference, error) {
 	var templateRefs []TemplateReference
 	var fieldRefs []FieldReference
 	
@@ -87,7 +87,7 @@ func parseTemplateAST(filePath, baseDir string, controllers []ControllerInfo, mo
 	}
 	
 	// Process the tree
-	refs, fields := parseTemplateTree(tree, relPath, controllers, models)
+	refs, fields := parseTemplateTree(tree, relPath, controllers, types)
 	templateRefs = append(templateRefs, refs...)
 	fieldRefs = append(fieldRefs, fields...)
 	

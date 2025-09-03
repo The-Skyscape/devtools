@@ -111,24 +111,15 @@ func (app *App) SetTheme(theme string) {
 
 // Render renders a view with given data to the http writer
 func (app *App) Render(w io.Writer, r *http.Request, page string, data any) {
-	// Create format helpers
-	formatHelpers := NewFormatHelpers()
+	// Get all helper functions
+	funcs := GetHelperFuncs()
 	
-	funcs := template.FuncMap{
-		// {{req.URL.Query.Get "search"}}
-		"req": func() *http.Request { return r },
-		// {{host}}
-		"host": func() string { return app.hostPrefix },
-		// {{if path_eq "project" .ID "settings"}} ... {{end}}
-		"path_eq": func(parts ...string) bool {
-			path := fmt.Sprintf("/%s", strings.Join(parts, "/"))
-			return r.URL.Path == path
-		},
-	}
-	
-	// Add format helpers to runtime functions
-	for name, fn := range formatHelpers.FuncMap() {
-		funcs[name] = fn
+	// Add runtime-specific functions
+	funcs["req"] = func() *http.Request { return r }
+	funcs["host"] = func() string { return app.hostPrefix }
+	funcs["path_eq"] = func(parts ...string) bool {
+		path := fmt.Sprintf("/%s", strings.Join(parts, "/"))
+		return r.URL.Path == path
 	}
 
 	for name, ctrl := range app.controllers {
