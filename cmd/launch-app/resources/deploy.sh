@@ -8,6 +8,7 @@ API_TOKEN="%s"
 REDEPLOY="%s"
 AUTH_SECRET="%s"
 DROPLET_SIZE="%s"
+ENV_VARS="%s"
 
 echo "Starting deployment..."
 
@@ -27,31 +28,55 @@ fi
 echo "Cleaning up existing container..."
 docker rm -f "$CONTAINER_NAME" >/dev/null 2>&1 || true
 
-# Determine AI_ENABLED based on droplet size
-AI_ENABLED="false"
-if [[ "$DROPLET_SIZE" == *"16gb"* ]] || [[ "$DROPLET_SIZE" == *"32gb"* ]]; then
-    AI_ENABLED="true"
-    echo "AI features enabled for droplet size: $DROPLET_SIZE"
-else
-    echo "AI features disabled for droplet size: $DROPLET_SIZE"
+# Parse environment variables from ENV_VARS string
+# Format: KEY1=value1,KEY2=value2
+DECLARE_ENV_VARS=""
+if [ -n "$ENV_VARS" ] && [ "$ENV_VARS" != "null" ]; then
+    IFS=',' read -ra VARS <<< "$ENV_VARS"
+    for var in "${VARS[@]}"; do
+        if [[ "$var" == *"="* ]]; then
+            # Extract key and value
+            key="${var%%=*}"
+            value="${var#*=}"
+            DECLARE_ENV_VARS="$DECLARE_ENV_VARS -e $key=\"$value\""
+            echo "Setting environment variable: $key"
+        fi
+    done
+fi
+
+# Determine AI_ENABLED if not explicitly set
+if [[ "$DECLARE_ENV_VARS" != *"AI_ENABLED"* ]]; then
+    # Fallback to size detection if AI_ENABLED not provided
+    AI_ENABLED="false"
+    if [[ "$DROPLET_SIZE" == *"16gb"* ]] || [[ "$DROPLET_SIZE" == *"32gb"* ]] || [[ "$DROPLET_SIZE" == *"gpu"* ]]; then
+        AI_ENABLED="true"
+        echo "AI features enabled by default for droplet size: $DROPLET_SIZE"
+    else
+        echo "AI features disabled by default for droplet size: $DROPLET_SIZE"
+    fi
+    DECLARE_ENV_VARS="$DECLARE_ENV_VARS -e AI_ENABLED=\"$AI_ENABLED\""
 fi
 
 # Create new container
 echo "Creating new container..."
-CONTAINER_ID=$(docker create \
-  --name "$CONTAINER_NAME" \
-  --entrypoint "$CONTAINER_BINARY" \
+# Build the docker create command with dynamic environment variables
+DOCKER_CREATE_CMD="docker create \
+  --name \"$CONTAINER_NAME\" \
+  --entrypoint \"$CONTAINER_BINARY\" \
   --network host \
   --privileged \
   --restart unless-stopped \
-  -v "/root/.skyscape:/root/.skyscape" \
-  -v "/root/.ssh:/root/.ssh" \
-  -v "/var/run/docker.sock:/var/run/docker.sock" \
+  -v \"/root/.skyscape:/root/.skyscape\" \
+  -v \"/root/.ssh:/root/.ssh\" \
+  -v \"/var/run/docker.sock:/var/run/docker.sock\" \
   -e PORT=80 \
   -e THEME=corporate \
-  -e AUTH_SECRET="$AUTH_SECRET" \
-  -e AI_ENABLED="$AI_ENABLED" \
-  "$IMAGE_NAME")
+  -e AUTH_SECRET=\"$AUTH_SECRET\" \
+  $DECLARE_ENV_VARS \
+  \"$IMAGE_NAME\""
+
+# Execute the docker create command
+CONTAINER_ID=$(eval $DOCKER_CREATE_CMD)
 
 # Copy binary into container
 echo "Copying application binary..."

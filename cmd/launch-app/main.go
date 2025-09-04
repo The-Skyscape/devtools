@@ -52,6 +52,7 @@ var (
 	domain   string
 	name     string
 	binary   string
+	env      string
 )
 
 // Root command
@@ -136,6 +137,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&domain, "domain", "", "Domain name for SSL (optional)")
 	rootCmd.PersistentFlags().StringVar(&name, "name", "", "Server name (required)")
 	rootCmd.PersistentFlags().StringVar(&binary, "binary", "", "Path to application binary")
+	rootCmd.PersistentFlags().StringVar(&env, "env", "", "Environment variables (comma-separated KEY=value pairs)")
 
 	// Mark required flags
 	createCmd.MarkPersistentFlagRequired("name")
@@ -319,11 +321,17 @@ func deployApplication(server hosting.Server, config *ServerConfig, apiKey strin
 		authSecret = fmt.Sprintf("skyscape-%d-%s", time.Now().Unix(), config.Name)
 	}
 
+	// Parse environment variables from --env flag
+	envVars := ""
+	if env != "" {
+		envVars = env
+	}
+
 	// Execute the deployment script
 	fmt.Printf("🔧 Executing deployment script...\n")
 	
-	// Interpolate values into the deploy script (including droplet size)
-	scriptWithValues := fmt.Sprintf(deployScript, deployDomain, email, apiKey, redeployFlag, authSecret, config.Size)
+	// Interpolate values into the deploy script (including environment variables)
+	scriptWithValues := fmt.Sprintf(deployScript, deployDomain, email, apiKey, redeployFlag, authSecret, config.Size, envVars)
 	
 	// Execute the script as a single command
 	stdout, stderr, err := server.Exec("/bin/bash", "-c", scriptWithValues)
