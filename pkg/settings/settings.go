@@ -22,7 +22,7 @@ func (*Setting) Table() string {
 
 // Manager provides methods for managing application settings
 type Manager struct {
-	repo *database.Repository[*Setting]
+	repo *database.Collection[*Setting]
 }
 
 // NewManager creates a new settings manager with the given database
