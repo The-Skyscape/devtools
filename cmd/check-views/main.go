@@ -186,14 +186,24 @@ func runValidation(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to parse URL references: %w", err)
 	}
 
+	// Parse template includes to check for invalid path-based references
+	templateIncludes, err := ParseTemplateIncludes(dir)
+	if err != nil {
+		return fmt.Errorf("failed to parse template includes: %w", err)
+	}
+
 	if !quiet && !jsonOut {
 		fmt.Printf("  ✓ Found %d controller references\n", len(templateRefs))
 		fmt.Printf("  ✓ Found %d field references\n", len(fieldRefs))
 		fmt.Printf("  ✓ Found %d URL references\n", len(urlRefs))
+		fmt.Printf("  ✓ Found %d template includes\n", len(templateIncludes))
 	}
 
 	// Validate URL references
 	urlErrors := ValidateURLReferences(urlRefs, routes)
+	
+	// Validate template includes
+	templateIncludeErrors := ValidateTemplateIncludes(templateIncludes)
 
 	// Validate all references using enhanced validation with all types
 	result := ValidateWithTypes(controllers, allTypes, templateRefs, fieldRefs)
@@ -204,8 +214,14 @@ func runValidation(cmd *cobra.Command, args []string) error {
 	result.Summary.ValidURLRefs = len(urlRefs) - len(urlErrors)
 	result.Summary.URLErrors = len(urlErrors)
 	
-	// Update valid flag if there are URL errors
-	if len(urlErrors) > 0 {
+	// Add template include errors to result (using ControllerErrors as they're similar validation errors)
+	// We'll add them as a separate category in the report
+	for _, err := range templateIncludeErrors {
+		result.ControllerErrors = append(result.ControllerErrors, err)
+	}
+	
+	// Update valid flag if there are URL errors or template include errors
+	if len(urlErrors) > 0 || len(templateIncludeErrors) > 0 {
 		result.Valid = false
 	}
 

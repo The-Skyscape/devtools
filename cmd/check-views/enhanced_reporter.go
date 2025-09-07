@@ -70,13 +70,35 @@ func (r *EnhancedReporter) Report(result EnhancedValidationResult) {
 
 // reportControllerErrors reports controller validation errors
 func (r *EnhancedReporter) reportControllerErrors(errors []ValidationError) {
+	// Separate template include errors from controller errors
+	var controllerErrors []ValidationError
+	var templateIncludeErrors []ValidationError
+	
+	for _, err := range errors {
+		if strings.Contains(err.Problem, "Template reference contains path") {
+			templateIncludeErrors = append(templateIncludeErrors, err)
+		} else {
+			controllerErrors = append(controllerErrors, err)
+		}
+	}
+	
+	// Report template include errors first if any
+	if len(templateIncludeErrors) > 0 {
+		r.reportTemplateIncludeErrors(templateIncludeErrors)
+	}
+	
+	// Report controller errors if any
+	if len(controllerErrors) == 0 {
+		return
+	}
+	
 	if !r.quiet {
 		fmt.Println("\n🎮 Controller Reference Errors:")
 	}
 
 	// Group errors by file
 	errorsByFile := make(map[string][]ValidationError)
-	for _, err := range errors {
+	for _, err := range controllerErrors {
 		errorsByFile[err.File] = append(errorsByFile[err.File], err)
 	}
 
@@ -188,6 +210,48 @@ func (r *EnhancedReporter) reportURLErrors(errors []URLValidationError) {
 				fmt.Printf("      Problem: %s\n", err.Problem)
 				if err.Suggestion != "" {
 					fmt.Printf("      💡 %s\n", err.Suggestion)
+				}
+			}
+		}
+	}
+}
+
+// reportTemplateIncludeErrors reports template include validation errors
+func (r *EnhancedReporter) reportTemplateIncludeErrors(errors []ValidationError) {
+	if !r.quiet {
+		fmt.Println("\n📄 Template Include Errors:")
+	}
+
+	// Group errors by file
+	errorsByFile := make(map[string][]ValidationError)
+	for _, err := range errors {
+		errorsByFile[err.File] = append(errorsByFile[err.File], err)
+	}
+
+	// Sort files
+	var files []string
+	for file := range errorsByFile {
+		files = append(files, file)
+	}
+	sort.Strings(files)
+
+	// Report errors by file
+	for _, file := range files {
+		fileErrors := errorsByFile[file]
+		
+		// Sort errors by line number
+		sort.Slice(fileErrors, func(i, j int) bool {
+			return fileErrors[i].Line < fileErrors[j].Line
+		})
+
+		fmt.Printf("  ✗ %s: %d template include errors\n", file, len(fileErrors))
+
+		if r.verbose || r.fix {
+			for _, err := range fileErrors {
+				fmt.Printf("    Line %d: %s\n", err.Line, err.Reference)
+				fmt.Printf("      Problem: %s\n", err.Problem)
+				if err.Suggestion != "" && r.fix {
+					fmt.Printf("      💡 Fix: %s\n", err.Suggestion)
 				}
 			}
 		}
