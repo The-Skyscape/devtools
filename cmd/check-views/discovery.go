@@ -14,10 +14,10 @@ import (
 func DiscoverControllers(dir string) ([]ControllerInfo, error) {
 	// Find controllers directory
 	controllersDir := filepath.Join(dir, "controllers")
-	
+
 	// First, find all controller types by looking for factory functions
 	controllerMap := make(map[string]*ControllerInfo)
-	
+
 	// Walk through all Go files to find factory functions
 	err := filepath.WalkDir(controllersDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -42,7 +42,7 @@ func DiscoverControllers(dir string) ([]ControllerInfo, error) {
 		for _, factory := range factories {
 			controllerMap[factory.Type] = factory
 		}
-		
+
 		return nil
 	})
 
@@ -69,7 +69,7 @@ func DiscoverControllers(dir string) ([]ControllerInfo, error) {
 			}
 			return nil
 		}
-		
+
 		return nil
 	})
 
@@ -95,21 +95,21 @@ func DiscoverControllers(dir string) ([]ControllerInfo, error) {
 // findFactoryFunctions finds all controller factory functions in a file
 func findFactoryFunctions(filePath string) ([]*ControllerInfo, error) {
 	var factories []*ControllerInfo
-	
+
 	// Parse the file
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Look for factory functions
 	for _, decl := range node.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Recv != nil { // Skip methods, only look at functions
 			continue
 		}
-		
+
 		// Check if it's a factory function (returns string and *Controller)
 		prefix, controllerType := extractFactoryInfo(fn)
 		if prefix != "" && controllerType != "" {
@@ -121,7 +121,7 @@ func findFactoryFunctions(filePath string) ([]*ControllerInfo, error) {
 			})
 		}
 	}
-	
+
 	return factories, nil
 }
 
@@ -133,17 +133,17 @@ func findControllerMethods(filePath string, controllerMap map[string]*Controller
 	if err != nil {
 		return err
 	}
-	
+
 	// Look for methods
 	for _, decl := range node.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Recv == nil { // Only look at methods
 			continue
 		}
-		
+
 		// Get the receiver type
 		receiverType := getReceiverType(fn.Recv)
-		
+
 		// Check if this is a method on one of our controllers
 		if info, exists := controllerMap[receiverType]; exists {
 			// Only include exported methods (start with uppercase)
@@ -152,7 +152,7 @@ func findControllerMethods(filePath string, controllerMap map[string]*Controller
 			}
 		}
 	}
-	
+
 	return nil
 }
 
@@ -200,7 +200,7 @@ func parseControllerFile(filePath string) ([]ControllerInfo, error) {
 
 		// Get the receiver type
 		receiverType := getReceiverType(fn.Recv)
-		
+
 		// Check if this is a method on one of our controllers
 		if info, exists := controllerTypes[receiverType]; exists {
 			// Only include exported methods (start with uppercase)
@@ -327,13 +327,13 @@ func getSpecialControllers() []ControllerInfo {
 func removeDuplicates(strs []string) []string {
 	seen := make(map[string]bool)
 	result := []string{}
-	
+
 	for _, str := range strs {
 		if !seen[str] {
 			seen[str] = true
 			result = append(result, str)
 		}
 	}
-	
+
 	return result
 }

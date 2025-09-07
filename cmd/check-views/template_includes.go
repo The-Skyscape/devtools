@@ -25,7 +25,7 @@ func ParseTemplateIncludes(dir string) ([]TemplateIncludeReference, error) {
 
 	// Find views directory
 	viewsDir := filepath.Join(dir, "views")
-	
+
 	// Check if views directory exists
 	if _, err := os.Stat(viewsDir); os.IsNotExist(err) {
 		viewsDir = dir
@@ -94,15 +94,15 @@ func parseTemplateIncludesInFile(filePath, baseDir string) ([]TemplateIncludeRef
 		for _, match := range matches {
 			if len(match) >= 2 {
 				templateName := match[1]
-				
+
 				// Check if it contains a path separator
 				hasPath := strings.Contains(templateName, "/")
-				
+
 				// Determine if this is a valid include
 				// "layout/start" and "layout/end" are special cases - they're valid
 				// Any other path-based reference (except layout/*) is invalid
 				isValid := !hasPath || strings.HasPrefix(templateName, "layout/")
-				
+
 				ref := TemplateIncludeReference{
 					File:         relPath,
 					Line:         lineNum,
@@ -125,14 +125,14 @@ func parseTemplateIncludesInFile(filePath, baseDir string) ([]TemplateIncludeRef
 // ValidateTemplateIncludes checks for invalid template include patterns
 func ValidateTemplateIncludes(includes []TemplateIncludeReference) []ValidationError {
 	var errors []ValidationError
-	
+
 	for _, include := range includes {
 		if !include.IsValid {
 			// This is a path-based template reference (not layout/*)
 			// Extract the filename from the path
 			parts := strings.Split(include.TemplateName, "/")
 			filename := parts[len(parts)-1]
-			
+
 			err := ValidationError{
 				File:       include.File,
 				Line:       include.Line,
@@ -143,6 +143,6 @@ func ValidateTemplateIncludes(includes []TemplateIncludeReference) []ValidationE
 			errors = append(errors, err)
 		}
 	}
-	
+
 	return errors
 }

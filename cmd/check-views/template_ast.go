@@ -9,9 +9,9 @@ import (
 
 // TemplateContext represents the current context in a template
 type TemplateContext struct {
-	Type       string   // Current type in context (e.g., "Workspace", "User")
-	Variable   string   // Variable name if in a range/with
-	Parent     *TemplateContext // Parent context for nested with/range
+	Type     string           // Current type in context (e.g., "Workspace", "User")
+	Variable string           // Variable name if in a range/with
+	Parent   *TemplateContext // Parent context for nested with/range
 }
 
 // FieldReference represents a field access in a template
@@ -27,37 +27,37 @@ type FieldReference struct {
 func ParseTemplatesWithAST(dir string, controllers []ControllerInfo, types map[string]*TypeInfo) ([]TemplateReference, []FieldReference, error) {
 	var templateRefs []TemplateReference
 	var fieldRefs []FieldReference
-	
+
 	// Find views directory
 	viewsDir := filepath.Join(dir, "views")
 	if _, err := os.Stat(viewsDir); os.IsNotExist(err) {
 		viewsDir = dir
 	}
-	
+
 	// Walk through all HTML files
 	err := filepath.WalkDir(viewsDir, func(path string, d os.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		
+
 		// Skip directories and non-HTML files
 		if d.IsDir() || !strings.HasSuffix(path, ".html") {
 			return nil
 		}
-		
+
 		// Parse the template file
 		refs, fields, err := parseTemplateAST(path, viewsDir, controllers, types)
 		if err != nil {
 			// Continue with other files even if one fails
 			return nil
 		}
-		
+
 		templateRefs = append(templateRefs, refs...)
 		fieldRefs = append(fieldRefs, fields...)
-		
+
 		return nil
 	})
-	
+
 	return templateRefs, fieldRefs, err
 }
 
@@ -65,19 +65,19 @@ func ParseTemplatesWithAST(dir string, controllers []ControllerInfo, types map[s
 func parseTemplateAST(filePath, baseDir string, controllers []ControllerInfo, types map[string]*TypeInfo) ([]TemplateReference, []FieldReference, error) {
 	var templateRefs []TemplateReference
 	var fieldRefs []FieldReference
-	
+
 	// Read file content
 	content, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, nil, err
 	}
-	
+
 	// Get relative path for better display
 	relPath, _ := filepath.Rel(baseDir, filePath)
 	if relPath == "" {
 		relPath = filepath.Base(filePath)
 	}
-	
+
 	// Parse the template
 	tree := parse.New(relPath)
 	_, err = tree.Parse(string(content), "{{", "}}", make(map[string]*parse.Tree))
@@ -85,12 +85,12 @@ func parseTemplateAST(filePath, baseDir string, controllers []ControllerInfo, ty
 		// Template parse error - might be malformed
 		return templateRefs, fieldRefs, nil
 	}
-	
+
 	// Process the tree
 	refs, fields := parseTemplateTree(tree, relPath, controllers, types)
 	templateRefs = append(templateRefs, refs...)
 	fieldRefs = append(fieldRefs, fields...)
-	
+
 	return templateRefs, fieldRefs, nil
 }
 

@@ -134,7 +134,7 @@ func runValidation(cmd *cobra.Command, args []string) error {
 				}
 			}
 		}
-		
+
 		fmt.Println("\nModels:")
 		for name, m := range models {
 			fmt.Printf("  %s\n", name)
@@ -169,13 +169,13 @@ func runValidation(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to parse templates with regex: %w", err)
 	}
-	
+
 	// Then use AST parser for enhanced field validation
 	templateRefs, fieldRefs, err := ParseTemplatesWithAST(dir, controllers, allTypes)
 	if err != nil {
 		return fmt.Errorf("failed to parse templates with AST: %w", err)
 	}
-	
+
 	// Combine regex refs with AST refs (regex is more reliable for controller refs)
 	if len(regexRefs) > 0 {
 		templateRefs = regexRefs
@@ -202,7 +202,7 @@ func runValidation(cmd *cobra.Command, args []string) error {
 
 	// Validate URL references
 	urlErrors := ValidateURLReferences(urlRefs, routes)
-	
+
 	// Validate template includes
 	templateIncludeErrors := ValidateTemplateIncludes(templateIncludes)
 
@@ -214,19 +214,19 @@ func runValidation(cmd *cobra.Command, args []string) error {
 			log.Printf("Note: Using fallback validation: %v", err)
 		}
 	}
-	
+
 	// Add URL errors to result
 	result.URLErrors = urlErrors
 	result.Summary.TotalURLRefs = len(urlRefs)
 	result.Summary.ValidURLRefs = len(urlRefs) - len(urlErrors)
 	result.Summary.URLErrors = len(urlErrors)
-	
+
 	// Add template include errors to result (using ControllerErrors as they're similar validation errors)
 	// We'll add them as a separate category in the report
 	for _, err := range templateIncludeErrors {
 		result.ControllerErrors = append(result.ControllerErrors, err)
 	}
-	
+
 	// Update valid flag if there are URL errors or template include errors
 	if len(urlErrors) > 0 || len(templateIncludeErrors) > 0 {
 		result.Valid = false

@@ -20,24 +20,24 @@ func NewEnhancedValidator(dir string, verbose bool) (*EnhancedValidator, error) 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create type resolver: %w", err)
 	}
-	
+
 	// Create template context tracker
 	context := NewTemplateContextTracker(resolver)
-	
+
 	// Analyze controllers to understand what they pass to templates
 	if err := context.AnalyzeControllers(dir); err != nil {
 		if verbose {
 			log.Printf("Warning: Failed to analyze controllers: %v", err)
 		}
 	}
-	
+
 	// Analyze template includes
 	if err := context.AnalyzeTemplateIncludes(dir); err != nil {
 		if verbose {
 			log.Printf("Warning: Failed to analyze template includes: %v", err)
 		}
 	}
-	
+
 	return &EnhancedValidator{
 		resolver: resolver,
 		context:  context,
@@ -50,10 +50,10 @@ func (v *EnhancedValidator) ValidateFieldReference(ref FieldReference) *FieldVal
 	if len(ref.Fields) == 0 {
 		return nil
 	}
-	
+
 	// Get template context to understand what type is available
 	templateContext := v.context.GetTemplateContext(ref.File)
-	
+
 	// If we don't know the context, be lenient
 	if templateContext == nil {
 		if v.verbose {
@@ -61,7 +61,7 @@ func (v *EnhancedValidator) ValidateFieldReference(ref FieldReference) *FieldVal
 		}
 		return v.validateAgainstAllTypes(ref)
 	}
-	
+
 	// Validate against the specific type
 	return v.validateAgainstType(ref, templateContext)
 }
@@ -71,10 +71,10 @@ func (v *EnhancedValidator) validateAgainstType(ref FieldReference, contextType 
 	if contextType == nil || len(ref.Fields) == 0 {
 		return nil
 	}
-	
+
 	currentType := contextType
 	fieldPath := ref.Fields
-	
+
 	// Walk through the field path
 	for i, fieldName := range fieldPath {
 		// Check if this field exists on the current type
@@ -82,7 +82,7 @@ func (v *EnhancedValidator) validateAgainstType(ref FieldReference, contextType 
 			// Field not found - generate error
 			problem := fmt.Sprintf("Field '%s' not found on type %s", fieldName, currentType.Name)
 			suggestion := v.findSimilarField(fieldName, currentType)
-			
+
 			return &FieldValidationError{
 				File:       ref.File,
 				Line:       ref.Line,
@@ -93,7 +93,7 @@ func (v *EnhancedValidator) validateAgainstType(ref FieldReference, contextType 
 				Suggestion: suggestion,
 			}
 		}
-		
+
 		// If this isn't the last field, get the type of this field
 		if i < len(fieldPath)-1 {
 			fieldType := currentType.GetFieldType(fieldName)
@@ -104,7 +104,7 @@ func (v *EnhancedValidator) validateAgainstType(ref FieldReference, contextType 
 				}
 				return nil // Be lenient
 			}
-			
+
 			// Try to resolve to our known types
 			nextType := v.resolver.resolveType(fieldType)
 			if nextType == nil {
@@ -114,11 +114,11 @@ func (v *EnhancedValidator) validateAgainstType(ref FieldReference, contextType 
 				}
 				return nil // Be lenient
 			}
-			
+
 			currentType = nextType
 		}
 	}
-	
+
 	// All fields validated successfully
 	return nil
 }
@@ -128,19 +128,19 @@ func (v *EnhancedValidator) validateAgainstAllTypes(ref FieldReference) *FieldVa
 	if len(ref.Fields) == 0 {
 		return nil
 	}
-	
+
 	firstField := ref.Fields[0]
-	
+
 	// Check all types to see if any have this field
 	var typesWithField []string
 	var typesWithMethod []string
-	
+
 	for typeName, rt := range v.resolver.typeMap {
 		// Skip duplicates (we store both qualified and unqualified names)
 		if strings.Contains(typeName, ".") {
 			continue
 		}
-		
+
 		if rt.HasField(firstField) {
 			if _, isField := rt.Fields[firstField]; isField {
 				typesWithField = append(typesWithField, typeName)
@@ -149,16 +149,16 @@ func (v *EnhancedValidator) validateAgainstAllTypes(ref FieldReference) *FieldVa
 			}
 		}
 	}
-	
+
 	// If found on any type, consider it valid (we don't know the context)
 	if len(typesWithField) > 0 || len(typesWithMethod) > 0 {
 		return nil
 	}
-	
+
 	// Not found on any type - this is an error
 	problem := fmt.Sprintf("'%s' not found on any known type", firstField)
 	suggestion := v.findSimilarFieldAcrossTypes(firstField)
-	
+
 	return &FieldValidationError{
 		File:       ref.File,
 		Line:       ref.Line,
@@ -175,9 +175,9 @@ func (v *EnhancedValidator) findSimilarField(fieldName string, rt *ResolvedType)
 	if rt == nil {
 		return ""
 	}
-	
+
 	// Check for common mistakes
-	
+
 	// 1. Get prefix that should be removed
 	if strings.HasPrefix(fieldName, "Get") && len(fieldName) > 3 {
 		withoutGet := strings.TrimPrefix(fieldName, "Get")
@@ -185,7 +185,7 @@ func (v *EnhancedValidator) findSimilarField(fieldName string, rt *ResolvedType)
 			return fmt.Sprintf("Did you mean '%s'?", withoutGet)
 		}
 	}
-	
+
 	// 2. Case sensitivity issues
 	lowerField := strings.ToLower(fieldName)
 	for name := range rt.Fields {
@@ -198,7 +198,7 @@ func (v *EnhancedValidator) findSimilarField(fieldName string, rt *ResolvedType)
 			return fmt.Sprintf("Did you mean '%s'? (case sensitive)", name)
 		}
 	}
-	
+
 	// 3. Similar names (simple edit distance)
 	suggestions := []string{}
 	for name := range rt.Fields {
@@ -211,28 +211,28 @@ func (v *EnhancedValidator) findSimilarField(fieldName string, rt *ResolvedType)
 			suggestions = append(suggestions, name)
 		}
 	}
-	
+
 	if len(suggestions) > 0 {
 		if len(suggestions) == 1 {
 			return fmt.Sprintf("Did you mean '%s'?", suggestions[0])
 		}
 		return fmt.Sprintf("Did you mean one of: %s?", strings.Join(suggestions, ", "))
 	}
-	
+
 	return ""
 }
 
 // findSimilarFieldAcrossTypes finds similar fields across all types
 func (v *EnhancedValidator) findSimilarFieldAcrossTypes(fieldName string) string {
 	suggestions := make(map[string][]string)
-	
+
 	// Check all types
 	for typeName, rt := range v.resolver.typeMap {
 		// Skip qualified names
 		if strings.Contains(typeName, ".") {
 			continue
 		}
-		
+
 		// Check for exact match without Get prefix
 		if strings.HasPrefix(fieldName, "Get") {
 			withoutGet := strings.TrimPrefix(fieldName, "Get")
@@ -240,7 +240,7 @@ func (v *EnhancedValidator) findSimilarFieldAcrossTypes(fieldName string) string
 				suggestions[withoutGet] = append(suggestions[withoutGet], typeName)
 			}
 		}
-		
+
 		// Check for case-insensitive matches
 		lowerField := strings.ToLower(fieldName)
 		for name := range rt.Fields {
@@ -254,7 +254,7 @@ func (v *EnhancedValidator) findSimilarFieldAcrossTypes(fieldName string) string
 			}
 		}
 	}
-	
+
 	if len(suggestions) > 0 {
 		// Format suggestions
 		var parts []string
@@ -265,13 +265,13 @@ func (v *EnhancedValidator) findSimilarFieldAcrossTypes(fieldName string) string
 				parts = append(parts, fmt.Sprintf("'%s' (on %s)", field, strings.Join(types, ", ")))
 			}
 		}
-		
+
 		if len(parts) == 1 {
 			return "Did you mean " + parts[0] + "?"
 		}
 		return "Did you mean one of: " + strings.Join(parts, ", ") + "?"
 	}
-	
+
 	return ""
 }
 
@@ -281,13 +281,13 @@ func isSimular(a, b string) bool {
 	if len(a) == 0 || len(b) == 0 {
 		return false
 	}
-	
+
 	// Check if one is a substring of the other
 	if strings.Contains(strings.ToLower(a), strings.ToLower(b)) ||
-	   strings.Contains(strings.ToLower(b), strings.ToLower(a)) {
+		strings.Contains(strings.ToLower(b), strings.ToLower(a)) {
 		return true
 	}
-	
+
 	// Check edit distance for short strings
 	if len(a) < 10 && len(b) < 10 {
 		dist := simpleEditDistance(strings.ToLower(a), strings.ToLower(b))
@@ -298,7 +298,7 @@ func isSimular(a, b string) bool {
 		// Allow up to 2 edits for short strings
 		return dist <= 2 && dist < maxLen/2
 	}
-	
+
 	return false
 }
 
@@ -310,19 +310,19 @@ func simpleEditDistance(a, b string) int {
 	if len(b) == 0 {
 		return len(a)
 	}
-	
+
 	// Simple Levenshtein distance
 	if len(a) > len(b) {
 		a, b = b, a
 	}
-	
+
 	prev := make([]int, len(a)+1)
 	curr := make([]int, len(a)+1)
-	
+
 	for i := range prev {
 		prev[i] = i
 	}
-	
+
 	for j := 1; j <= len(b); j++ {
 		curr[0] = j
 		for i := 1; i <= len(a); i++ {
@@ -334,7 +334,7 @@ func simpleEditDistance(a, b string) int {
 		}
 		prev, curr = curr, prev
 	}
-	
+
 	return prev[len(a)]
 }
 
@@ -357,15 +357,15 @@ func Validate(controllers []ControllerInfo, references []TemplateReference) Vali
 		Valid:  true,
 		Errors: []ValidationError{},
 	}
-	
+
 	// Track valid references
 	validCount := 0
-	
+
 	for _, ref := range references {
 		// Check if controller exists
 		controllerFound := false
 		var foundController *ControllerInfo
-		
+
 		for _, ctrl := range controllers {
 			if ctrl.Prefix == ref.Controller {
 				controllerFound = true
@@ -373,7 +373,7 @@ func Validate(controllers []ControllerInfo, references []TemplateReference) Vali
 				break
 			}
 		}
-		
+
 		if !controllerFound {
 			result.Valid = false
 			result.Errors = append(result.Errors, ValidationError{
@@ -384,7 +384,7 @@ func Validate(controllers []ControllerInfo, references []TemplateReference) Vali
 			})
 			continue
 		}
-		
+
 		// Check if method exists
 		methodFound := false
 		for _, method := range foundController.Methods {
@@ -394,7 +394,7 @@ func Validate(controllers []ControllerInfo, references []TemplateReference) Vali
 				break
 			}
 		}
-		
+
 		if !methodFound {
 			result.Valid = false
 			result.Errors = append(result.Errors, ValidationError{
@@ -405,13 +405,13 @@ func Validate(controllers []ControllerInfo, references []TemplateReference) Vali
 			})
 		}
 	}
-	
+
 	result.Summary = Statistics{
 		TotalReferences: len(references),
 		ValidReferences: validCount,
 		Errors:          len(result.Errors),
 	}
-	
+
 	return result
 }
 
@@ -420,58 +420,65 @@ func ValidateFieldWithTypes(ref FieldReference, types map[string]*TypeInfo) *Fie
 	if len(ref.Fields) == 0 {
 		return nil
 	}
-	
+
 	// Get the first field/method being accessed
 	fieldOrMethod := ref.Fields[0]
-	
+
 	// If it starts with Get, it's likely a method that should exist without Get prefix
 	possibleCorrectName := ""
 	if strings.HasPrefix(fieldOrMethod, "Get") && len(fieldOrMethod) > 3 {
 		// GetInitials -> Initials
 		possibleCorrectName = strings.TrimPrefix(fieldOrMethod, "Get")
 	}
-	
+
 	// Track which types have this field/method
 	var typesWithField []string
 	var typesWithMethod []string
-	var typesWithCorrectMethod []string
-	
+	var typesWithCorrectName []string
+
 	// Check all types to see which ones have this field or method
 	for typeName, typeInfo := range types {
 		// Check fields
 		if _, hasField := typeInfo.Fields[fieldOrMethod]; hasField {
 			typesWithField = append(typesWithField, typeName)
 		}
-		
+
+		// Check if the correct name exists as a field (without Get prefix)
+		if possibleCorrectName != "" {
+			if _, hasField := typeInfo.Fields[possibleCorrectName]; hasField {
+				typesWithCorrectName = append(typesWithCorrectName, typeName)
+			}
+		}
+
 		// Check methods
 		for _, method := range typeInfo.Methods {
 			if method.Name == fieldOrMethod {
 				typesWithMethod = append(typesWithMethod, typeName)
 			}
-			// Check if the correct name exists (without Get prefix)
+			// Check if the correct name exists as a method (without Get prefix)
 			if possibleCorrectName != "" && method.Name == possibleCorrectName {
-				typesWithCorrectMethod = append(typesWithCorrectMethod, typeName)
+				typesWithCorrectName = append(typesWithCorrectName, typeName)
 			}
 		}
 	}
-	
+
 	// If we found it in any type, it's potentially valid (we just don't know the context)
 	if len(typesWithField) > 0 || len(typesWithMethod) > 0 {
 		// Valid - exists in at least one type
 		return nil
 	}
-	
+
 	// Not found in any type - this is definitely an error
 	problem := fmt.Sprintf("'%s' is not a field or method on any known type", fieldOrMethod)
 	suggestion := ""
-	
+
 	// If we found the correct name (without Get), suggest it
-	if len(typesWithCorrectMethod) > 0 {
-		suggestion = fmt.Sprintf("Did you mean '%s'? Found on: %s", 
-			possibleCorrectName, 
-			strings.Join(typesWithCorrectMethod, ", "))
+	if len(typesWithCorrectName) > 0 {
+		suggestion = fmt.Sprintf("Did you mean '%s'? Found on: %s",
+			possibleCorrectName,
+			strings.Join(typesWithCorrectName, ", "))
 	}
-	
+
 	return &FieldValidationError{
 		File:       ref.File,
 		Line:       ref.Line,
@@ -489,21 +496,21 @@ func ValidateWithTypes(controllers []ControllerInfo, types map[string]*TypeInfo,
 		ControllerErrors: []ValidationError{},
 		FieldErrors:      []FieldValidationError{},
 	}
-	
+
 	// Validate controller references (reuse existing logic)
 	controllerResult := Validate(controllers, templateRefs)
 	result.ControllerErrors = controllerResult.Errors
 	if len(controllerResult.Errors) > 0 {
 		result.Valid = false
 	}
-	
+
 	// Validate field references with enhanced type checking
 	validFieldCount := 0
 	templateFiles := make(map[string]bool)
-	
+
 	for _, ref := range fieldRefs {
 		templateFiles[ref.File] = true
-		
+
 		// Use enhanced validation with all types
 		if err := ValidateFieldWithTypes(ref, types); err != nil {
 			result.Valid = false
@@ -512,12 +519,12 @@ func ValidateWithTypes(controllers []ControllerInfo, types map[string]*TypeInfo,
 			validFieldCount++
 		}
 	}
-	
+
 	// Also track template files from controller refs
 	for _, ref := range templateRefs {
 		templateFiles[ref.File] = true
 	}
-	
+
 	// Update statistics
 	result.Summary = EnhancedStatistics{
 		TotalTemplates:      len(templateFiles),
@@ -528,7 +535,7 @@ func ValidateWithTypes(controllers []ControllerInfo, types map[string]*TypeInfo,
 		ControllerErrors:    len(result.ControllerErrors),
 		FieldErrors:         len(result.FieldErrors),
 	}
-	
+
 	return &result
 }
 
@@ -541,32 +548,32 @@ func ValidateWithResolver(dir string, controllers []ControllerInfo, templateRefs
 		if verbose {
 			log.Printf("Failed to create enhanced validator, using simple validation: %v", err)
 		}
-		
+
 		// Discover types the old way
 		allTypes, _ := DiscoverAllTypes(dir)
 		return ValidateWithTypes(controllers, allTypes, templateRefs, fieldRefs), nil
 	}
-	
+
 	result := &EnhancedValidationResult{
 		Valid:            true,
 		ControllerErrors: []ValidationError{},
 		FieldErrors:      []FieldValidationError{},
 	}
-	
+
 	// Validate controller references (existing logic)
 	controllerResult := Validate(controllers, templateRefs)
 	result.ControllerErrors = controllerResult.Errors
 	if len(controllerResult.Errors) > 0 {
 		result.Valid = false
 	}
-	
+
 	// Validate field references with enhanced validator
 	validFieldCount := 0
 	templateFiles := make(map[string]bool)
-	
+
 	for _, ref := range fieldRefs {
 		templateFiles[ref.File] = true
-		
+
 		if err := validator.ValidateFieldReference(ref); err != nil {
 			result.Valid = false
 			result.FieldErrors = append(result.FieldErrors, *err)
@@ -574,12 +581,12 @@ func ValidateWithResolver(dir string, controllers []ControllerInfo, templateRefs
 			validFieldCount++
 		}
 	}
-	
+
 	// Track template files
 	for _, ref := range templateRefs {
 		templateFiles[ref.File] = true
 	}
-	
+
 	// Update statistics
 	result.Summary = EnhancedStatistics{
 		TotalTemplates:      len(templateFiles),
@@ -590,6 +597,6 @@ func ValidateWithResolver(dir string, controllers []ControllerInfo, templateRefs
 		ControllerErrors:    len(result.ControllerErrors),
 		FieldErrors:         len(result.FieldErrors),
 	}
-	
+
 	return result, nil
 }

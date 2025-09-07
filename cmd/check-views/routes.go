@@ -34,21 +34,21 @@ type URLReference struct {
 // DiscoverRoutes finds all HTTP routes defined in controllers
 func DiscoverRoutes(dir string) ([]RouteInfo, error) {
 	var routes []RouteInfo
-	
+
 	// Find controllers directory
 	controllersDir := filepath.Join(dir, "controllers")
-	
+
 	// Walk through all Go files
 	err := filepath.WalkDir(controllersDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		
+
 		// Skip directories and non-Go files
 		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-		
+
 		// Parse the Go file for routes
 		fileRoutes, err := parseRoutesFromFile(path)
 		if err != nil {
@@ -57,29 +57,29 @@ func DiscoverRoutes(dir string) ([]RouteInfo, error) {
 			}
 			return nil
 		}
-		
+
 		routes = append(routes, fileRoutes...)
 		return nil
 	})
-	
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to discover routes: %w", err)
 	}
-	
+
 	return routes, nil
 }
 
 // parseRoutesFromFile extracts route definitions from a Go file
 func parseRoutesFromFile(filePath string) ([]RouteInfo, error) {
 	var routes []RouteInfo
-	
+
 	// Parse the file
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Look for http.Handle calls
 	ast.Inspect(node, func(n ast.Node) bool {
 		// Look for call expressions
@@ -87,22 +87,22 @@ func parseRoutesFromFile(filePath string) ([]RouteInfo, error) {
 		if !ok {
 			return true
 		}
-		
+
 		// Check if it's http.Handle or http.HandleFunc
 		if route := extractHTTPHandle(call, fset); route != nil {
 			route.File = filePath
 			routes = append(routes, *route)
 		}
-		
+
 		// Check if it's app.Serve or app.ProtectFunc
 		if route := extractAppRoute(call, fset); route != nil {
 			route.File = filePath
 			routes = append(routes, *route)
 		}
-		
+
 		return true
 	})
-	
+
 	return routes, nil
 }
 
@@ -113,29 +113,29 @@ func extractHTTPHandle(call *ast.CallExpr, fset *token.FileSet) *RouteInfo {
 	if !ok {
 		return nil
 	}
-	
+
 	// Check package name
 	pkg, ok := sel.X.(*ast.Ident)
 	if !ok || pkg.Name != "http" {
 		return nil
 	}
-	
+
 	// Check method name
 	if sel.Sel.Name != "Handle" && sel.Sel.Name != "HandleFunc" {
 		return nil
 	}
-	
+
 	// Extract route pattern (first argument)
 	if len(call.Args) < 2 {
 		return nil
 	}
-	
+
 	// Get the route pattern
 	routePattern := extractStringLiteral(call.Args[0])
 	if routePattern == "" {
 		return nil
 	}
-	
+
 	// Parse method and path from pattern (e.g., "GET /repos")
 	parts := strings.SplitN(routePattern, " ", 2)
 	if len(parts) != 2 {
@@ -146,7 +146,7 @@ func extractHTTPHandle(call *ast.CallExpr, fset *token.FileSet) *RouteInfo {
 			Line:   fset.Position(call.Pos()).Line,
 		}
 	}
-	
+
 	return &RouteInfo{
 		Method: parts[0],
 		Path:   parts[1],
@@ -161,25 +161,25 @@ func extractAppRoute(call *ast.CallExpr, fset *token.FileSet) *RouteInfo {
 	if !ok {
 		return nil
 	}
-	
+
 	// Check if the method is Serve or ProtectFunc
 	methodName := sel.Sel.Name
 	if methodName != "Serve" && methodName != "ProtectFunc" {
 		return nil
 	}
-	
+
 	// Check if the receiver might be 'app'
 	if ident, ok := sel.X.(*ast.Ident); ok && ident.Name != "app" {
 		return nil
 	}
-	
+
 	// For app.Serve, first arg is route pattern
 	if methodName == "Serve" && len(call.Args) >= 2 {
 		routePattern := extractStringLiteral(call.Args[0])
 		if routePattern == "" {
 			return nil
 		}
-		
+
 		// Parse method and path
 		parts := strings.SplitN(routePattern, " ", 2)
 		if len(parts) != 2 {
@@ -189,21 +189,21 @@ func extractAppRoute(call *ast.CallExpr, fset *token.FileSet) *RouteInfo {
 				Line:   fset.Position(call.Pos()).Line,
 			}
 		}
-		
+
 		return &RouteInfo{
 			Method: parts[0],
 			Path:   parts[1],
 			Line:   fset.Position(call.Pos()).Line,
 		}
 	}
-	
+
 	// For app.ProtectFunc, first arg is route pattern
 	if methodName == "ProtectFunc" && len(call.Args) >= 2 {
 		routePattern := extractStringLiteral(call.Args[0])
 		if routePattern == "" {
 			return nil
 		}
-		
+
 		// Parse method and path
 		parts := strings.SplitN(routePattern, " ", 2)
 		if len(parts) != 2 {
@@ -213,14 +213,14 @@ func extractAppRoute(call *ast.CallExpr, fset *token.FileSet) *RouteInfo {
 				Line:   fset.Position(call.Pos()).Line,
 			}
 		}
-		
+
 		return &RouteInfo{
 			Method: parts[0],
 			Path:   parts[1],
 			Line:   fset.Position(call.Pos()).Line,
 		}
 	}
-	
+
 	return nil
 }
 
@@ -242,40 +242,40 @@ func extractStringLiteral(expr ast.Expr) string {
 // ParseHostReferences finds all {{host}}/path references in templates
 func ParseHostReferences(dir string) ([]URLReference, error) {
 	var refs []URLReference
-	
+
 	// Find views directory
 	viewsDir := filepath.Join(dir, "views")
 	if _, err := os.Stat(viewsDir); os.IsNotExist(err) {
 		viewsDir = dir
 	}
-	
+
 	// Regex to match {{host}}/path patterns
 	// Matches: {{host}}/path, {{host}}/path/to/resource, href="{{host}}/path", etc.
 	hostPattern := regexp.MustCompile(`\{\{host\}\}(/[^"\s<>}]*)`)
-	
+
 	// Walk through all HTML files
 	err := filepath.WalkDir(viewsDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		
+
 		// Skip directories and non-HTML files
 		if d.IsDir() || !strings.HasSuffix(path, ".html") {
 			return nil
 		}
-		
+
 		// Parse the HTML file
 		content, err := os.ReadFile(path)
 		if err != nil {
 			return nil
 		}
-		
+
 		// Get relative path for display
 		relPath, _ := filepath.Rel(viewsDir, path)
 		if relPath == "" {
 			relPath = filepath.Base(path)
 		}
-		
+
 		// Find all {{host}} references
 		lines := strings.Split(string(content), "\n")
 		for lineNum, line := range lines {
@@ -295,25 +295,25 @@ func ParseHostReferences(dir string) ([]URLReference, error) {
 				}
 			}
 		}
-		
+
 		return nil
 	})
-	
+
 	return refs, err
 }
 
 // ValidateURLReferences checks if URL references match actual routes
 func ValidateURLReferences(refs []URLReference, routes []RouteInfo) []URLValidationError {
 	var errors []URLValidationError
-	
+
 	// Build maps for validation
 	exactPaths := make(map[string]bool)
 	patternPaths := []string{}
-	
+
 	for _, route := range routes {
 		// Normalize the path
 		path := route.Path
-		
+
 		// Separate exact paths from patterns
 		if strings.Contains(path, "{") {
 			// Add as pattern
@@ -324,22 +324,22 @@ func ValidateURLReferences(refs []URLReference, routes []RouteInfo) []URLValidat
 			exactPaths[path] = true
 		}
 	}
-	
+
 	// Check each URL reference
 	for _, ref := range refs {
 		// Normalize the reference path
 		refPath := ref.Path
-		
+
 		// Remove query parameters and fragments
 		if idx := strings.IndexAny(refPath, "?#"); idx != -1 {
 			refPath = refPath[:idx]
 		}
-		
+
 		// Check for exact match
 		if exactPaths[refPath] {
 			continue
 		}
-		
+
 		// Check for pattern match
 		matched := false
 		for _, pattern := range patternPaths {
@@ -348,11 +348,11 @@ func ValidateURLReferences(refs []URLReference, routes []RouteInfo) []URLValidat
 				break
 			}
 		}
-		
+
 		// Check for static files
 		if !matched && !isStaticFile(refPath) && !isSpecialPath(refPath) {
 			if verbose || strings.Contains(refPath, "fake") {
-				fmt.Printf("  ⚠️  Invalid URL found: %s in %s:%d (matched=%v, static=%v, special=%v)\n", 
+				fmt.Printf("  ⚠️  Invalid URL found: %s in %s:%d (matched=%v, static=%v, special=%v)\n",
 					ref.Path, ref.File, ref.Line, matched, isStaticFile(refPath), isSpecialPath(refPath))
 			}
 			errors = append(errors, URLValidationError{
@@ -365,7 +365,7 @@ func ValidateURLReferences(refs []URLReference, routes []RouteInfo) []URLValidat
 			})
 		}
 	}
-	
+
 	return errors
 }
 
@@ -403,25 +403,25 @@ func isStaticFile(path string) bool {
 		".ico", ".woff", ".woff2", ".ttf", ".eot", ".pdf",
 		".json", ".xml", ".txt", ".webp",
 	}
-	
+
 	for _, ext := range staticExts {
 		if strings.HasSuffix(path, ext) {
 			return true
 		}
 	}
-	
+
 	// Check for known static directories
 	staticDirs := []string{
 		"/static/", "/assets/", "/public/", "/dist/", "/build/",
 		"/css/", "/js/", "/images/", "/fonts/", "/media/",
 	}
-	
+
 	for _, dir := range staticDirs {
 		if strings.Contains(path, dir) {
 			return true
 		}
 	}
-	
+
 	return false
 }
 
@@ -429,38 +429,38 @@ func isStaticFile(path string) bool {
 func isSpecialPath(path string) bool {
 	// Special paths that might be handled differently
 	specialPaths := []string{
-		"/", // Root path
-		"#", // Fragment only
+		"/",           // Root path
+		"#",           // Fragment only
 		"javascript:", // JavaScript URLs
 	}
-	
+
 	for _, special := range specialPaths {
 		if path == special || strings.HasPrefix(path, special) {
 			return true
 		}
 	}
-	
+
 	// Check for template variables in the path
 	if strings.Contains(path, "{{") {
 		return true
 	}
-	
+
 	return false
 }
 
 // findSimilarRoute suggests a similar route for a given path
 func findSimilarRoute(path string, routes []RouteInfo) string {
 	var candidates []string
-	
+
 	for _, route := range routes {
 		candidates = append(candidates, route.Path)
 	}
-	
+
 	similar := findMostSimilar(path, candidates)
 	if similar != "" {
 		return fmt.Sprintf("Did you mean '%s'?", similar)
 	}
-	
+
 	// Show some available routes
 	if len(routes) > 0 {
 		shown := []string{}
@@ -473,7 +473,7 @@ func findSimilarRoute(path string, routes []RouteInfo) string {
 		}
 		return "Available routes: " + strings.Join(shown, ", ")
 	}
-	
+
 	return ""
 }
 
@@ -481,7 +481,7 @@ func findSimilarRoute(path string, routes []RouteInfo) string {
 func findMostSimilar(target string, candidates []string) string {
 	minDist := 3 // Minimum distance threshold for suggestions
 	bestMatch := ""
-	
+
 	for _, candidate := range candidates {
 		dist := editDistance(target, candidate)
 		if dist < minDist {
@@ -489,7 +489,7 @@ func findMostSimilar(target string, candidates []string) string {
 			bestMatch = candidate
 		}
 	}
-	
+
 	return bestMatch
 }
 
@@ -501,7 +501,7 @@ func editDistance(s1, s2 string) int {
 	if len(s2) == 0 {
 		return len(s1)
 	}
-	
+
 	// Create distance matrix
 	matrix := make([][]int, len(s1)+1)
 	for i := range matrix {
@@ -511,7 +511,7 @@ func editDistance(s1, s2 string) int {
 	for j := range matrix[0] {
 		matrix[0][j] = j
 	}
-	
+
 	// Fill the matrix
 	for i := 1; i <= len(s1); i++ {
 		for j := 1; j <= len(s2); j++ {
@@ -526,7 +526,7 @@ func editDistance(s1, s2 string) int {
 			)
 		}
 	}
-	
+
 	return matrix[len(s1)][len(s2)]
 }
 

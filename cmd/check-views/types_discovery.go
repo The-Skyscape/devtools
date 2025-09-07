@@ -12,25 +12,25 @@ import (
 
 // TypeInfo represents any type that can be referenced in templates
 type TypeInfo struct {
-	Name       string                 // Type name (e.g., "ErrorData")
-	Package    string                 // Package name (e.g., "templates")
-	FilePath   string                 // Source file path
-	Fields     map[string]FieldInfo   // Fields accessible in templates
-	Methods    []MethodInfo           // Methods accessible in templates
-	Source     string                 // "model", "internal", "controller-return"
-	IsExported bool                   // Whether the type is exported
+	Name       string               // Type name (e.g., "ErrorData")
+	Package    string               // Package name (e.g., "templates")
+	FilePath   string               // Source file path
+	Fields     map[string]FieldInfo // Fields accessible in templates
+	Methods    []MethodInfo         // Methods accessible in templates
+	Source     string               // "model", "internal", "controller-return"
+	IsExported bool                 // Whether the type is exported
 }
 
 // DiscoverAllTypes discovers all types that could be used in templates
 func DiscoverAllTypes(dir string) (map[string]*TypeInfo, error) {
 	allTypes := make(map[string]*TypeInfo)
-	
+
 	// 1. Discover model types (already done)
 	models, err := DiscoverModels(dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to discover models: %w", err)
 	}
-	
+
 	// Convert models to TypeInfo
 	for name, model := range models {
 		typeInfo := &TypeInfo{
@@ -44,17 +44,17 @@ func DiscoverAllTypes(dir string) (map[string]*TypeInfo, error) {
 		}
 		allTypes[name] = typeInfo
 	}
-	
+
 	// 2. Discover internal types (templates, ai tools, etc.)
 	internalTypes, err := DiscoverInternalTypes(dir)
 	if err != nil {
 		return nil, fmt.Errorf("failed to discover internal types: %w", err)
 	}
-	
+
 	for name, typeInfo := range internalTypes {
 		allTypes[name] = typeInfo
 	}
-	
+
 	// 3. Discover controller return types
 	controllerTypes, err := DiscoverControllerReturnTypes(dir)
 	if err != nil {
@@ -70,20 +70,20 @@ func DiscoverAllTypes(dir string) (map[string]*TypeInfo, error) {
 			}
 		}
 	}
-	
+
 	// 4. Add common interface{} types that are passed to templates
 	addCommonTypes(allTypes)
-	
+
 	return allTypes, nil
 }
 
 // DiscoverInternalTypes discovers types in internal packages
 func DiscoverInternalTypes(dir string) (map[string]*TypeInfo, error) {
 	types := make(map[string]*TypeInfo)
-	
+
 	// Look for internal directory
 	internalDir := filepath.Join(dir, "internal")
-	
+
 	// Walk through all Go files in internal directory
 	err := filepath.WalkDir(internalDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -93,12 +93,12 @@ func DiscoverInternalTypes(dir string) (map[string]*TypeInfo, error) {
 			}
 			return err
 		}
-		
+
 		// Skip directories, non-Go files, and test files
 		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-		
+
 		// Parse the Go file for type definitions
 		fileTypes, err := parseTypesFromFile(path, "internal")
 		if err != nil {
@@ -107,54 +107,54 @@ func DiscoverInternalTypes(dir string) (map[string]*TypeInfo, error) {
 			}
 			return nil // Continue with other files
 		}
-		
+
 		// Add types to map
 		for name, typeInfo := range fileTypes {
 			types[name] = typeInfo
 		}
-		
+
 		return nil
 	})
-	
+
 	if err != nil && !strings.Contains(err.Error(), "no such file") {
 		return nil, fmt.Errorf("failed to walk internal directory: %w", err)
 	}
-	
+
 	return types, nil
 }
 
 // parseTypesFromFile parses a single Go file for type definitions
 func parseTypesFromFile(filePath string, source string) (map[string]*TypeInfo, error) {
 	types := make(map[string]*TypeInfo)
-	
+
 	// Parse the file
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Get package name
 	packageName := node.Name.Name
-	
+
 	// Find all struct types
 	for _, decl := range node.Decls {
 		genDecl, ok := decl.(*ast.GenDecl)
 		if !ok || genDecl.Tok != token.TYPE {
 			continue
 		}
-		
+
 		for _, spec := range genDecl.Specs {
 			typeSpec, ok := spec.(*ast.TypeSpec)
 			if !ok {
 				continue
 			}
-			
+
 			structType, ok := typeSpec.Type.(*ast.StructType)
 			if !ok {
 				continue
 			}
-			
+
 			// Create TypeInfo
 			typeInfo := &TypeInfo{
 				Name:       typeSpec.Name.Name,
@@ -165,11 +165,11 @@ func parseTypesFromFile(filePath string, source string) (map[string]*TypeInfo, e
 				Source:     source,
 				IsExported: typeSpec.Name.IsExported(),
 			}
-			
+
 			// Parse struct fields
 			for _, field := range structType.Fields.List {
 				fieldInfo := parseField(field)
-				
+
 				// Add each field name
 				for _, name := range field.Names {
 					if fieldInfo != nil {
@@ -179,7 +179,7 @@ func parseTypesFromFile(filePath string, source string) (map[string]*TypeInfo, e
 						typeInfo.Fields[name.Name] = info
 					}
 				}
-				
+
 				// Handle embedded fields
 				if len(field.Names) == 0 && fieldInfo != nil {
 					typeName := getTypeName(field.Type)
@@ -192,21 +192,21 @@ func parseTypesFromFile(filePath string, source string) (map[string]*TypeInfo, e
 					}
 				}
 			}
-			
+
 			types[typeSpec.Name.Name] = typeInfo
 		}
 	}
-	
+
 	// Find methods for these types
 	for _, decl := range node.Decls {
 		fn, ok := decl.(*ast.FuncDecl)
 		if !ok || fn.Recv == nil {
 			continue
 		}
-		
+
 		// Get receiver type
 		receiverType := getReceiverType(fn.Recv)
-		
+
 		// Check if this is a method on one of our types
 		if typeInfo, exists := types[receiverType]; exists {
 			// Add method if it's exported or matches template patterns
@@ -216,7 +216,7 @@ func parseTypesFromFile(filePath string, source string) (map[string]*TypeInfo, e
 					ReturnType: getReturnType(fn.Type),
 				}
 				typeInfo.Methods = append(typeInfo.Methods, method)
-				
+
 				// Also add as a field if it's a getter-style method
 				if isGetterMethod(fn.Name.Name, fn.Type) {
 					fieldName := fn.Name.Name
@@ -229,36 +229,36 @@ func parseTypesFromFile(filePath string, source string) (map[string]*TypeInfo, e
 			}
 		}
 	}
-	
+
 	return types, nil
 }
 
 // DiscoverControllerReturnTypes analyzes controller methods for return types
 func DiscoverControllerReturnTypes(dir string) (map[string]*TypeInfo, error) {
 	types := make(map[string]*TypeInfo)
-	
+
 	controllersDir := filepath.Join(dir, "controllers")
-	
+
 	// Walk through controller files
 	err := filepath.WalkDir(controllersDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		
+
 		if d.IsDir() || !strings.HasSuffix(path, ".go") || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
-		
+
 		// Parse file and look for Render calls to find types
 		if err := findRenderTypes(path, types); err != nil {
 			if verbose {
 				fmt.Printf("  ⚠️  Error analyzing controller %s: %v\n", path, err)
 			}
 		}
-		
+
 		return nil
 	})
-	
+
 	return types, err
 }
 
@@ -266,13 +266,13 @@ func DiscoverControllerReturnTypes(dir string) (map[string]*TypeInfo, error) {
 func findRenderTypes(filePath string, types map[string]*TypeInfo) error {
 	// This is a simplified version - in practice, we'd need more sophisticated analysis
 	// using go/types package for full type resolution
-	
+
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 	if err != nil {
 		return err
 	}
-	
+
 	// Look for Render calls and extract the data parameter type
 	// This would need enhancement with go/types for proper type resolution
 	ast.Inspect(node, func(n ast.Node) bool {
@@ -280,7 +280,7 @@ func findRenderTypes(filePath string, types map[string]*TypeInfo) error {
 		if !ok {
 			return true
 		}
-		
+
 		// Look for Render method calls
 		if sel, ok := call.Fun.(*ast.SelectorExpr); ok {
 			if sel.Sel.Name == "Render" && len(call.Args) >= 3 {
@@ -292,10 +292,10 @@ func findRenderTypes(filePath string, types map[string]*TypeInfo) error {
 				}
 			}
 		}
-		
+
 		return true
 	})
-	
+
 	return nil
 }
 
@@ -310,11 +310,11 @@ func isGetterMethod(name string, fnType *ast.FuncType) bool {
 	if fnType == nil || fnType.Results == nil {
 		return false
 	}
-	
+
 	// Simple getter: no parameters, returns one value
 	hasNoParams := fnType.Params == nil || len(fnType.Params.List) == 0
 	hasOneReturn := len(fnType.Results.List) == 1
-	
+
 	return hasNoParams && hasOneReturn
 }
 
@@ -323,7 +323,7 @@ func getReturnType(fnType *ast.FuncType) string {
 	if fnType == nil || fnType.Results == nil || len(fnType.Results.List) == 0 {
 		return ""
 	}
-	
+
 	// Get the first return type
 	firstResult := fnType.Results.List[0]
 	return getTypeName(firstResult.Type)

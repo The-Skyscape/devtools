@@ -85,7 +85,7 @@ func (r *EnhancedReporter) reportControllerErrors(errors []ValidationError) {
 	// Separate template include errors from controller errors
 	var controllerErrors []ValidationError
 	var templateIncludeErrors []ValidationError
-	
+
 	for _, err := range errors {
 		if strings.Contains(err.Problem, "Template reference contains path") {
 			templateIncludeErrors = append(templateIncludeErrors, err)
@@ -93,17 +93,17 @@ func (r *EnhancedReporter) reportControllerErrors(errors []ValidationError) {
 			controllerErrors = append(controllerErrors, err)
 		}
 	}
-	
+
 	// Report template include errors first if any
 	if len(templateIncludeErrors) > 0 {
 		r.reportTemplateIncludeErrors(templateIncludeErrors)
 	}
-	
+
 	// Report controller errors if any
 	if len(controllerErrors) == 0 {
 		return
 	}
-	
+
 	if !r.quiet {
 		fmt.Println("\n🎮 Controller Reference Errors:")
 	}
@@ -124,7 +124,7 @@ func (r *EnhancedReporter) reportControllerErrors(errors []ValidationError) {
 	// Report errors by file
 	for _, file := range files {
 		fileErrors := errorsByFile[file]
-		
+
 		// Sort errors by line number
 		sort.Slice(fileErrors, func(i, j int) bool {
 			return fileErrors[i].Line < fileErrors[j].Line
@@ -165,7 +165,7 @@ func (r *EnhancedReporter) reportFieldErrors(errors []FieldValidationError) {
 	// Report errors by file
 	for _, file := range files {
 		fileErrors := errorsByFile[file]
-		
+
 		// Sort errors by line number
 		sort.Slice(fileErrors, func(i, j int) bool {
 			return fileErrors[i].Line < fileErrors[j].Line
@@ -208,7 +208,7 @@ func (r *EnhancedReporter) reportURLErrors(errors []URLValidationError) {
 	// Report errors by file
 	for _, file := range files {
 		fileErrors := errorsByFile[file]
-		
+
 		// Sort errors by line number
 		sort.Slice(fileErrors, func(i, j int) bool {
 			return fileErrors[i].Line < fileErrors[j].Line
@@ -250,7 +250,7 @@ func (r *EnhancedReporter) reportTemplateIncludeErrors(errors []ValidationError)
 	// Report errors by file
 	for _, file := range files {
 		fileErrors := errorsByFile[file]
-		
+
 		// Sort errors by line number
 		sort.Slice(fileErrors, func(i, j int) bool {
 			return fileErrors[i].Line < fileErrors[j].Line
@@ -273,7 +273,7 @@ func (r *EnhancedReporter) reportTemplateIncludeErrors(errors []ValidationError)
 // reportSummary reports the validation summary
 func (r *EnhancedReporter) reportSummary(result EnhancedValidationResult) {
 	fmt.Println()
-	
+
 	if result.Valid {
 		fmt.Printf("✅ Success: All references validated successfully\n")
 		fmt.Printf("   • %d controller references validated\n", result.Summary.ValidControllerRefs)
@@ -283,7 +283,7 @@ func (r *EnhancedReporter) reportSummary(result EnhancedValidationResult) {
 	} else {
 		totalErrors := result.Summary.ControllerErrors + result.Summary.FieldErrors + result.Summary.URLErrors
 		fmt.Printf("❌ Found %d errors\n", totalErrors)
-		
+
 		if result.Summary.ControllerErrors > 0 {
 			fmt.Printf("   • %d controller reference errors\n", result.Summary.ControllerErrors)
 		}
@@ -293,14 +293,14 @@ func (r *EnhancedReporter) reportSummary(result EnhancedValidationResult) {
 		if result.Summary.URLErrors > 0 {
 			fmt.Printf("   • %d URL reference errors\n", result.Summary.URLErrors)
 		}
-		
-		fmt.Printf("   • %d/%d controller references valid\n", 
+
+		fmt.Printf("   • %d/%d controller references valid\n",
 			result.Summary.ValidControllerRefs, result.Summary.TotalControllerRefs)
-		fmt.Printf("   • %d/%d field references valid\n", 
+		fmt.Printf("   • %d/%d field references valid\n",
 			result.Summary.ValidFieldRefs, result.Summary.TotalFieldRefs)
 		fmt.Printf("   • %d/%d URL references valid\n",
 			result.Summary.ValidURLRefs, result.Summary.TotalURLRefs)
-		
+
 		if !r.quiet && !r.fix {
 			fmt.Println("\n   💡 Run with --fix to see suggested corrections")
 		}
@@ -311,11 +311,11 @@ func (r *EnhancedReporter) reportSummary(result EnhancedValidationResult) {
 func reportEnhancedJSON(result EnhancedValidationResult) error {
 	// Create a JSON-friendly structure
 	output := struct {
-		Valid            bool                     `json:"valid"`
-		Summary          EnhancedStatistics       `json:"summary"`
-		ControllerErrors []ValidationError        `json:"controller_errors"`
-		FieldErrors      []FieldValidationError   `json:"field_errors"`
-		URLErrors        []URLValidationError     `json:"url_errors"`
+		Valid            bool                   `json:"valid"`
+		Summary          EnhancedStatistics     `json:"summary"`
+		ControllerErrors []ValidationError      `json:"controller_errors"`
+		FieldErrors      []FieldValidationError `json:"field_errors"`
+		URLErrors        []URLValidationError   `json:"url_errors"`
 	}{
 		Valid:            result.Valid,
 		Summary:          result.Summary,
@@ -350,7 +350,7 @@ func (d *EnhancedDiffReporter) Report(result EnhancedValidationResult) {
 	if !result.Valid {
 		fmt.Println("Suggested fixes:")
 		fmt.Println(strings.Repeat("-", 60))
-		
+
 		// Show controller fixes
 		if len(result.ControllerErrors) > 0 {
 			fmt.Println("\nController Reference Fixes:")
@@ -358,7 +358,7 @@ func (d *EnhancedDiffReporter) Report(result EnhancedValidationResult) {
 				d.showControllerFix(err)
 			}
 		}
-		
+
 		// Show field fixes
 		if len(result.FieldErrors) > 0 {
 			fmt.Println("\nModel Field Fixes:")
@@ -366,10 +366,10 @@ func (d *EnhancedDiffReporter) Report(result EnhancedValidationResult) {
 				d.showFieldFix(err)
 			}
 		}
-		
+
 		fmt.Println(strings.Repeat("-", 60))
 	}
-	
+
 	// Call parent reporter for summary
 	d.EnhancedReporter.Report(result)
 }
@@ -378,7 +378,7 @@ func (d *EnhancedDiffReporter) Report(result EnhancedValidationResult) {
 func (d *EnhancedDiffReporter) showControllerFix(err ValidationError) {
 	fmt.Printf("\n%s:%d\n", err.File, err.Line)
 	fmt.Printf("- %s\n", colorize(err.Reference, colorRed))
-	
+
 	if err.Suggestion != "" && strings.Contains(err.Suggestion, "Did you mean") {
 		// Extract the suggested replacement
 		parts := strings.Split(err.Suggestion, "'")
@@ -401,7 +401,7 @@ func (d *EnhancedDiffReporter) showControllerFix(err ValidationError) {
 func (d *EnhancedDiffReporter) showFieldFix(err FieldValidationError) {
 	fmt.Printf("\n%s:%d\n", err.File, err.Line)
 	fmt.Printf("- %s\n", colorize(err.Expression, colorRed))
-	
+
 	if err.Suggestion != "" && strings.Contains(err.Suggestion, "Did you mean") {
 		// Extract the suggested replacement
 		parts := strings.Split(err.Suggestion, "'")

@@ -16,7 +16,7 @@ func ParseTemplates(dir string) ([]TemplateReference, error) {
 
 	// Find views directory
 	viewsDir := filepath.Join(dir, "views")
-	
+
 	// Check if views directory exists
 	if _, err := os.Stat(viewsDir); os.IsNotExist(err) {
 		// Try looking for templates in the current directory
@@ -77,13 +77,13 @@ func parseTemplateFile(filePath, baseDir string) ([]TemplateReference, error) {
 	// Only match controller.Method patterns where controller starts with lowercase
 	// and Method starts with uppercase (Go convention)
 	// This excludes .Property patterns which are object properties
-	
+
 	// Match {{controller.Method}} or {{controller.Method args}} but NOT {{.Property}}
 	controllerMethodPattern := regexp.MustCompile(`\{\{\s*([a-z][a-zA-Z0-9_]*)\s*\.\s*([A-Z][a-zA-Z0-9_]*)\s*[^}]*\}\}`)
-	
+
 	// Match {{range controller.Method}} or {{with controller.Method}}
 	rangeWithPattern := regexp.MustCompile(`\{\{\s*(?:range|with)\s+([a-z][a-zA-Z0-9_]*)\s*\.\s*([A-Z][a-zA-Z0-9_]*)\s*[^}]*\}\}`)
-	
+
 	// Match {{if controller.Method}} - but only if it's actually a controller reference
 	ifPattern := regexp.MustCompile(`\{\{\s*if\s+([a-z][a-zA-Z0-9_]*)\s*\.\s*([A-Z][a-zA-Z0-9_]*)\s*[^}]*\}\}`)
 
@@ -103,7 +103,7 @@ func parseTemplateFile(filePath, baseDir string) ([]TemplateReference, error) {
 				}
 			}
 		}
-		
+
 		// Clear context on {{end}}
 		if strings.Contains(line, "{{end") && len(currentContext) > 0 {
 			currentContext = currentContext[:len(currentContext)-1]
@@ -125,7 +125,7 @@ func parseTemplateFile(filePath, baseDir string) ([]TemplateReference, error) {
 				if len(match) >= 3 {
 					controller := match[1]
 					method := match[2]
-					
+
 					// Skip template helpers that aren't controllers
 					if isTemplateHelper(controller) {
 						continue
@@ -166,80 +166,80 @@ func isTemplateHelper(name string) bool {
 		"template": true,
 		"define":   true,
 		"block":    true,
-		
+
 		// Core template functions
-		"req":      true,
-		"host":     true,
-		"theme":    true,
-		"path":     true,
-		"path_eq":  true,
-		"title":    true,
-		"prefix":   true,
-		
+		"req":     true,
+		"host":    true,
+		"theme":   true,
+		"path":    true,
+		"path_eq": true,
+		"title":   true,
+		"prefix":  true,
+
 		// Math functions
-		"add":      true,
-		"sub":      true,
-		"mul":      true,
-		"div":      true,
-		"float":    true,
-		
+		"add":   true,
+		"sub":   true,
+		"mul":   true,
+		"div":   true,
+		"float": true,
+
 		// String functions
-		"toString": true,
-		"slice":    true,
-		"head":     true,
-		"default":  true,
-		"set":      true,
-		"dict":     true,
+		"toString":  true,
+		"slice":     true,
+		"head":      true,
+		"default":   true,
+		"set":       true,
+		"dict":      true,
 		"hasPrefix": true,
 		"hasSuffix": true,
-		"contains": true,
-		"replace":  true,
-		"lower":    true,
-		"upper":    true,
-		"trim":     true,
-		"split":    true,
-		"join":     true,
-		"truncate": true,
-		
+		"contains":  true,
+		"replace":   true,
+		"lower":     true,
+		"upper":     true,
+		"trim":      true,
+		"split":     true,
+		"join":      true,
+		"truncate":  true,
+
 		// Formatting functions (from FormatHelpers)
-		"formatBytes":     true,
-		"formatPrice":     true,
-		"formatPercent":   true,
-		"formatDuration":  true,
-		"formatDate":      true,
-		"formatDateTime":  true,
-		"formatNumber":    true,
-		"pluralize":       true,
-		
+		"formatBytes":    true,
+		"formatPrice":    true,
+		"formatPercent":  true,
+		"formatDuration": true,
+		"formatDate":     true,
+		"formatDateTime": true,
+		"formatNumber":   true,
+		"pluralize":      true,
+
 		// JSON functions
-		"jsonify":   true,
-		
+		"jsonify": true,
+
 		// Chart functions
 		"renderChart":      true,
 		"renderSparkline":  true,
 		"placeholderChart": true,
 		"chartLoader":      true,
-		
+
 		// Standard template functions
-		"len":      true,
-		"index":    true,
-		"and":      true,
-		"or":       true,
-		"not":      true,
-		"eq":       true,
-		"ne":       true,
-		"lt":       true,
-		"le":       true,
-		"gt":       true,
-		"ge":       true,
-		"printf":   true,
-		"print":    true,
-		"println":  true,
-		"html":     true,
-		"js":       true,
-		"url":      true,
-		"call":     true,
+		"len":     true,
+		"index":   true,
+		"and":     true,
+		"or":      true,
+		"not":     true,
+		"eq":      true,
+		"ne":      true,
+		"lt":      true,
+		"le":      true,
+		"gt":      true,
+		"ge":      true,
+		"printf":  true,
+		"print":   true,
+		"println": true,
+		"html":    true,
+		"js":      true,
+		"url":     true,
+		"call":    true,
 	}
-	
+
 	return helpers[name]
 }
