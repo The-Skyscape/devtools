@@ -66,8 +66,8 @@ func runValidation(cmd *cobra.Command, args []string) error {
 		fmt.Println("✨ Discovering controllers...")
 	}
 
-	// Discover controllers
-	controllers, err := DiscoverControllers(dir)
+	// Discover controllers with enhanced resolution (includes embedded types)
+	controllers, err := DiscoverControllersEnhanced(dir)
 	if err != nil {
 		return fmt.Errorf("failed to discover controllers: %w", err)
 	}
