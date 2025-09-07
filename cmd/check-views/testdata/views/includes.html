@@ -1,0 +1,13 @@
+<!DOCTYPE html>
+<html>
+<body>
+    <!-- Valid include - by name only -->
+    {{template "header.html" .}}
+    
+    <!-- Invalid include - using path -->
+    {{template "partials/footer.html" .}}
+    
+    <!-- Invalid include - using relative path -->
+    {{template "../shared/nav.html" .}}
+</body>
+</html>

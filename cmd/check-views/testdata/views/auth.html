@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Auth</title>
+</head>
+<body>
+    <!-- These should work - from embedded controller -->
+    {{if auth.IsAuthenticated}}
+        <p>Welcome {{auth.CurrentUser.Email}}</p>
+    {{end}}
+    
+    <!-- This should work - custom method -->
+    {{if auth.CustomAuthMethod}}
+        <p>Custom auth check passed</p>
+    {{end}}
+    
+    <!-- This should be an error -->
+    {{auth.InvalidMethod}}
+</body>
+</html>

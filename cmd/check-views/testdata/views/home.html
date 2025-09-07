@@ -1,0 +1,16 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Home</title>
+</head>
+<body>
+    <h1>{{home.Welcome}}</h1>
+    <p>User count: {{home.GetUserCount}}</p>
+    
+    <!-- This should be an error - private method -->
+    {{home.privateMethod}}
+    
+    <!-- This should be an error - method doesn't exist -->
+    {{home.NonExistentMethod}}
+</body>
+</html>
