@@ -8,27 +8,51 @@ import (
 	"strings"
 )
 
-// ConsoleReporter reports validation results to the console
-type ConsoleReporter struct {
+// Color codes for terminal output
+const (
+	colorRed   = "\033[31m"
+	colorGreen = "\033[32m"
+	colorReset = "\033[0m"
+)
+
+// colorize wraps text in ANSI color codes
+func colorize(text string, color string) string {
+	return color + text + colorReset
+}
+
+// EnhancedReporter handles reporting for both controller and field validation
+type EnhancedReporter struct {
 	verbose bool
 	fix     bool
 	quiet   bool
 }
 
-// NewReporter creates a new console reporter
-func NewReporter(verbose, fix, quiet bool) Reporter {
-	return &ConsoleReporter{
+// NewEnhancedReporter creates a new enhanced reporter
+func NewEnhancedReporter(verbose, fix, quiet bool) *EnhancedReporter {
+	return &EnhancedReporter{
 		verbose: verbose,
 		fix:     fix,
 		quiet:   quiet,
 	}
 }
 
-// Report outputs the validation results
-func (r *ConsoleReporter) Report(result ValidationResult) {
+// Report outputs the enhanced validation results
+func (r *EnhancedReporter) Report(result EnhancedValidationResult) {
 	if r.quiet {
 		// In quiet mode, only show errors
-		for _, err := range result.Errors {
+		for _, err := range result.ControllerErrors {
+			fmt.Printf("%s:%d: %s\n", err.File, err.Line, err.Problem)
+			if r.fix && err.Suggestion != "" {
+				fmt.Printf("  → %s\n", err.Suggestion)
+			}
+		}
+		for _, err := range result.FieldErrors {
+			fmt.Printf("%s:%d: %s\n", err.File, err.Line, err.Problem)
+			if r.fix && err.Suggestion != "" {
+				fmt.Printf("  → %s\n", err.Suggestion)
+			}
+		}
+		for _, err := range result.URLErrors {
 			fmt.Printf("%s:%d: %s\n", err.File, err.Line, err.Problem)
 			if r.fix && err.Suggestion != "" {
 				fmt.Printf("  → %s\n", err.Suggestion)
@@ -37,13 +61,60 @@ func (r *ConsoleReporter) Report(result ValidationResult) {
 		return
 	}
 
-	// Group errors by file for better readability
+	// Report controller errors
+	if len(result.ControllerErrors) > 0 {
+		r.reportControllerErrors(result.ControllerErrors)
+	}
+
+	// Report field errors
+	if len(result.FieldErrors) > 0 {
+		r.reportFieldErrors(result.FieldErrors)
+	}
+
+	// Report URL errors
+	if len(result.URLErrors) > 0 {
+		r.reportURLErrors(result.URLErrors)
+	}
+
+	// Report summary
+	r.reportSummary(result)
+}
+
+// reportControllerErrors reports controller validation errors
+func (r *EnhancedReporter) reportControllerErrors(errors []ValidationError) {
+	// Separate template include errors from controller errors
+	var controllerErrors []ValidationError
+	var templateIncludeErrors []ValidationError
+	
+	for _, err := range errors {
+		if strings.Contains(err.Problem, "Template reference contains path") {
+			templateIncludeErrors = append(templateIncludeErrors, err)
+		} else {
+			controllerErrors = append(controllerErrors, err)
+		}
+	}
+	
+	// Report template include errors first if any
+	if len(templateIncludeErrors) > 0 {
+		r.reportTemplateIncludeErrors(templateIncludeErrors)
+	}
+	
+	// Report controller errors if any
+	if len(controllerErrors) == 0 {
+		return
+	}
+	
+	if !r.quiet {
+		fmt.Println("\n🎮 Controller Reference Errors:")
+	}
+
+	// Group errors by file
 	errorsByFile := make(map[string][]ValidationError)
-	for _, err := range result.Errors {
+	for _, err := range controllerErrors {
 		errorsByFile[err.File] = append(errorsByFile[err.File], err)
 	}
 
-	// Sort files for consistent output
+	// Sort files
 	var files []string
 	for file := range errorsByFile {
 		files = append(files, file)
@@ -52,21 +123,17 @@ func (r *ConsoleReporter) Report(result ValidationResult) {
 
 	// Report errors by file
 	for _, file := range files {
-		errors := errorsByFile[file]
+		fileErrors := errorsByFile[file]
 		
 		// Sort errors by line number
-		sort.Slice(errors, func(i, j int) bool {
-			return errors[i].Line < errors[j].Line
+		sort.Slice(fileErrors, func(i, j int) bool {
+			return fileErrors[i].Line < fileErrors[j].Line
 		})
 
-		if len(errors) == 1 {
-			fmt.Printf("  ✗ %s:%d: %s not found\n", file, errors[0].Line, errors[0].Reference)
-		} else {
-			fmt.Printf("  ✗ %s: %d errors\n", file, len(errors))
-		}
+		fmt.Printf("  ✗ %s: %d controller errors\n", file, len(fileErrors))
 
 		if r.verbose || r.fix {
-			for _, err := range errors {
+			for _, err := range fileErrors {
 				fmt.Printf("    Line %d: %s\n", err.Line, err.Problem)
 				if err.Suggestion != "" {
 					fmt.Printf("    💡 %s\n", err.Suggestion)
@@ -74,40 +141,187 @@ func (r *ConsoleReporter) Report(result ValidationResult) {
 			}
 		}
 	}
+}
 
-	// Report files that passed
-	if r.verbose && len(result.Errors) == 0 {
-		fmt.Printf("  ✓ All templates validated successfully\n")
+// reportFieldErrors reports field validation errors
+func (r *EnhancedReporter) reportFieldErrors(errors []FieldValidationError) {
+	if !r.quiet {
+		fmt.Println("\n📦 Model Field Errors:")
 	}
 
-	// Summary
-	fmt.Println()
-	if result.Valid {
-		fmt.Printf("✅ Success: %d references validated in %d templates\n",
-			result.Summary.ValidReferences,
-			result.Summary.TotalTemplates)
-	} else {
-		fmt.Printf("❌ Found %d errors in %d templates\n",
-			result.Summary.Errors,
-			len(errorsByFile))
+	// Group errors by file
+	errorsByFile := make(map[string][]FieldValidationError)
+	for _, err := range errors {
+		errorsByFile[err.File] = append(errorsByFile[err.File], err)
+	}
+
+	// Sort files
+	var files []string
+	for file := range errorsByFile {
+		files = append(files, file)
+	}
+	sort.Strings(files)
+
+	// Report errors by file
+	for _, file := range files {
+		fileErrors := errorsByFile[file]
 		
-		if r.fix && !r.quiet {
-			fmt.Println("   Run with --fix to see suggested corrections")
+		// Sort errors by line number
+		sort.Slice(fileErrors, func(i, j int) bool {
+			return fileErrors[i].Line < fileErrors[j].Line
+		})
+
+		fmt.Printf("  ✗ %s: %d field errors\n", file, len(fileErrors))
+
+		if r.verbose || r.fix {
+			for _, err := range fileErrors {
+				fmt.Printf("    Line %d: Expression '%s'\n", err.Line, err.Expression)
+				fmt.Printf("      Context: %s\n", err.Context)
+				fmt.Printf("      Problem: %s\n", err.Problem)
+				if err.Suggestion != "" {
+					fmt.Printf("      💡 %s\n", err.Suggestion)
+				}
+			}
 		}
 	}
 }
 
-// reportJSON outputs the validation result as JSON
-func reportJSON(result ValidationResult) error {
+// reportURLErrors reports URL validation errors
+func (r *EnhancedReporter) reportURLErrors(errors []URLValidationError) {
+	if !r.quiet {
+		fmt.Println("\n🔗 URL Reference Errors:")
+	}
+
+	// Group errors by file
+	errorsByFile := make(map[string][]URLValidationError)
+	for _, err := range errors {
+		errorsByFile[err.File] = append(errorsByFile[err.File], err)
+	}
+
+	// Sort files
+	var files []string
+	for file := range errorsByFile {
+		files = append(files, file)
+	}
+	sort.Strings(files)
+
+	// Report errors by file
+	for _, file := range files {
+		fileErrors := errorsByFile[file]
+		
+		// Sort errors by line number
+		sort.Slice(fileErrors, func(i, j int) bool {
+			return fileErrors[i].Line < fileErrors[j].Line
+		})
+
+		fmt.Printf("  ✗ %s: %d URL errors\n", file, len(fileErrors))
+
+		if r.verbose || r.fix {
+			for _, err := range fileErrors {
+				fmt.Printf("    Line %d: URL '%s'\n", err.Line, err.URL)
+				fmt.Printf("      Problem: %s\n", err.Problem)
+				if err.Suggestion != "" {
+					fmt.Printf("      💡 %s\n", err.Suggestion)
+				}
+			}
+		}
+	}
+}
+
+// reportTemplateIncludeErrors reports template include validation errors
+func (r *EnhancedReporter) reportTemplateIncludeErrors(errors []ValidationError) {
+	if !r.quiet {
+		fmt.Println("\n📄 Template Include Errors:")
+	}
+
+	// Group errors by file
+	errorsByFile := make(map[string][]ValidationError)
+	for _, err := range errors {
+		errorsByFile[err.File] = append(errorsByFile[err.File], err)
+	}
+
+	// Sort files
+	var files []string
+	for file := range errorsByFile {
+		files = append(files, file)
+	}
+	sort.Strings(files)
+
+	// Report errors by file
+	for _, file := range files {
+		fileErrors := errorsByFile[file]
+		
+		// Sort errors by line number
+		sort.Slice(fileErrors, func(i, j int) bool {
+			return fileErrors[i].Line < fileErrors[j].Line
+		})
+
+		fmt.Printf("  ✗ %s: %d template include errors\n", file, len(fileErrors))
+
+		if r.verbose || r.fix {
+			for _, err := range fileErrors {
+				fmt.Printf("    Line %d: %s\n", err.Line, err.Reference)
+				fmt.Printf("      Problem: %s\n", err.Problem)
+				if err.Suggestion != "" && r.fix {
+					fmt.Printf("      💡 Fix: %s\n", err.Suggestion)
+				}
+			}
+		}
+	}
+}
+
+// reportSummary reports the validation summary
+func (r *EnhancedReporter) reportSummary(result EnhancedValidationResult) {
+	fmt.Println()
+	
+	if result.Valid {
+		fmt.Printf("✅ Success: All references validated successfully\n")
+		fmt.Printf("   • %d controller references validated\n", result.Summary.ValidControllerRefs)
+		fmt.Printf("   • %d field references validated\n", result.Summary.ValidFieldRefs)
+		fmt.Printf("   • %d URL references validated\n", result.Summary.ValidURLRefs)
+		fmt.Printf("   • %d templates checked\n", result.Summary.TotalTemplates)
+	} else {
+		totalErrors := result.Summary.ControllerErrors + result.Summary.FieldErrors + result.Summary.URLErrors
+		fmt.Printf("❌ Found %d errors\n", totalErrors)
+		
+		if result.Summary.ControllerErrors > 0 {
+			fmt.Printf("   • %d controller reference errors\n", result.Summary.ControllerErrors)
+		}
+		if result.Summary.FieldErrors > 0 {
+			fmt.Printf("   • %d field reference errors\n", result.Summary.FieldErrors)
+		}
+		if result.Summary.URLErrors > 0 {
+			fmt.Printf("   • %d URL reference errors\n", result.Summary.URLErrors)
+		}
+		
+		fmt.Printf("   • %d/%d controller references valid\n", 
+			result.Summary.ValidControllerRefs, result.Summary.TotalControllerRefs)
+		fmt.Printf("   • %d/%d field references valid\n", 
+			result.Summary.ValidFieldRefs, result.Summary.TotalFieldRefs)
+		fmt.Printf("   • %d/%d URL references valid\n",
+			result.Summary.ValidURLRefs, result.Summary.TotalURLRefs)
+		
+		if !r.quiet && !r.fix {
+			fmt.Println("\n   💡 Run with --fix to see suggested corrections")
+		}
+	}
+}
+
+// reportEnhancedJSON outputs the enhanced validation result as JSON
+func reportEnhancedJSON(result EnhancedValidationResult) error {
 	// Create a JSON-friendly structure
 	output := struct {
-		Valid   bool              `json:"valid"`
-		Summary Statistics        `json:"summary"`
-		Errors  []ValidationError `json:"errors"`
+		Valid            bool                     `json:"valid"`
+		Summary          EnhancedStatistics       `json:"summary"`
+		ControllerErrors []ValidationError        `json:"controller_errors"`
+		FieldErrors      []FieldValidationError   `json:"field_errors"`
+		URLErrors        []URLValidationError     `json:"url_errors"`
 	}{
-		Valid:   result.Valid,
-		Summary: result.Summary,
-		Errors:  result.Errors,
+		Valid:            result.Valid,
+		Summary:          result.Summary,
+		ControllerErrors: result.ControllerErrors,
+		FieldErrors:      result.FieldErrors,
+		URLErrors:        result.URLErrors,
 	}
 
 	encoder := json.NewEncoder(os.Stdout)
@@ -115,49 +329,15 @@ func reportJSON(result ValidationResult) error {
 	return encoder.Encode(output)
 }
 
-// Color helpers for terminal output (could be enhanced with color library)
-const (
-	colorReset  = "\033[0m"
-	colorRed    = "\033[31m"
-	colorGreen  = "\033[32m"
-	colorYellow = "\033[33m"
-	colorBlue   = "\033[34m"
-	colorCyan   = "\033[36m"
-	colorGray   = "\033[90m"
-)
-
-// colorize adds color to text if terminal supports it
-func colorize(text, color string) string {
-	// Check if output is a terminal
-	if fileInfo, _ := os.Stdout.Stat(); (fileInfo.Mode() & os.ModeCharDevice) != 0 {
-		return color + text + colorReset
-	}
-	return text
+// EnhancedDiffReporter shows diff-style output for both types of errors
+type EnhancedDiffReporter struct {
+	EnhancedReporter
 }
 
-// formatError formats an error message with color
-func formatError(err ValidationError) string {
-	location := fmt.Sprintf("%s:%d", err.File, err.Line)
-	problem := err.Problem
-	
-	if err.Suggestion != "" {
-		problem += fmt.Sprintf("\n    %s", colorize("→ "+err.Suggestion, colorCyan))
-	}
-	
-	return fmt.Sprintf("%s: %s", 
-		colorize(location, colorGray),
-		colorize(problem, colorRed))
-}
-
-// DiffReporter shows a diff-like output for suggested fixes
-type DiffReporter struct {
-	ConsoleReporter
-}
-
-// NewDiffReporter creates a reporter that shows diff-style suggestions
-func NewDiffReporter(verbose bool) Reporter {
-	return &DiffReporter{
-		ConsoleReporter: ConsoleReporter{
+// NewEnhancedDiffReporter creates a diff-style reporter
+func NewEnhancedDiffReporter(verbose bool) *EnhancedDiffReporter {
+	return &EnhancedDiffReporter{
+		EnhancedReporter: EnhancedReporter{
 			verbose: verbose,
 			fix:     true,
 			quiet:   false,
@@ -165,31 +345,25 @@ func NewDiffReporter(verbose bool) Reporter {
 	}
 }
 
-// Report shows diff-style output
-func (d *DiffReporter) Report(result ValidationResult) {
+// Report shows diff-style output for enhanced results
+func (d *EnhancedDiffReporter) Report(result EnhancedValidationResult) {
 	if !result.Valid {
 		fmt.Println("Suggested fixes:")
 		fmt.Println(strings.Repeat("-", 60))
 		
-		for _, err := range result.Errors {
-			fmt.Printf("\n%s:%d\n", err.File, err.Line)
-			fmt.Printf("- %s\n", colorize(err.Reference, colorRed))
-			
-			if err.Suggestion != "" && strings.Contains(err.Suggestion, "Did you mean") {
-				// Extract the suggested replacement
-				parts := strings.Split(err.Suggestion, "'")
-				if len(parts) >= 2 {
-					suggested := parts[1]
-					// Build the corrected reference
-					refParts := strings.Split(err.Reference, ".")
-					if len(refParts) == 2 {
-						if strings.Contains(err.Problem, "Controller") {
-							fmt.Printf("+ %s\n", colorize(suggested+"."+refParts[1], colorGreen))
-						} else {
-							fmt.Printf("+ %s\n", colorize(refParts[0]+"."+suggested, colorGreen))
-						}
-					}
-				}
+		// Show controller fixes
+		if len(result.ControllerErrors) > 0 {
+			fmt.Println("\nController Reference Fixes:")
+			for _, err := range result.ControllerErrors {
+				d.showControllerFix(err)
+			}
+		}
+		
+		// Show field fixes
+		if len(result.FieldErrors) > 0 {
+			fmt.Println("\nModel Field Fixes:")
+			for _, err := range result.FieldErrors {
+				d.showFieldFix(err)
 			}
 		}
 		
@@ -197,5 +371,48 @@ func (d *DiffReporter) Report(result ValidationResult) {
 	}
 	
 	// Call parent reporter for summary
-	d.ConsoleReporter.Report(result)
+	d.EnhancedReporter.Report(result)
+}
+
+// showControllerFix shows a fix for a controller error
+func (d *EnhancedDiffReporter) showControllerFix(err ValidationError) {
+	fmt.Printf("\n%s:%d\n", err.File, err.Line)
+	fmt.Printf("- %s\n", colorize(err.Reference, colorRed))
+	
+	if err.Suggestion != "" && strings.Contains(err.Suggestion, "Did you mean") {
+		// Extract the suggested replacement
+		parts := strings.Split(err.Suggestion, "'")
+		if len(parts) >= 2 {
+			suggested := parts[1]
+			// Build the corrected reference
+			refParts := strings.Split(err.Reference, ".")
+			if len(refParts) == 2 {
+				if strings.Contains(err.Problem, "Controller") {
+					fmt.Printf("+ %s\n", colorize(suggested+"."+refParts[1], colorGreen))
+				} else {
+					fmt.Printf("+ %s\n", colorize(refParts[0]+"."+suggested, colorGreen))
+				}
+			}
+		}
+	}
+}
+
+// showFieldFix shows a fix for a field error
+func (d *EnhancedDiffReporter) showFieldFix(err FieldValidationError) {
+	fmt.Printf("\n%s:%d\n", err.File, err.Line)
+	fmt.Printf("- %s\n", colorize(err.Expression, colorRed))
+	
+	if err.Suggestion != "" && strings.Contains(err.Suggestion, "Did you mean") {
+		// Extract the suggested replacement
+		parts := strings.Split(err.Suggestion, "'")
+		if len(parts) >= 2 {
+			suggested := parts[1]
+			// Replace the last field in the expression with the suggestion
+			exprParts := strings.Split(err.Expression, ".")
+			if len(exprParts) > 1 {
+				exprParts[len(exprParts)-1] = suggested
+				fmt.Printf("+ %s\n", colorize(strings.Join(exprParts, "."), colorGreen))
+			}
+		}
+	}
 }
