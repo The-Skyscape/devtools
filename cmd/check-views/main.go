@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -205,8 +206,14 @@ func runValidation(cmd *cobra.Command, args []string) error {
 	// Validate template includes
 	templateIncludeErrors := ValidateTemplateIncludes(templateIncludes)
 
-	// Validate all references using enhanced validation with all types
-	result := ValidateWithTypes(controllers, allTypes, templateRefs, fieldRefs)
+	// Validate all references using enhanced validation with type resolver
+	result, err := ValidateWithResolver(dir, controllers, templateRefs, fieldRefs)
+	if err != nil {
+		// Fallback already handled inside ValidateWithResolver
+		if verbose {
+			log.Printf("Note: Using fallback validation: %v", err)
+		}
+	}
 	
 	// Add URL errors to result
 	result.URLErrors = urlErrors

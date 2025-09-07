@@ -464,7 +464,11 @@ func findSimilarRoute(path string, routes []RouteInfo) string {
 	// Show some available routes
 	if len(routes) > 0 {
 		shown := []string{}
-		for i := 0; i < min(5, len(routes)); i++ {
+		limit := 5
+		if len(routes) < limit {
+			limit = len(routes)
+		}
+		for i := 0; i < limit; i++ {
 			shown = append(shown, routes[i].Path)
 		}
 		return "Available routes: " + strings.Join(shown, ", ")
