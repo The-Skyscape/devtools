@@ -10,6 +10,15 @@ workspace/.git
 *.so
 *.dylib
 
+# Compiled binaries (without extension)
+/check-views
+/create-app
+/launch-app
+/example/example
+/cmd/check-views/check-views
+/cmd/create-app/create-app
+/cmd/launch-app/launch-app
+
 # Test binary, built with `go test -c`
 *.test
 
