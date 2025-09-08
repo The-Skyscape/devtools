@@ -105,10 +105,11 @@ func (cr *ControllerResolver) findFactoryFunctions() error {
 				}
 
 				cr.controllers[controllerType] = &ControllerInfo{
-					Prefix:   prefix,
-					Type:     controllerType,
-					FilePath: filePath,
-					Methods:  []string{},
+					Prefix:        prefix,
+					Type:          controllerType,
+					FilePath:      filePath,
+					Methods:       []string{},
+					MethodDetails: make(map[string]*MethodDetail),
 				}
 			}
 		}
@@ -189,9 +190,10 @@ func (cr *ControllerResolver) resolveControllerMethods() error {
 			continue
 		}
 
-		// Collect all methods including embedded ones
-		methods := cr.collectAllMethods(named)
+		// Collect all methods including embedded ones with details
+		methods, methodDetails := cr.collectAllMethodsWithDetails(named)
 		ctrl.Methods = methods
+		ctrl.MethodDetails = methodDetails
 
 		if verbose {
 			log.Printf("Controller %s (%s) has %d methods including embedded",
@@ -202,33 +204,138 @@ func (cr *ControllerResolver) resolveControllerMethods() error {
 	return nil
 }
 
-// collectAllMethods collects all methods including from embedded types
-func (cr *ControllerResolver) collectAllMethods(named *types.Named) []string {
-	methodSet := make(map[string]bool)
+// collectAllMethodsWithDetails collects all methods with return type information
+func (cr *ControllerResolver) collectAllMethodsWithDetails(named *types.Named) ([]string, map[string]*MethodDetail) {
+	methodSet := make(map[string]*MethodDetail)
 
 	// Get direct methods
 	for i := 0; i < named.NumMethods(); i++ {
 		method := named.Method(i)
 		if method.Exported() {
-			methodSet[method.Name()] = true
+			detail := cr.extractMethodDetail(method)
+			if detail != nil {
+				methodSet[method.Name()] = detail
+			}
 		}
 	}
 
 	// Get methods from embedded types
 	if structType, ok := named.Underlying().(*types.Struct); ok {
-		cr.collectEmbeddedMethods(structType, methodSet)
+		cr.collectEmbeddedMethodsWithDetails(structType, methodSet)
 	}
 
-	// Convert to slice
+	// Convert to slice for backward compatibility
 	var methods []string
 	for name := range methodSet {
 		methods = append(methods, name)
 	}
 
+	return methods, methodSet
+}
+
+// extractMethodDetail extracts detailed information from a method
+func (cr *ControllerResolver) extractMethodDetail(method *types.Func) *MethodDetail {
+	sig, ok := method.Type().(*types.Signature)
+	if !ok {
+		return nil
+	}
+
+	detail := &MethodDetail{
+		Name:       method.Name(),
+		IsExported: method.Exported(),
+		Returns:    []string{},
+	}
+
+	// Extract return types
+	if results := sig.Results(); results != nil {
+		for i := 0; i < results.Len(); i++ {
+			param := results.At(i)
+			typeName := cr.getTypeName(param.Type())
+			if typeName != "" {
+				detail.Returns = append(detail.Returns, typeName)
+			}
+		}
+	}
+
+	return detail
+}
+
+// getTypeName extracts a readable type name from a types.Type
+func (cr *ControllerResolver) getTypeName(t types.Type) string {
+	switch typ := t.(type) {
+	case *types.Named:
+		return typ.Obj().Name()
+	case *types.Pointer:
+		return "*" + cr.getTypeName(typ.Elem())
+	case *types.Slice:
+		return "[]" + cr.getTypeName(typ.Elem())
+	case *types.Array:
+		return fmt.Sprintf("[%d]%s", typ.Len(), cr.getTypeName(typ.Elem()))
+	case *types.Basic:
+		return typ.Name()
+	case *types.Interface:
+		if typ.Empty() {
+			return "interface{}"
+		}
+		return "interface"
+	case *types.Struct:
+		return "struct"
+	case *types.Map:
+		return fmt.Sprintf("map[%s]%s", cr.getTypeName(typ.Key()), cr.getTypeName(typ.Elem()))
+	default:
+		return ""
+	}
+}
+
+// collectAllMethods collects all methods including from embedded types (legacy)
+func (cr *ControllerResolver) collectAllMethods(named *types.Named) []string {
+	methods, _ := cr.collectAllMethodsWithDetails(named)
 	return methods
 }
 
-// collectEmbeddedMethods recursively collects methods from embedded types
+// collectEmbeddedMethodsWithDetails recursively collects methods with details from embedded types
+func (cr *ControllerResolver) collectEmbeddedMethodsWithDetails(structType *types.Struct, methodSet map[string]*MethodDetail) {
+	for i := 0; i < structType.NumFields(); i++ {
+		field := structType.Field(i)
+
+		// Check if it's an embedded field
+		if !field.Embedded() {
+			continue
+		}
+
+		// Get the type of the embedded field
+		fieldType := field.Type()
+
+		// Handle pointer types
+		if ptr, ok := fieldType.(*types.Pointer); ok {
+			fieldType = ptr.Elem()
+		}
+
+		// If it's a named type, get its methods
+		if namedType, ok := fieldType.(*types.Named); ok {
+			// Get methods from this embedded type
+			for j := 0; j < namedType.NumMethods(); j++ {
+				method := namedType.Method(j)
+				if method.Exported() {
+					// Don't override if already present (shadowing)
+					if _, exists := methodSet[method.Name()]; !exists {
+						detail := cr.extractMethodDetail(method)
+						if detail != nil {
+							methodSet[method.Name()] = detail
+						}
+					}
+				}
+			}
+
+			// Recursively check embedded types within this type
+			if innerStruct, ok := namedType.Underlying().(*types.Struct); ok {
+				cr.collectEmbeddedMethodsWithDetails(innerStruct, methodSet)
+			}
+		}
+	}
+}
+
+// collectEmbeddedMethods recursively collects methods from embedded types (legacy)
 func (cr *ControllerResolver) collectEmbeddedMethods(structType *types.Struct, methodSet map[string]bool) {
 	for i := 0; i < structType.NumFields(); i++ {
 		field := structType.Field(i)

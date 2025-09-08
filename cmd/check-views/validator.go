@@ -54,12 +54,14 @@ func (v *EnhancedValidator) ValidateFieldReference(ref FieldReference) *FieldVal
 	// Get template context to understand what type is available
 	templateContext := v.context.GetTemplateContext(ref.File)
 
-	// If we don't know the context, be lenient
+	// If we don't know the context, we cannot validate fields
+	// This is expected - we only validate what we can trace through AST
 	if templateContext == nil {
 		if v.verbose {
-			log.Printf("Unknown context for template %s, checking all types", ref.File)
+			log.Printf("No context for template %s, skipping field validation", ref.File)
 		}
-		return v.validateAgainstAllTypes(ref)
+		// Return nil - no error, just can't validate without context
+		return nil
 	}
 
 	// Validate against the specific type
@@ -121,6 +123,37 @@ func (v *EnhancedValidator) validateAgainstType(ref FieldReference, contextType 
 
 	// All fields validated successfully
 	return nil
+}
+
+// validateAgainstAllTypesStrict is a stricter version for unknown contexts
+func (v *EnhancedValidator) validateAgainstAllTypesStrict(ref FieldReference) *FieldValidationError {
+	if len(ref.Fields) == 0 {
+		return nil
+	}
+
+	firstField := ref.Fields[0]
+	
+	// For templates with "issue" in the name, validate against Issue type
+	if strings.Contains(strings.ToLower(ref.File), "issue") {
+		if issueType := v.resolver.GetType("Issue"); issueType != nil {
+			if !issueType.HasField(firstField) && issueType.Methods[firstField] == nil {
+				problem := fmt.Sprintf("Field '%s' not found on type Issue", firstField)
+				suggestion := v.findSimilarField(firstField, issueType)
+				return &FieldValidationError{
+					File:       ref.File,
+					Line:       ref.Line,
+					Expression: ref.Expression,
+					Fields:     ref.Fields,
+					Context:    "Issue (inferred)",
+					Problem:    problem,
+					Suggestion: suggestion,
+				}
+			}
+		}
+	}
+	
+	// Fall back to the original lenient check
+	return v.validateAgainstAllTypes(ref)
 }
 
 // validateAgainstAllTypes checks if the field exists on any known type

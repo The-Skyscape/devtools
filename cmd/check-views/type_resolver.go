@@ -144,6 +144,29 @@ func (tr *TypeResolver) GetType(name string) *ResolvedType {
 	return nil
 }
 
+// GetTypeNameFromType extracts a type name from a go/types Type
+func (tr *TypeResolver) GetTypeNameFromType(t types.Type) string {
+	switch typ := t.(type) {
+	case *types.Named:
+		return typ.Obj().Name()
+	case *types.Pointer:
+		// For pointer types, get the element type
+		return tr.GetTypeNameFromType(typ.Elem())
+	case *types.Slice:
+		// For slices, we might want to handle specially
+		elemType := tr.GetTypeNameFromType(typ.Elem())
+		if elemType != "" {
+			return "[]" + elemType
+		}
+		return ""
+	case *types.Basic:
+		return typ.Name()
+	default:
+		// For other types, we can't easily map to our resolved types
+		return ""
+	}
+}
+
 // GetControllerReturnType analyzes a controller method to find what type it returns
 func (tr *TypeResolver) GetControllerReturnType(controllerName, methodName string) *ResolvedType {
 	// Look for the controller type

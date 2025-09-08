@@ -259,43 +259,12 @@ func (tc *TemplateContextTracker) AnalyzeTemplateIncludes(dir string) error {
 	return nil
 }
 
-// inferContextFromTemplateName tries to guess the context type from template name
+// inferContextFromTemplateName - deprecated, returns nil
+// We no longer infer types from template names as this creates
+// project-specific dependencies and false assumptions
 func (tc *TemplateContextTracker) inferContextFromTemplateName(templateName string) *ContextInfo {
-	// Remove .html extension if present
-	name := strings.TrimSuffix(templateName, ".html")
-
-	var typeGuess *ResolvedType
-	var controller string
-
-	// Common patterns
-	if strings.HasPrefix(name, "repo-") {
-		typeGuess = tc.resolver.GetType("Repository")
-		controller = "ReposController"
-	} else if strings.HasPrefix(name, "user-") {
-		typeGuess = tc.resolver.GetType("User")
-		controller = "UsersController"
-	} else if strings.HasPrefix(name, "issue-") {
-		typeGuess = tc.resolver.GetType("Issue")
-		controller = "IssuesController"
-	} else if strings.HasPrefix(name, "workspace-") {
-		typeGuess = tc.resolver.GetType("Workspace")
-		controller = "WorkspacesController"
-	} else if strings.HasPrefix(name, "admin-") {
-		controller = "AdminController"
-	} else if strings.HasPrefix(name, "settings-") {
-		controller = "SettingsController"
-	}
-
-	if typeGuess != nil || controller != "" {
-		return &ContextInfo{
-			TemplateName: templateName,
-			Type:         typeGuess,
-			Source:       "inferred",
-			Controller:   controller,
-			Method:       "",
-		}
-	}
-
+	// No longer inferring types from template names
+	// This prevents hardcoded project-specific logic
 	return nil
 }
 

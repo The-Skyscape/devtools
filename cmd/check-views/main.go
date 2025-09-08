@@ -256,10 +256,18 @@ func runValidation(cmd *cobra.Command, args []string) error {
 
 // Type definitions that will be moved to their respective files
 type ControllerInfo struct {
-	Prefix   string   // e.g., "admin"
-	Type     string   // e.g., "AdminController"
-	FilePath string   // e.g., "controllers/admin.go"
-	Methods  []string // Public methods found
+	Prefix         string                   // e.g., "admin"
+	Type           string                   // e.g., "AdminController"
+	FilePath       string                   // e.g., "controllers/admin.go"
+	Methods        []string                 // Public methods found
+	MethodDetails  map[string]*MethodDetail // Method name -> details
+}
+
+// MethodDetail contains detailed information about a controller method
+type MethodDetail struct {
+	Name       string   // Method name
+	Returns    []string // Return type names (can return multiple values)
+	IsExported bool     // Whether the method is exported
 }
 
 type TemplateReference struct {
