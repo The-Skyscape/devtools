@@ -8,10 +8,10 @@ import (
 	"time"
 )
 
-// GetHelperFuncs returns the complete template function map with all helpers
-func GetHelperFuncs() template.FuncMap {
+// GetBuiltinFuncs returns the complete template function map with all built-in functions
+func GetBuiltinFuncs() template.FuncMap {
 	return template.FuncMap{
-		// Formatting functions
+		// Formatting functions that frontend developers expect
 		"formatBytes":     FormatBytes,
 		"formatPrice":     FormatPrice,
 		"formatPercent":   FormatPercent,
@@ -21,7 +21,7 @@ func GetHelperFuncs() template.FuncMap {
 		"formatNumber":    FormatNumber,
 		"timeAgo":         TimeAgo,
 		
-		// String functions
+		// String manipulation functions
 		"pluralize":  Pluralize,
 		"truncate":   Truncate,
 		"join":       Join,
@@ -34,25 +34,21 @@ func GetHelperFuncs() template.FuncMap {
 		"lower":      strings.ToLower,
 		"upper":      strings.ToUpper,
 		"trim":       strings.TrimSpace,
-		"slice":      SliceString,
 		
-		// Math functions
+		// Basic math functions (commonly needed)
 		"add":   Add,
-		"addf":  AddFloat,
 		"sub":   Subtract,
-		"subf":  SubtractFloat,
 		"mul":   Multiply,
-		"mulf":  MultiplyFloat,
 		"div":   Divide,
+		"addf":  AddFloat,
+		"subf":  SubtractFloat,
+		"mulf":  MultiplyFloat,
 		"divf":  DivideFloat,
-		"float": ToFloat,
 		
-		// Utility functions
+		// Utility functions (without dict/set anti-patterns)
 		"toString": ToString,
 		"default":  Default,
-		"dict":     Dict,
-		"set":      Set,
-		"head":     Head,
+		"slice":    SliceString,
 	}
 }
 
@@ -73,28 +69,6 @@ func Add(a, b interface{}) interface{} {
 	return 0
 }
 
-// AddFloat adds two numbers as floats
-func AddFloat(a, b interface{}) float64 {
-	var fa, fb float64
-	switch v := a.(type) {
-	case int:
-		fa = float64(v)
-	case float64:
-		fa = v
-	default:
-		fa = 0
-	}
-	switch v := b.(type) {
-	case int:
-		fb = float64(v)
-	case float64:
-		fb = v
-	default:
-		fb = 0
-	}
-	return fa + fb
-}
-
 // Subtract subtracts two integers or floats
 func Subtract(a, b interface{}) interface{} {
 	switch va := a.(type) {
@@ -108,11 +82,6 @@ func Subtract(a, b interface{}) interface{} {
 		}
 	}
 	return 0
-}
-
-// SubtractFloat subtracts two numbers as floats
-func SubtractFloat(a, b interface{}) float64 {
-	return AddFloat(a, MultiplyFloat(b, -1))
 }
 
 // Multiply multiplies two numbers
@@ -136,27 +105,6 @@ func Multiply(a, b interface{}) interface{} {
 	return 0
 }
 
-// MultiplyFloat multiplies two numbers as floats
-func MultiplyFloat(a, b interface{}) float64 {
-	var fa, fb float64
-	switch v := a.(type) {
-	case int:
-		fa = float64(v)
-	case float64:
-		fa = v
-	default:
-		fa = 0
-	}
-	switch v := b.(type) {
-	case int:
-		fb = float64(v)
-	case float64:
-		fb = v
-	default:
-		fb = 0
-	}
-	return fa * fb
-}
 
 // Divide divides two numbers
 func Divide(a, b interface{}) interface{} {
@@ -179,19 +127,38 @@ func Divide(a, b interface{}) interface{} {
 	return 0
 }
 
+// AddFloat adds two numbers as floats
+func AddFloat(a, b interface{}) float64 {
+	return toFloat(a) + toFloat(b)
+}
+
+// SubtractFloat subtracts two numbers as floats
+func SubtractFloat(a, b interface{}) float64 {
+	return toFloat(a) - toFloat(b)
+}
+
+// MultiplyFloat multiplies two numbers as floats
+func MultiplyFloat(a, b interface{}) float64 {
+	return toFloat(a) * toFloat(b)
+}
+
 // DivideFloat divides two numbers as floats
 func DivideFloat(a, b interface{}) float64 {
-	fb := ToFloat(b)
+	fb := toFloat(b)
 	if fb == 0 {
 		return 0
 	}
-	return ToFloat(a) / fb
+	return toFloat(a) / fb
 }
 
-// ToFloat converts a value to float64
-func ToFloat(v interface{}) float64 {
+// toFloat is a helper to convert interface{} to float64
+func toFloat(v interface{}) float64 {
 	switch val := v.(type) {
 	case int:
+		return float64(val)
+	case int64:
+		return float64(val)
+	case float32:
 		return float64(val)
 	case float64:
 		return val
@@ -450,28 +417,3 @@ func Default(def, val interface{}) interface{} {
 	return val
 }
 
-// Dict creates a new map
-func Dict() map[string]interface{} {
-	return make(map[string]interface{})
-}
-
-// Set sets a key-value pair in a map
-func Set(m map[string]interface{}, key string, val interface{}) map[string]interface{} {
-	if m == nil {
-		m = make(map[string]interface{})
-	}
-	m[key] = val
-	return m
-}
-
-// Head returns the first n elements of a slice
-func Head(n int, arr interface{}) interface{} {
-	switch v := arr.(type) {
-	case []interface{}:
-		if n > len(v) {
-			return v
-		}
-		return v[:n]
-	}
-	return arr
-}

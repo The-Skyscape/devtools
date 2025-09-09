@@ -44,11 +44,11 @@ func (v *View) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 func (app *App) prepareViews() {
-	// Get all helper functions
-	helperFuncs := GetHelperFuncs()
+	// Get all built-in functions
+	builtinFuncs := GetBuiltinFuncs()
 	
-	// Start with helper functions as base
-	funcs := helperFuncs
+	// Start with built-in functions as base
+	funcs := builtinFuncs
 	
 	// Add app-specific functions
 	funcs["req"] = func() *http.Request { return nil }

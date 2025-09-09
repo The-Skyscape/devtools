@@ -74,6 +74,7 @@ func (c *Collection[E]) Insert(ent E) (E, error) {
 }
 
 func (c *Collection[E]) Update(ent E) error {
+	ent.GetModel().UpdatedAt = time.Now()
 	return c.DB.Update(ent)
 }
 

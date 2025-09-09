@@ -9,6 +9,15 @@ import (
 	"strings"
 )
 
+// Common sentinel errors for consistent error handling
+var (
+	ErrNotFound     = errors.New("not found")
+	ErrUnauthorized = errors.New("unauthorized")
+	ErrForbidden    = errors.New("forbidden")
+	ErrValidation   = errors.New("validation failed")
+	ErrInternal     = errors.New("internal server error")
+)
+
 type Controller interface {
 	Setup(*App)
 	Handle(*http.Request) Controller
@@ -21,6 +30,11 @@ type BaseController struct {
 
 func (base *BaseController) Setup(app *App) {
 	base.App = app
+}
+
+// SetRequest sets the current request on the controller
+func (base *BaseController) SetRequest(r *http.Request) {
+	base.Request = r
 }
 
 func (base *BaseController) Use(name string) Controller {
@@ -79,7 +93,8 @@ func (c *BaseController) Redirect(w http.ResponseWriter, r *http.Request, path s
 
 // RenderError renders an error message (HTMX-aware)
 func (c *BaseController) RenderError(w http.ResponseWriter, r *http.Request, err error) {
-	w.WriteHeader(http.StatusBadRequest)
+	// IMPORTANT: We intentionally don't set HTTP status codes here
+	// HTMX needs 200 OK to swap the error content into the DOM
 	c.Render(w, r, "error-message.html", err)
 }
 
@@ -90,7 +105,6 @@ func (c *BaseController) RenderErrorMsg(w http.ResponseWriter, r *http.Request, 
 
 // RenderValidationError renders validation errors
 func (c *BaseController) RenderValidationError(w http.ResponseWriter, r *http.Request, err error) {
-	w.WriteHeader(http.StatusBadRequest)
 	if ve, ok := err.(ValidationError); ok {
 		c.Render(w, r, "validation-errors.html", ve)
 	} else {
@@ -100,14 +114,12 @@ func (c *BaseController) RenderValidationError(w http.ResponseWriter, r *http.Re
 
 // RenderNotFound renders a 404 error
 func (c *BaseController) RenderNotFound(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusNotFound)
-	c.Render(w, r, "error-404.html", nil)
+	c.Render(w, r, "error-404.html", ErrNotFound)
 }
 
 // RenderForbidden renders a 403 error
 func (c *BaseController) RenderForbidden(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusForbidden)
-	c.Render(w, r, "error-403.html", nil)
+	c.Render(w, r, "error-403.html", ErrForbidden)
 }
 
 func (c *BaseController) RenderString(templateName string, data any) (string, error) {

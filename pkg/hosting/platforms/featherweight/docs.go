@@ -1,3 +1,0 @@
-package featherweight
-
-// TODO

@@ -6,6 +6,40 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is the **TheSkyscape DevTools** repository - a Go-based toolkit for cloud infrastructure management and application deployment. The project provides unified abstractions for managing containers, cloud hosting, and web applications across multiple platforms.
 
+## Design Philosophy
+
+### HTMX/HATEOAS Architecture
+We've rejected the complexity of modern JavaScript frameworks in favor of HTMX with HATEOAS principles:
+- **HTML as the engine of application state** - The server sends HTML, not JSON
+- **No client-side state management** - All state lives on the server
+- **Progressive enhancement** - Works without JavaScript, enhanced with HTMX
+- **Simplicity over features** - No webpack, no npm, no build pipeline for the frontend
+
+### Value Receiver Pattern for Request Isolation
+Our controllers use a unique pattern for request isolation without mutexes:
+```go
+// Value receiver creates a copy
+func (c HomeController) Handle(r *http.Request) application.Controller {
+    c.Request = r  // Modifies the copy
+    return &c      // Returns pointer to the copy
+}
+```
+This gives each request its own controller instance (16-32 bytes overhead) with zero shared state.
+
+### Template Validation with check-views
+Templates are validated at build time using our `check-views` tool:
+- Parses Go AST to find all controller methods
+- Parses templates to find all references
+- Validates that every template reference has a corresponding controller method
+- Turns runtime template errors into build-time errors
+
+### No Client State Principle
+By eliminating client-side state, we've removed entire categories of bugs:
+- No state synchronization issues
+- No cache invalidation problems
+- No version mismatches between API and client
+- Debugging happens in one place: the server
+
 ## CLI Tools
 
 ### create-app
@@ -205,6 +239,24 @@ func main() {
 - HTMX integration: use `c.Refresh(w, r)` to trigger page refresh after form submission
 - Templates use unique filenames (no paths) due to Go's global template namespace
 
+### Template Helpers & Type Safety
+**IMPORTANT**: DevTools provides formatting helpers that frontend developers expect, but avoids anti-patterns:
+- ✅ **DO USE**: Formatting functions (`formatBytes`, `formatDate`, `timeAgo`, etc.) for display
+- ✅ **DO USE**: String manipulation (`truncate`, `pluralize`, `join`, `slice`, etc.) for text processing
+- ✅ **DO USE**: Math functions - both integer (`add`, `sub`, `mul`, `div`) and float versions (`addf`, `subf`, `mulf`, `divf`)
+- ❌ **NOT PROVIDED**: `dict`, `set`, `head` or similar functions that create untyped map[string]interface{}
+- **PRINCIPLE**: Go is a type-safe language - use typed structs from controllers, not generic maps
+- **BEST PRACTICE**: All data should come from controller methods that return typed values
+- **CONTEXT**: Use `request.Context()` directly in handlers, not wrapper methods
+
+### HTMX/HATEOAS Error Handling
+**IMPORTANT**: When using HTMX with HATEOAS, error responses must return HTML fragments with 200 OK status:
+- DO NOT set HTTP status codes in error responses (blocks HTMX from swapping content)
+- Errors should be rendered as HTML partials that can be inserted into the DOM
+- Use `c.RenderError(w, r, err)` which returns 200 OK with error HTML
+- Form errors should target specific error containers: `hx-target=".error-message"`
+- This allows HTMX to display errors inline without full page refreshes
+
 ### Security Package (SecretsController)
 The security package provides a controller-based approach to secrets management with automatic fallback:
 
@@ -268,6 +320,22 @@ my-app/
 ├── main.go           # Application entry point
 └── go.mod
 ```
+
+## Recent Improvements (Go Best Practices)
+
+### Core Framework Improvements
+1. **Error Handling**: Added sentinel errors (ErrNotFound, ErrUnauthorized, etc.) in application package
+2. **Type Safety**: Removed anti-pattern functions (dict, set, head) that encourage untyped data
+3. **Code Cleanup**: Removed unused featherweight platform
+4. **Template Helpers**: Kept all formatting and math functions developers expect, removed only type-unsafe helpers
+5. **Context Philosophy**: Handlers already have request.Context(), no need for wrapper methods
+
+### Go Philosophy Applied
+- **Simplicity**: Removed unnecessary abstraction layers and unused code
+- **Clarity**: Explicit error types instead of string errors
+- **Composition**: Improvements made within existing structures, not new packages
+- **Type Safety**: Enforce typed data flow from controllers to templates
+- **Idiomatic Go**: Following standard library patterns for context and errors
 
 ## CLI Usage Examples
 

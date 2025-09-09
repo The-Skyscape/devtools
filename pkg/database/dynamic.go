@@ -12,6 +12,7 @@ import (
 	"github.com/pkg/errors"
 )
 
+
 type DynamicDB struct {
 	Database
 	Ents  []Entity
