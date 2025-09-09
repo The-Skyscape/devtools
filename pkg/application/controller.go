@@ -2,12 +2,10 @@ package application
 
 import (
 	"bytes"
-	"cmp"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"strings"
 )
 
@@ -33,44 +31,83 @@ func (base *BaseController) Use(name string) Controller {
 	return ctrl.Handle(base.Request)
 }
 
-func (c *BaseController) Atoi(name string, defaultValue int) int {
-	value := c.URL.Query().Get(name)
-	value = cmp.Or(value, c.FormValue(name))
-	i, err := strconv.Atoi(value)
-	if err != nil {
-		return defaultValue
-	}
-	return i
+// Params returns a parameter helper for the current request
+func (c *BaseController) Params() *Params {
+	return NewParams(c.Request)
 }
 
+// Pagination returns pagination parameters from the request
+func (c *BaseController) Pagination(defaultPageSize int) *Pagination {
+	return GetPagination(c.Request, defaultPageSize)
+}
+
+// Sort returns sort parameters from the request
+func (c *BaseController) Sort(defaultField string) *Sort {
+	return GetSort(c.Request, defaultField)
+}
+
+// Validator returns a new validator for building validation errors
+func (c *BaseController) Validator() *Validator {
+	return NewValidator()
+}
+
+// Deprecated: Use Params().Int() instead
+func (c *BaseController) Atoi(name string, defaultValue int) int {
+	return c.Params().Int(name, defaultValue)
+}
+
+// Refresh triggers a page refresh (HTMX-aware)
 func (c *BaseController) Refresh(w http.ResponseWriter, r *http.Request) {
-	// HTMX requests should trigger a refresh
-	if htmx := r.Header.Get("HX-Request"); htmx != "" {
-		w.Header().Add("HX-Refresh", "true")
-		w.WriteHeader(http.StatusNoContent)
+	if IsHTMX(r) {
+		HTMXRefresh(w)
 		return
 	}
 	// Non-HTMX fallback - redirect to current URL
 	http.Redirect(w, r, r.URL.String(), http.StatusSeeOther)
 }
 
+// Redirect sends a redirect response (HTMX-aware)
 func (c *BaseController) Redirect(w http.ResponseWriter, r *http.Request, path string) {
-	if htmx := r.Header.Get("HX-Request"); htmx != "" {
-		w.Header().Add("HX-Location", c.hostPrefix+path)
+	if IsHTMX(r) {
+		// Use HX-Location for client-side redirect
+		w.Header().Set("HX-Location", c.hostPrefix+path)
 		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	http.Redirect(w, r, path, http.StatusSeeOther)
 }
 
+// RenderError renders an error message (HTMX-aware)
 func (c *BaseController) RenderError(w http.ResponseWriter, r *http.Request, err error) {
-	// Standardized error rendering for consistency across controllers
+	w.WriteHeader(http.StatusBadRequest)
 	c.Render(w, r, "error-message.html", err)
 }
 
+// RenderErrorMsg renders an error message from string
 func (c *BaseController) RenderErrorMsg(w http.ResponseWriter, r *http.Request, msg string) {
-	// Convenience method for rendering error messages
 	c.RenderError(w, r, errors.New(msg))
+}
+
+// RenderValidationError renders validation errors
+func (c *BaseController) RenderValidationError(w http.ResponseWriter, r *http.Request, err error) {
+	w.WriteHeader(http.StatusBadRequest)
+	if ve, ok := err.(ValidationError); ok {
+		c.Render(w, r, "validation-errors.html", ve)
+	} else {
+		c.RenderError(w, r, err)
+	}
+}
+
+// RenderNotFound renders a 404 error
+func (c *BaseController) RenderNotFound(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusNotFound)
+	c.Render(w, r, "error-404.html", nil)
+}
+
+// RenderForbidden renders a 403 error
+func (c *BaseController) RenderForbidden(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusForbidden)
+	c.Render(w, r, "error-403.html", nil)
 }
 
 func (c *BaseController) RenderString(templateName string, data any) (string, error) {

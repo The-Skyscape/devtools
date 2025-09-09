@@ -13,7 +13,8 @@ func TestMockRequest(t *testing.T) {
 	
 	AssertEqual(t, "GET", req.Method)
 	AssertEqual(t, "/test", req.URL.Path)
-	AssertNil(t, req.Body)
+	// httptest.NewRequest always creates a body, even for nil
+	AssertNotNil(t, req.Body)
 	
 	// Test with body
 	body := strings.NewReader("test body")
@@ -164,6 +165,7 @@ func TestMockHTTPClient(t *testing.T) {
 		
 		_, err := client.Get("http://example.com/error")
 		AssertError(t, err)
-		AssertEqual(t, expectedErr, err)
+		// The HTTP client wraps the error, so just check it contains our message
+		AssertContains(t, err.Error(), "network error")
 	})
 }

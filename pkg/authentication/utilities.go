@@ -6,8 +6,7 @@ import (
 	"github.com/The-Skyscape/devtools/pkg/application"
 )
 
-type contextKey string
-
+// Use the contextKey type from auth.go
 var (
 	sessionKey = contextKey("session")
 	userKey    = contextKey("user")
