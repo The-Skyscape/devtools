@@ -1,3 +1,4 @@
+// Package application provides validation helpers and error handling for web applications
 package application
 
 import (

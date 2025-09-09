@@ -1,6 +1,7 @@
 package database
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -9,12 +10,19 @@ import (
 	"github.com/google/uuid"
 )
 
+// ErrNotFound is returned when a database query finds no matching records
+var ErrNotFound = errors.New("not found")
+
+// Collection provides type-safe database operations for entities
 type Collection[E Entity] struct {
 	DB   *DynamicDB
 	Ent  E
 	Type reflect.Type
 }
 
+// Manage creates a new Collection for managing entities of type E in the database.
+// It registers the entity type with the database and returns a Collection for CRUD operations.
+// Example: Users := database.Manage(db, new(User))
 func Manage[E Entity](db *DynamicDB, ent E) *Collection[E] {
 	db.Register(ent)
 	t := reflect.TypeOf(ent)
@@ -47,22 +55,27 @@ func (c *Collection[E]) First(query string, args ...any) (E, error) {
 	}
 	if len(results) == 0 {
 		var zero E
-		return zero, fmt.Errorf("no records found")
+		return zero, fmt.Errorf("%w", ErrNotFound)
 	}
 	return results[0], nil
 }
 
+// New creates a new instance of the entity type
 func (c *Collection[E]) New() E {
 	ent := reflect.New(c.Type.Elem()).Interface().(E)
 	ent.GetModel().SetDB(c.DB)
 	return ent
 }
 
+// Get retrieves an entity by its ID.
+// Returns an error if the entity is not found.
 func (c *Collection[E]) Get(id string) (E, error) {
 	ent := c.New()
 	return ent, c.DB.Get(id, ent)
 }
 
+// Insert adds a new entity to the database.
+// It automatically generates an ID and sets CreatedAt/UpdatedAt timestamps.
 func (c *Collection[E]) Insert(ent E) (E, error) {
 	ent.GetModel().SetDB(c.DB)
 	if ent.GetModel().ID == "" {
@@ -73,15 +86,21 @@ func (c *Collection[E]) Insert(ent E) (E, error) {
 	return ent, c.DB.Insert(ent)
 }
 
+// Update modifies an existing entity in the database.
+// It automatically updates the UpdatedAt timestamp.
 func (c *Collection[E]) Update(ent E) error {
 	ent.GetModel().UpdatedAt = time.Now()
 	return c.DB.Update(ent)
 }
 
+// Delete removes an entity from the database
 func (c *Collection[E]) Delete(ent E) error {
 	return c.DB.Delete(ent)
 }
 
+// Search performs a database query and returns matching entities.
+// The query should be a SQL WHERE clause and ORDER BY clause.
+// Example: repos.Search("WHERE UserID = ? ORDER BY Name", userID)
 func (c *Collection[E]) Search(query string, args ...any) ([]E, error) {
 	apps := []E{}
 	return apps, Cursor(c.DB, c.Ent, query, args...).
@@ -95,6 +114,9 @@ func (c *Collection[E]) Search(query string, args ...any) ([]E, error) {
 		})
 }
 
+// Find returns a single entity matching the query.
+// Unlike First, it doesn't automatically add LIMIT 1.
+// Returns ErrIterStop when found (which is handled internally).
 func (c *Collection[E]) Find(query string, args ...any) (E, error) {
 	app := c.New()
 	return app, Cursor(c.DB, c.Ent, query, args...).
