@@ -50,6 +50,11 @@ func (c *BaseController) Params() *Params {
 	return NewParams(c.Request)
 }
 
+// MultipartParams returns a multipart parameter helper for file uploads
+func (c *BaseController) MultipartParams() *Params {
+	return NewMultipartParams(c.Request)
+}
+
 // Pagination returns pagination parameters from the request
 func (c *BaseController) Pagination(defaultPageSize int) *Pagination {
 	return GetPagination(c.Request, defaultPageSize)

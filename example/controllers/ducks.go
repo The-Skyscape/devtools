@@ -38,6 +38,8 @@ func (c *DucksController) AllDucks() ([]*models.Duck, error) {
 
 // spawnDuck is a HandlerFunc that is called when the user submits a duck
 func (c *DucksController) spawnDuck(w http.ResponseWriter, r *http.Request) {
+	c.SetRequest(r)
+	
 	// Creating a instance model of a duck
 	duck := &models.Duck{
 		Name:  r.FormValue("name"),

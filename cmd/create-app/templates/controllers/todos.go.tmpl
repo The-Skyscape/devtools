@@ -73,6 +73,8 @@ func (c *TodosController) TodoStats() map[string]int {
 
 // create adds a new todo
 func (c *TodosController) create(w http.ResponseWriter, r *http.Request) {
+	c.SetRequest(r)
+	
 	user := c.Auth().CurrentUser(r)
 	if user == nil {
 		c.Render(w, r, "error-message.html", errors.New("unauthorized"))
@@ -114,6 +116,8 @@ func (c *TodosController) create(w http.ResponseWriter, r *http.Request) {
 
 // complete marks a todo as completed
 func (c *TodosController) complete(w http.ResponseWriter, r *http.Request) {
+	c.SetRequest(r)
+	
 	user := c.Auth().CurrentUser(r)
 	if user == nil {
 		c.Render(w, r, "error-message.html", errors.New("unauthorized"))
@@ -143,6 +147,8 @@ func (c *TodosController) complete(w http.ResponseWriter, r *http.Request) {
 
 // uncomplete marks a todo as pending
 func (c *TodosController) uncomplete(w http.ResponseWriter, r *http.Request) {
+	c.SetRequest(r)
+	
 	user := c.Auth().CurrentUser(r)
 	if user == nil {
 		c.Render(w, r, "error-message.html", errors.New("unauthorized"))
@@ -172,6 +178,8 @@ func (c *TodosController) uncomplete(w http.ResponseWriter, r *http.Request) {
 
 // delete removes a todo
 func (c *TodosController) delete(w http.ResponseWriter, r *http.Request) {
+	c.SetRequest(r)
+	
 	user := c.Auth().CurrentUser(r)
 	if user == nil {
 		c.Render(w, r, "error-message.html", errors.New("unauthorized"))
