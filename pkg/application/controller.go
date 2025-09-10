@@ -45,6 +45,16 @@ func (base *BaseController) Use(name string) Controller {
 	return ctrl.Handle(base.Request)
 }
 
+// UseWithRequest returns a controller with a specific request set
+// This is useful when you need to use another controller but with a different request
+func (base *BaseController) UseWithRequest(name string, r *http.Request) Controller {
+	ctrl := base.App.Use(name)
+	if ctrl == nil {
+		return nil
+	}
+	return ctrl.Handle(r)
+}
+
 // Params returns a parameter helper for the current request
 func (c *BaseController) Params() *Params {
 	return NewParams(c.Request)
