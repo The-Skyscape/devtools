@@ -1,10 +1,12 @@
 package emailing
 
 import (
-	"cmp"
 	"fmt"
+	"html/template"
+	"strings"
 	"time"
 
+	"github.com/The-Skyscape/devtools/pkg/application"
 	"github.com/The-Skyscape/devtools/pkg/database"
 )
 
@@ -15,25 +17,25 @@ type Collection struct {
 	Metadata *database.Collection[*EmailMetadata]
 
 	// Email sending configuration
-	provider  Provider
-	fromAddr  string
-	fromName  string
-	templates *TemplateEngine
+	provider     Provider
+	templates    *template.Template
+	templateFunc template.FuncMap
+	controllers  map[string]application.Controller // Controllers available to templates
 }
-
-// Option is a functional option for configuring the collection
-type Option func(*Collection) error
 
 // Manage creates a new email collection with the given database and options
 func Manage(db *database.DynamicDB, opts ...Option) *Collection {
 	c := &Collection{
-		db:        db,
-		Emails:    database.Manage(db, new(Email)),
-		Metadata:  database.Manage(db, new(EmailMetadata)),
-		templates: NewTemplateEngine(),
-		fromAddr:  "noreply@example.com",
-		fromName:  "Application",
+		db:           db,
+		Emails:       database.Manage(db, new(Email)),
+		Metadata:     database.Manage(db, new(EmailMetadata)),
+		templates:    template.New(""),
+		templateFunc: defaultEmailFuncs(),
+		controllers:  make(map[string]application.Controller),
 	}
+
+	// Apply template functions
+	c.templates = c.templates.Funcs(c.templateFunc)
 
 	// Apply options
 	for _, opt := range opts {
@@ -55,151 +57,9 @@ func Manage(db *database.DynamicDB, opts ...Option) *Collection {
 	return c
 }
 
-// WithProvider sets the email provider
-func WithProvider(p Provider) Option {
-	return func(c *Collection) error {
-		c.provider = p // nil is OK, means no provider
-		return nil
-	}
-}
-
-// WithFrom sets the default from address
-func WithFrom(addr, name string) Option {
-	return func(c *Collection) error {
-		c.fromAddr = addr
-		c.fromName = name
-		return nil
-	}
-}
-
-// WithTemplates sets the template engine
-func WithTemplates(engine *TemplateEngine) Option {
-	return func(c *Collection) error {
-		if engine != nil {
-			c.templates = engine
-		}
-		return nil
-	}
-}
-
 // IsConfigured returns true if the collection has a provider configured
 func (c *Collection) IsConfigured() bool {
 	return c.provider != nil
-}
-
-// Send sends a simple email message
-func (c *Collection) Send(to, subject, htmlContent, textContent string) error {
-	if c.provider == nil {
-		return fmt.Errorf("email provider not configured")
-	}
-
-	msg := &Message{
-		ToAddr:      to,
-		FromAddr:    c.fromAddr,
-		FromName:    c.fromName,
-		Subject:     subject,
-		HTMLContent: htmlContent,
-		TextContent: textContent,
-	}
-
-	return c.SendMessage(msg)
-}
-
-// SendMessage sends a pre-built message
-func (c *Collection) SendMessage(msg *Message) error {
-	if c.provider == nil {
-		return fmt.Errorf("email provider not configured")
-	}
-
-	// Set defaults if not specified
-	msg.FromAddr = cmp.Or(msg.FromAddr, c.fromAddr)
-	msg.FromName = cmp.Or(msg.FromName, c.fromName)
-
-	return c.provider.Send(msg)
-}
-
-// SendAndTrack sends an email and tracks it in the database
-func (c *Collection) SendAndTrack(to, subject, htmlContent, textContent, emailType string, metadata map[string]string) error {
-	// Create tracking record
-	email := &Email{
-		ToAddr:    to,
-		FromAddr:  c.fromAddr,
-		Subject:   subject,
-		Body:      htmlContent,
-		PlainText: textContent,
-		Type:      emailType,
-		Status:    "pending",
-		Provider:  c.GetProviderName(),
-	}
-
-	// Save to database
-	savedEmail, err := c.Emails.Insert(email)
-	if err != nil {
-		// Log but don't fail - sending is more important than tracking
-		fmt.Printf("Failed to create email tracking record: %v\n", err)
-		savedEmail = nil
-	}
-
-	// Add metadata if provided
-	if savedEmail != nil && metadata != nil {
-		for key, value := range metadata {
-			c.AddEmailMetadata(savedEmail.ID, key, value, "string")
-		}
-	}
-
-	// Send the email
-	err = c.Send(to, subject, htmlContent, textContent)
-
-	// Update tracking record
-	if savedEmail != nil {
-		if err != nil {
-			savedEmail.MarkAsFailed(err.Error())
-		} else {
-			savedEmail.MarkAsSent("")
-		}
-		c.Emails.Update(savedEmail)
-	}
-
-	return err
-}
-
-// SendTemplate sends an email using a template
-func (c *Collection) SendTemplate(templateName, to string, data interface{}) error {
-	if c.templates == nil {
-		return fmt.Errorf("template engine not configured")
-	}
-
-	// Prepare template data
-	td, ok := data.(*TemplateData)
-	if !ok {
-		// Wrap raw data in TemplateData
-		td = NewTemplateData()
-		td.To = to
-		td.From = c.fromAddr
-		td.FromName = c.fromName
-		td.Data["Content"] = data
-	}
-
-	// Ensure recipient is set
-	td.To = cmp.Or(td.To, to)
-
-	// Render the template
-	htmlContent, err := c.templates.Render(templateName, td)
-	if err != nil {
-		return fmt.Errorf("failed to render template: %w", err)
-	}
-
-	// Create and send the message
-	msg := &Message{
-		ToAddr:      td.To,
-		FromAddr:    td.From,
-		FromName:    td.FromName,
-		Subject:     td.Subject,
-		HTMLContent: htmlContent,
-		TextContent: "", // Could generate plain text from HTML
-	}
-
-	return c.SendMessage(msg)
 }
 
 // GetProviderName returns the name of the configured provider
@@ -215,11 +75,6 @@ func (c *Collection) SetProvider(p Provider) {
 	c.provider = p
 }
 
-// SetFrom updates the default from address
-func (c *Collection) SetFrom(email, name string) {
-	c.fromAddr = email
-	c.fromName = name
-}
 
 // GetEmailByMessageID retrieves an email by provider message ID
 func (c *Collection) GetEmailByMessageID(messageID string) (*Email, error) {
@@ -306,4 +161,30 @@ func (c *Collection) GetEmailStats(since time.Time) (map[string]int, error) {
 	stats["total"] = len(allEmails)
 
 	return stats, nil
+}
+
+// defaultEmailFuncs returns the default template functions for emails
+func defaultEmailFuncs() template.FuncMap {
+	return template.FuncMap{
+		// String functions
+		"upper":   strings.ToUpper,
+		"lower":   strings.ToLower,
+		"title":   strings.Title,
+		"trim":    strings.TrimSpace,
+		"replace": strings.ReplaceAll,
+
+		// Utility functions
+		"default": func(def, val any) any {
+			if val == nil || val == "" {
+				return def
+			}
+			return val
+		},
+		"safeHTML": func(s string) template.HTML {
+			return template.HTML(s)
+		},
+		"safeURL": func(s string) template.URL {
+			return template.URL(s)
+		},
+	}
 }

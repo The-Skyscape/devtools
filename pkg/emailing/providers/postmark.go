@@ -29,7 +29,7 @@ func (p *PostmarkProvider) Send(msg *emailing.Message) error {
 	url := "https://api.postmarkapp.com/email"
 
 	// Build Postmark request
-	payload := map[string]interface{}{
+	payload := map[string]any{
 		"From":     fmt.Sprintf("%s <%s>", msg.FromName, msg.FromAddr),
 		"To":       msg.ToAddr,
 		"Subject":  msg.Subject,

@@ -13,9 +13,11 @@ type Email struct {
 	// Email details
 	ToAddr      string    // Recipient email address
 	FromAddr    string    // Sender email address
+	FromName    string    // Sender name
 	Subject     string
 	Body        string    // HTML body
 	PlainText   string    // Plain text version
+	ReplyTo     string    // Reply-to address (optional)
 	
 	// Email metadata
 	Type        string    // welcome, password_reset, notification, etc.
@@ -39,6 +41,13 @@ func (e *Email) Table() string {
 	return "emails"
 }
 
+// Tags returns all tags associated with this email
+func (e *Email) Tags() ([]*EmailTag, error) {
+	// This will be populated by the collection when needed
+	// The collection has access to the Tags repository
+	return nil, nil
+}
+
 // EmailMetadata represents app-specific metadata for an email
 // Applications can use this to link emails to their domain objects
 type EmailMetadata struct {
@@ -52,6 +61,18 @@ type EmailMetadata struct {
 
 func (m *EmailMetadata) Table() string {
 	return "email_metadata"
+}
+
+// EmailTag represents a tag associated with an email
+type EmailTag struct {
+	application.Model
+	
+	EmailID string    // Reference to the Email
+	Tag     string    // Tag value (e.g., "marketing", "transactional", "welcome")
+}
+
+func (t *EmailTag) Table() string {
+	return "email_tags"
 }
 
 // Metadata retrieves all metadata for this email

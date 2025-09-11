@@ -29,8 +29,8 @@ func (p *SendGridProvider) Send(msg *emailing.Message) error {
 	url := "https://api.sendgrid.com/v3/mail/send"
 
 	// Build SendGrid request
-	payload := map[string]interface{}{
-		"personalizations": []map[string]interface{}{
+	payload := map[string]any{
+		"personalizations": []map[string]any{
 			{
 				"to": []map[string]string{
 					{"email": msg.ToAddr},

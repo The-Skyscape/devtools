@@ -29,26 +29,32 @@ func NewResendProvider(apiKey string, client *http.Client) *ResendProvider {
 func (p *ResendProvider) Send(msg *emailing.Message) error {
 	url := "https://api.resend.com/emails"
 
+	// Use provider's configured from address
+	fromStr := p.fromAddr
+	if p.fromName != "" {
+		fromStr = fmt.Sprintf("%s <%s>", p.fromName, p.fromAddr)
+	}
+	
 	// Build Resend request
-	payload := map[string]interface{}{
-		"from":    fmt.Sprintf("%s <%s>", msg.FromName, msg.FromAddr),
-		"to":      msg.ToAddr,
-		"subject": msg.Subject,
+	payload := map[string]any{
+		"from":    fromStr,
+		"to":      email.ToAddr,
+		"subject": email.Subject,
 	}
 
 	// Add HTML content if provided
-	if msg.HTMLContent != "" {
-		payload["html"] = msg.HTMLContent
+	if email.Body != "" {
+		payload["html"] = email.Body
 	}
 
 	// Add text content if provided
-	if msg.TextContent != "" {
-		payload["text"] = msg.TextContent
+	if email.PlainText != "" {
+		payload["text"] = email.PlainText
 	}
 
 	// Add reply-to if provided
-	if msg.ReplyTo != "" {
-		payload["reply_to"] = msg.ReplyTo
+	if email.ReplyTo != "" {
+		payload["reply_to"] = email.ReplyTo
 	}
 
 	// Add tags if provided
@@ -88,9 +94,9 @@ func (p *ResendProvider) SendBatch(messages []*emailing.Message) error {
 	url := "https://api.resend.com/emails/batch"
 
 	// Build batch request
-	batch := make([]map[string]interface{}, 0, len(messages))
+	batch := make([]map[string]any, 0, len(messages))
 	for _, msg := range messages {
-		email := map[string]interface{}{
+		email := map[string]any{
 			"from":    fmt.Sprintf("%s <%s>", msg.FromName, msg.FromAddr),
 			"to":      msg.ToAddr,
 			"subject": msg.Subject,
