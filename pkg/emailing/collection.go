@@ -2,11 +2,13 @@ package emailing
 
 import (
 	"html/template"
+	"io/fs"
 	"strings"
 	"time"
 
 	"github.com/The-Skyscape/devtools/pkg/application"
 	"github.com/The-Skyscape/devtools/pkg/database"
+	"github.com/The-Skyscape/devtools/pkg/security"
 )
 
 // Collection manages email records, metadata, and sending
@@ -14,6 +16,7 @@ type Collection struct {
 	db     *database.DynamicDB
 	Emails *database.Collection[*Email]
 
+	vault        *security.Collection // Vault for getting email provider credentials
 	provider     Provider
 	templates    *template.Template
 	templateFunc template.FuncMap
@@ -58,6 +61,27 @@ func (c *Collection) IsConfigured() bool {
 // SetProvider updates the email provider
 func (c *Collection) SetProvider(p Provider) {
 	c.provider = p
+}
+
+// GetVault returns the vault if configured
+func (c *Collection) GetVault() *security.Collection {
+	return c.vault
+}
+
+// LoadTemplates loads templates from a filesystem
+func (c *Collection) LoadTemplates(fsys fs.FS, patterns ...string) {
+	if len(patterns) == 0 {
+		patterns = []string{"emails/*.html", "emails/**/*.html"}
+	}
+	
+	for _, pattern := range patterns {
+		tmpl, err := c.templates.Funcs(c.templateFunc).ParseFS(fsys, pattern)
+		if err != nil {
+			// Log but don't fail if pattern doesn't match
+			continue
+		}
+		c.templates = tmpl
+	}
 }
 
 // GetEmailByMessageID retrieves an email by provider message ID

@@ -5,6 +5,7 @@ import (
 	"io/fs"
 
 	"github.com/The-Skyscape/devtools/pkg/application"
+	"github.com/The-Skyscape/devtools/pkg/security"
 )
 
 // Option is a functional option for configuring the collection
@@ -12,7 +13,15 @@ type Option func(*Collection)
 
 // Collection configuration options
 
-// WithProvider sets the email provider
+// WithVault sets the security vault for the collection
+func WithVault(vault *security.Collection) Option {
+	return func(c *Collection) {
+		c.vault = vault
+		// Provider should be set separately with WithProvider
+	}
+}
+
+// WithProvider sets the email provider (overrides vault configuration)
 func WithProvider(p Provider) Option {
 	return func(c *Collection) {
 		c.provider = p // nil is OK, means no provider
