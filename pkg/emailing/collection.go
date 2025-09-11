@@ -1,7 +1,6 @@
 package emailing
 
 import (
-	"fmt"
 	"html/template"
 	"strings"
 	"time"
@@ -12,11 +11,9 @@ import (
 
 // Collection manages email records, metadata, and sending
 type Collection struct {
-	db       *database.DynamicDB
-	Emails   *database.Collection[*Email]
-	Metadata *database.Collection[*EmailMetadata]
+	db     *database.DynamicDB
+	Emails *database.Collection[*Email]
 
-	// Email sending configuration
 	provider     Provider
 	templates    *template.Template
 	templateFunc template.FuncMap
@@ -28,7 +25,6 @@ func Manage(db *database.DynamicDB, opts ...Option) *Collection {
 	c := &Collection{
 		db:           db,
 		Emails:       database.Manage(db, new(Email)),
-		Metadata:     database.Manage(db, new(EmailMetadata)),
 		templates:    template.New(""),
 		templateFunc: defaultEmailFuncs(),
 		controllers:  make(map[string]application.Controller),
@@ -39,10 +35,7 @@ func Manage(db *database.DynamicDB, opts ...Option) *Collection {
 
 	// Apply options
 	for _, opt := range opts {
-		if err := opt(c); err != nil {
-			// Log error but continue - collection can work without provider
-			fmt.Printf("Warning: Failed to apply option: %v\n", err)
-		}
+		opt(c)
 	}
 
 	// Create indexes for better performance
@@ -50,8 +43,8 @@ func Manage(db *database.DynamicDB, opts ...Option) *Collection {
 		CREATE INDEX IF NOT EXISTS idx_emails_status ON emails (Status);
 		CREATE INDEX IF NOT EXISTS idx_emails_type ON emails (Type);
 		CREATE INDEX IF NOT EXISTS idx_emails_messageid ON emails (MessageID);
-		CREATE INDEX IF NOT EXISTS idx_email_metadata_emailid ON email_metadata (EmailID);
-		CREATE INDEX IF NOT EXISTS idx_email_metadata_key ON email_metadata (Key);
+		CREATE INDEX IF NOT EXISTS idx_emails_to ON emails (ToAddr);
+		CREATE INDEX IF NOT EXISTS idx_emails_created ON emails (CreatedAt);
 	`).Exec()
 
 	return c
@@ -62,66 +55,18 @@ func (c *Collection) IsConfigured() bool {
 	return c.provider != nil
 }
 
-// GetProviderName returns the name of the configured provider
-func (c *Collection) GetProviderName() string {
-	if c.provider == nil {
-		return ""
-	}
-	return c.provider.GetName()
-}
-
 // SetProvider updates the email provider
 func (c *Collection) SetProvider(p Provider) {
 	c.provider = p
 }
 
-
 // GetEmailByMessageID retrieves an email by provider message ID
 func (c *Collection) GetEmailByMessageID(messageID string) (*Email, error) {
-	emails, err := c.Emails.Search("WHERE MessageID = ?", messageID)
+	email, err := c.Emails.Find("WHERE MessageID = ?", messageID)
 	if err != nil {
 		return nil, err
 	}
-	if len(emails) == 0 {
-		return nil, nil
-	}
-	return emails[0], nil
-}
-
-// GetEmailMetadata retrieves all metadata for an email
-func (c *Collection) GetEmailMetadata(emailID string) ([]*EmailMetadata, error) {
-	return c.Metadata.Search("WHERE EmailID = ?", emailID)
-}
-
-// AddEmailMetadata adds metadata to an email
-func (c *Collection) AddEmailMetadata(emailID, key, value, valueType string) (*EmailMetadata, error) {
-	metadata := &EmailMetadata{
-		EmailID:   emailID,
-		Key:       key,
-		Value:     value,
-		ValueType: valueType,
-	}
-	return c.Metadata.Insert(metadata)
-}
-
-// GetEmailsByMetadata retrieves emails with specific metadata
-func (c *Collection) GetEmailsByMetadata(key, value string) ([]*Email, error) {
-	// First get metadata entries
-	metadataEntries, err := c.Metadata.Search("WHERE Key = ? AND Value = ?", key, value)
-	if err != nil {
-		return nil, err
-	}
-
-	// Collect email IDs and fetch them
-	var emails []*Email
-	for _, m := range metadataEntries {
-		email, err := c.Emails.Get(m.EmailID)
-		if err == nil {
-			emails = append(emails, email)
-		}
-	}
-
-	return emails, nil
+	return email, nil
 }
 
 // GetRecentEmails retrieves recent emails
@@ -146,19 +91,11 @@ func (c *Collection) GetEmailStats(since time.Time) (map[string]int, error) {
 	// Get counts by status
 	statuses := []string{"pending", "sent", "delivered", "opened", "clicked", "bounced", "failed"}
 	for _, status := range statuses {
-		emails, err := c.Emails.Search("WHERE Status = ? AND CreatedAt >= ?", status, since)
-		if err != nil {
-			return nil, err
-		}
-		stats[status] = len(emails)
+		stats[status] = c.Emails.Count("WHERE Status = ? AND CreatedAt >= ?", status, since)
 	}
 
 	// Total emails
-	allEmails, err := c.Emails.Search("WHERE CreatedAt >= ?", since)
-	if err != nil {
-		return nil, err
-	}
-	stats["total"] = len(allEmails)
+	stats["total"] = c.Emails.Count("WHERE CreatedAt >= ?", since)
 
 	return stats, nil
 }

@@ -13,20 +13,20 @@ func (c *Collection) Send(to string, opts ...SendOption) error {
 		ToAddr:   to,
 		Type:     "notification",
 		Status:   "pending",
-		Provider: c.GetProviderName(),
+		Provider: c.provider.Name(),
 	}
-	
+
 	// Apply options
 	for _, opt := range opts {
 		opt(email)
 	}
-	
+
 	// Apply defaults
 	email.Subject = cmp.Or(email.Subject, "Notification")
-	
+
 	// Save to database (don't fail if tracking fails)
 	savedEmail, _ := c.Emails.Insert(email)
-	
+
 	// Send the email if provider configured
 	var err error
 	if c.provider != nil {
@@ -34,7 +34,7 @@ func (c *Collection) Send(to string, opts ...SendOption) error {
 	} else {
 		err = fmt.Errorf("email provider not configured")
 	}
-	
+
 	// Update tracking record
 	if savedEmail != nil {
 		if err != nil {
@@ -44,7 +44,7 @@ func (c *Collection) Send(to string, opts ...SendOption) error {
 		}
 		c.Emails.Update(savedEmail)
 	}
-	
+
 	return err
 }
 
@@ -73,22 +73,21 @@ func (c *Collection) SendWithTemplate(to, templateName string, data any) error {
 	if c.templates == nil {
 		return fmt.Errorf("no templates configured")
 	}
-	
+
 	var buf bytes.Buffer
 	err := c.templates.ExecuteTemplate(&buf, templateName, data)
 	if err != nil {
 		return fmt.Errorf("failed to render template %s: %w", templateName, err)
 	}
-	
+
 	// Extract subject from data if available
 	subject := extractSubject(data)
-	
+
 	return c.Send(to,
 		WithSubject(subject),
 		WithHTML(buf.String()),
 	)
 }
-
 
 // Helper functions
 

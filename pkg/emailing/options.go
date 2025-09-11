@@ -8,49 +8,46 @@ import (
 )
 
 // Option is a functional option for configuring the collection
-type Option func(*Collection) error
+type Option func(*Collection)
 
 // Collection configuration options
 
 // WithProvider sets the email provider
 func WithProvider(p Provider) Option {
-	return func(c *Collection) error {
+	return func(c *Collection) {
 		c.provider = p // nil is OK, means no provider
-		return nil
 	}
 }
 
 // WithTemplates sets the templates directly
 func WithTemplates(tmpl *template.Template) Option {
-	return func(c *Collection) error {
+	return func(c *Collection) {
 		if tmpl != nil {
 			c.templates = tmpl.Funcs(c.templateFunc)
 		}
-		return nil
 	}
 }
 
 // WithFunc adds a template function to the email templates
 func WithFunc(name string, fn any) Option {
-	return func(c *Collection) error {
+	return func(c *Collection) {
 		c.templateFunc[name] = fn
 		c.templates = c.templates.Funcs(c.templateFunc)
-		return nil
 	}
 }
 
 // WithController adds a controller to make it available in email templates
 func WithController(name string, controller application.Controller) Option {
-	return func(c *Collection) error {
+	return func(c *Collection) {
 		c.controllers[name] = controller
 		// Also add to template functions for direct access
-		return WithFunc(name, func() application.Controller { return controller })(c)
+		WithFunc(name, func() application.Controller { return controller })(c)
 	}
 }
 
 // WithTemplateFS loads templates from a filesystem
 func WithTemplateFS(fsys fs.FS, patterns ...string) Option {
-	return func(c *Collection) error {
+	return func(c *Collection) {
 		// If no patterns specified, use common email patterns
 		if len(patterns) == 0 {
 			patterns = []string{"emails/*.html", "emails/**/*.html"}
@@ -64,7 +61,6 @@ func WithTemplateFS(fsys fs.FS, patterns ...string) Option {
 			}
 			c.templates = tmpl
 		}
-		return nil
 	}
 }
 
@@ -98,5 +94,12 @@ func WithPlainText(text string) SendOption {
 func WithType(emailType string) SendOption {
 	return func(e *Email) {
 		e.Type = emailType
+	}
+}
+
+// WithReplyTo sets the reply-to address
+func WithReplyTo(replyTo string) SendOption {
+	return func(e *Email) {
+		e.ReplyTo = replyTo
 	}
 }
