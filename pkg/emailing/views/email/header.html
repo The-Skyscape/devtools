@@ -1,0 +1,9 @@
+{{define "email-header"}}
+<div class="email-header">
+    {{if .AppLogo}}
+    <img src="{{.AppLogo}}" alt="{{.AppName}}" class="email-logo">
+    {{else if .AppName}}
+    <h2 style="margin: 0; font-size: 20px; font-weight: 600; color: #1f2937;">{{.AppName}}</h2>
+    {{end}}
+</div>
+{{end}}

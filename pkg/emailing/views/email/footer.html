@@ -1,0 +1,16 @@
+{{define "email-footer"}}
+<div class="email-footer">
+    {{if .Footer}}
+    {{.Footer}}
+    {{else}}
+    <p style="margin: 0 0 10px 0;">
+        © {{.Year}} {{.AppName | default "Application"}}. All rights reserved.
+    </p>
+    {{if .AppURL}}
+    <p style="margin: 0;">
+        <a href="{{.AppURL}}">Visit our website</a>
+    </p>
+    {{end}}
+    {{end}}
+</div>
+{{end}}
