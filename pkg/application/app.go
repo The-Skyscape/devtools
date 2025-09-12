@@ -1,5 +1,3 @@
-// Package application provides a web application framework with MVC pattern support,
-// template rendering, middleware chains, and HTMX integration.
 package application
 
 import (
@@ -16,9 +14,24 @@ import (
 	"github.com/The-Skyscape/devtools/pkg/application/builtins"
 )
 
-// App represents a web application with controllers, views, and middleware.
-// It provides a complete MVC framework for building web applications with
-// server-side rendering and HTMX support.
+// App orchestrates the MVC framework, managing controllers, views, and middleware.
+//
+// Lifecycle:
+//  1. New() or Serve() creates the App instance
+//  2. Controllers register via WithController() options during initialization
+//  3. Start() compiles templates once and begins serving HTTP requests
+//  4. Each incoming request receives an isolated controller instance
+//
+// Thread Safety:
+//   - App initialization occurs once at startup (single-threaded context)
+//   - Templates are compiled once and become read-only
+//   - Request handling uses value receivers for complete isolation
+//   - No shared mutable state exists between requests
+//
+// Memory Model:
+//   - Controllers are lightweight (16-32 bytes) and copied per request
+//   - Templates are parsed once and cached for the application lifetime
+//   - Middleware chains are built once during initialization
 type App struct {
 	controllers map[string]Handler
 	viewEngine  *template.Template
@@ -28,23 +41,35 @@ type App struct {
 	middlewares []Middleware
 }
 
-// Middleware defines the interface for HTTP middleware.
-// Middleware can intercept and modify HTTP requests and responses.
+// Middleware defines the interface for HTTP request/response interceptors.
+// Middleware implementations can modify requests, responses, or short-circuit
+// the request chain. Common uses include authentication, logging, and compression.
 type Middleware interface {
 	Handle(http.Handler) http.Handler
 }
 
-// AccessCheck is a function that determines if a request should be allowed.
-// It returns true if access is granted, false otherwise.
-// When returning false, the function should handle sending the appropriate
-// response (e.g., redirect to login, show error).
+// AccessCheck determines whether a request should be allowed to proceed.
+//
+// Return Values:
+//   - true: Access granted, continue processing
+//   - false: Access denied, checker must send response (redirect, error, etc.)
+//
+// Common Patterns:
+//   - Authentication: Redirect to login if not authenticated
+//   - Authorization: Return 403 Forbidden if lacks permissions
+//   - Rate Limiting: Return 429 Too Many Requests if over limit
+//
+// The AccessCheck is responsible for sending the response when denying access.
 type AccessCheck func(*App, http.ResponseWriter, *http.Request) bool
 
-// Serve is a convenience function that creates and starts a new application
-// with the provided views and options. It logs startup information and
-// terminates the program if the server fails to start.
+// Serve provides the simplest way to start a web application.
+// It creates an App, configures it with the provided options, and starts
+// the HTTP server. If the server fails to start, it calls log.Fatal().
 //
-// This is the simplest way to start an application:
+// This is appropriate for main() functions where failure should terminate
+// the program. For library usage or testing, use New() and Start() directly.
+//
+// Example:
 //
 //	//go:embed all:views
 //	var views embed.FS
@@ -65,12 +90,21 @@ func Serve(views fs.FS, opts ...Option) {
 	}
 }
 
-// New creates a new App with the given views and options.
-// The views parameter should be an embedded filesystem containing templates.
-// Options can be used to configure controllers, middleware, themes, etc.
+// New creates an App instance configured with the provided views and options.
 //
-// If views contains a "views/public" directory, it will be automatically
-// served as static files at the "/public/" URL path.
+// Views:
+//   - Should be an embedded filesystem (//go:embed all:views)
+//   - Templates must be in the "views" directory
+//   - Public assets in "views/public" are auto-served at "/public/"
+//
+// Options are applied in order and may include:
+//   - WithController(): Register controllers for template access
+//   - WithMiddleware(): Add HTTP middleware to the chain
+//   - WithDaisyTheme(): Set the DaisyUI theme
+//   - WithHostPrefix(): Configure URL prefix for reverse proxies
+//
+// Design Decision: Options that fail call log.Fatal() because misconfiguration
+// should prevent startup rather than cause runtime errors.
 func New(views fs.FS, opts ...Option) *App {
 	app := App{
 		controllers: map[string]Handler{},
@@ -99,14 +133,19 @@ func New(views fs.FS, opts ...Option) *App {
 	return &app
 }
 
-// Server prepares the application for serving and returns the address and handler.
-// This method:
-//   - Prepares all views and templates
-//   - Builds the middleware chain
-//   - Returns the configured address and HTTP handler
+// Server prepares the application and returns the address and HTTP handler.
 //
-// The returned handler can be used with any HTTP server implementation.
-// This is useful for testing or when you need custom server configuration.
+// Initialization Steps:
+//  1. Calls prepareViews() to compile templates (happens once)
+//  2. Builds middleware chain in reverse order (innermost first)
+//  3. Returns address and composed handler
+//
+// This method is useful for:
+//   - Testing with httptest.NewServer
+//   - Custom server configurations
+//   - Embedding in larger applications
+//
+// Performance Note: Template compilation happens here, not per request.
 func (app *App) Server() (string, http.Handler) {
 	log.Println("Preparing Application...")
 
@@ -122,15 +161,18 @@ func (app *App) Server() (string, http.Handler) {
 	return addr, handler
 }
 
-// Start runs the application HTTP server on the configured port.
-// It also starts an HTTPS server if SSL certificates are available.
+// Start begins serving HTTP requests and optionally HTTPS if certificates exist.
 //
-// SSL certificates are configured via environment variables:
-//   - SKYSCAPE_SSL_FULLCHAIN: Path to the full certificate chain (default: /root/fullchain.pem)
-//   - SKYSCAPE_SSL_PRIVKEY: Path to the private key (default: /root/privkey.pem)
+// Server Configuration:
+//   - HTTP: Listens on PORT env var (default: 5000)
+//   - HTTPS: Listens on 443 if certificates are found
 //
-// The HTTP server runs on the PORT environment variable (default: 5000).
-// The HTTPS server always runs on port 443 if certificates are found.
+// SSL Certificate Discovery:
+//   - SKYSCAPE_SSL_FULLCHAIN: Certificate chain path (default: /root/fullchain.pem)
+//   - SKYSCAPE_SSL_PRIVKEY: Private key path (default: /root/privkey.pem)
+//
+// The HTTPS server runs in a background goroutine if certificates exist.
+// This allows both HTTP and HTTPS to be served simultaneously.
 func (app *App) Start() error {
 	addr, handler := app.Server()
 
@@ -158,15 +200,23 @@ func (app *App) Start() error {
 	return http.ListenAndServe(addr, handler)
 }
 
-// Use returns the controller registered with the given name.
-// Returns nil if no controller is found with that name.
+// Use returns a registered controller by name, or nil if not found.
 //
-// This is primarily used by controllers to access other controllers:
+// Why String-Based Lookup:
+//   - Allows registration of user-defined controller types
+//   - Enables dynamic controller discovery in templates
+//   - Avoids complex interface definitions
 //
-//	func (c *MyController) Handle(r *http.Request) Controller {
-//		auth := c.App.Use("auth").(*AuthController)
-//		// ...
-//	}
+// Common Usage:
+//
+//	// In controllers - accessing other controllers
+//	auth := c.App.Use("auth").(*AuthController)
+//
+//	// In templates - safe access with nil check
+//	{{if auth}}{{auth.CurrentUser}}{{end}}
+//
+// Design Note: String-based DI trades compile-time safety for flexibility.
+// This is intentional to support user-defined types without registration.
 func (app App) Use(name string) Handler {
 	return app.controllers[name]
 }
@@ -177,15 +227,28 @@ func (app *App) SetTheme(theme string) {
 	app.theme = theme
 }
 
-// Render executes a template with the given data and writes it to the writer.
-// It automatically injects runtime functions like:
-//   - req: Returns the current *http.Request
-//   - host: Returns the application's host prefix
-//   - path_eq: Checks if the current path matches the given segments
+// Render executes the named template with data and writes to the writer.
+//
+// Template Resolution:
+//   - Templates are identified by filename only (no paths)
+//   - "user-profile.html" not "views/users/profile.html"
+//   - Templates must be unique across all view directories
+//
+// Injected Functions:
+//   - req: Current *http.Request
+//   - host: Application host prefix
+//   - path_eq: Path comparison helper
+//   - theme: Current DaisyUI theme
 //   - All registered controllers by name
 //
-// If the template is not found, it returns a 404 error for HTTP responses
-// or exits the program for non-HTTP contexts.
+// HTMX Awareness:
+//   - Automatically detects HX-Request header
+//   - Can return partial HTML for HTMX requests
+//   - Full page HTML for standard requests
+//
+// Error Handling:
+//   - Missing template returns 404 for HTTP writers
+//   - Calls log.Fatal for non-HTTP contexts (startup errors)
 func (app *App) Render(w io.Writer, r *http.Request, page string, data any) {
 	// Create a copy of built-in functions to avoid race conditions
 	funcs := make(template.FuncMap)
@@ -224,14 +287,20 @@ func (app *App) Render(w io.Writer, r *http.Request, page string, data any) {
 	}
 }
 
-// Protect wraps an http.Handler with access control.
-// If accessCheck is nil, the handler is called directly.
-// If accessCheck returns false, it should handle the response itself
-// (e.g., redirect to login) and the handler will not be called.
+// Protect wraps an http.Handler with access control middleware.
+//
+// Access Control Flow:
+//  1. If accessCheck is nil, handler executes immediately
+//  2. accessCheck evaluates the request
+//  3. If false, accessCheck must send response (redirect, error, etc.)
+//  4. If true, handler executes normally
 //
 // Example:
 //
 //	http.Handle("/admin", app.Protect(adminHandler, auth.RequireAdmin))
+//
+// Design Note: The AccessCheck is responsible for the response when denying.
+// This allows flexible responses: redirects, error pages, JSON errors, etc.
 func (app *App) Protect(h http.Handler, accessCheck AccessCheck) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if accessCheck == nil {
@@ -248,8 +317,8 @@ func (app *App) Protect(h http.Handler, accessCheck AccessCheck) http.HandlerFun
 	}
 }
 
-// ProtectFunc is a convenience wrapper for Protect that accepts an http.HandlerFunc.
-// It provides the same access control functionality as Protect.
+// ProtectFunc wraps an http.HandlerFunc with access control.
+// This is a convenience method equivalent to Protect() for function handlers.
 //
 // Example:
 //

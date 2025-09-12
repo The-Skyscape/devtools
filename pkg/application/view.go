@@ -13,23 +13,44 @@ import (
 	"github.com/The-Skyscape/devtools/pkg/charting"
 )
 
+// appViews contains embedded framework views (error pages, defaults).
+// These are always available as fallbacks if user templates are missing.
 //go:embed all:views
 var appViews embed.FS
 
+// View represents a renderable template with optional access control.
+// Views are created via app.Serve() and handle both rendering and authorization.
 type View struct {
 	app         *App
 	name        string
 	accessCheck AccessCheck
 }
 
+// Serve creates a View that renders the named template with access control.
+//
+// Example:
+//
+//	http.Handle("GET /admin", app.Serve("admin.html", auth.RequireAdmin))
+//	http.Handle("GET /public", app.Serve("public.html", nil))  // No access check
 func (app *App) Serve(name string, accessCheck AccessCheck) *View {
 	return &View{app: app, name: name, accessCheck: accessCheck}
 }
 
+// Render executes the view's template with the provided data.
+// This bypasses access control - use ServeHTTP for protected views.
 func (v *View) Render(w http.ResponseWriter, r *http.Request, data any) {
 	v.app.Render(w, r, v.name, data)
 }
 
+// ServeHTTP implements http.Handler, enforcing access control before rendering.
+//
+// Access Control Flow:
+//  1. If no accessCheck, renders immediately
+//  2. Calls accessCheck(app, w, r)
+//  3. If false, accessCheck has sent response (redirect, error)
+//  4. If true, renders the template
+//
+// This allows Views to be used directly as HTTP handlers.
 func (v *View) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if v.accessCheck == nil {
 		v.app.Render(w, r, v.name, nil)
@@ -44,6 +65,17 @@ func (v *View) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	v.app.Render(w, r, v.name, nil)
 }
 
+// prepareViews compiles templates with functions and controllers.
+// Called once during app.Start() to prepare all templates.
+//
+// Template Compilation:
+//  1. Loads built-in template functions
+//  2. Adds runtime functions (req, host, path, theme)
+//  3. Registers controllers as template functions
+//  4. Parses all template files from embedded filesystems
+//
+// Performance Note: This happens once at startup, not per request.
+// Templates are compiled and cached for the application lifetime.
 func (app *App) prepareViews() {
 	// Get all built-in functions
 	builtinFuncs := builtins.FuncMap

@@ -9,34 +9,98 @@ import (
 	"strings"
 )
 
-// Common sentinel errors for consistent error handling
+// Sentinel errors provide consistent error handling across the application.
+// These errors can be checked with errors.Is() for type-safe comparisons.
 var (
-	ErrNotFound     = errors.New("not found")
+	// ErrNotFound indicates the requested resource doesn't exist.
+	// Templates: error-404.html
+	ErrNotFound = errors.New("not found")
+	
+	// ErrUnauthorized indicates missing or invalid authentication.
+	// Templates: error-401.html
 	ErrUnauthorized = errors.New("unauthorized")
-	ErrForbidden    = errors.New("forbidden")
-	ErrValidation   = errors.New("validation failed")
-	ErrInternal     = errors.New("internal server error")
+	
+	// ErrForbidden indicates the user lacks permission for the resource.
+	// Templates: error-403.html
+	ErrForbidden = errors.New("forbidden")
+	
+	// ErrValidation indicates input validation failed.
+	// Templates: validation-errors.html
+	ErrValidation = errors.New("validation failed")
+	
+	// ErrInternal indicates an unexpected server error.
+	// Templates: error-message.html
+	ErrInternal = errors.New("internal server error")
 )
 
+// Handler defines the interface for request handlers in the MVC framework.
+// Controllers must implement this interface to be registered with the application.
 type Handler interface {
+	// Setup is called once during application initialization.
+	// Controllers should register routes and initialize resources here.
 	Setup(*App)
+	
+	// Handle creates a request-scoped instance of the controller.
+	// CRITICAL: Must use VALUE receiver to ensure request isolation.
+	// The returned Handler has the request set and can access it.
 	Handle(*http.Request) Handler
 }
 
+// Controller provides base functionality for all application controllers.
+//
+// Request Isolation Pattern:
+//   Each request gets its own controller copy through value receivers.
+//   This eliminates shared state and prevents data races.
+//
+// Embedding Pattern:
+//   Controllers should embed this type to inherit base functionality:
+//
+//   type MyController struct {
+//       application.Controller
+//   }
+//
+// Template Access:
+//   Public methods (capitalized) are accessible in templates.
+//   Private methods (lowercase) serve as HTTP handlers.
 type Controller struct {
 	*App
 	*http.Request
 }
 
+// Setup initializes the controller with the application instance.
+// Controllers that override Setup must call this parent method:
+//
+//	func (c *MyController) Setup(app *application.App) {
+//	    c.Controller.Setup(app)  // Required: call parent
+//	    // Register routes here
+//	}
 func (base *Controller) Setup(app *App) {
 	base.App = app
 }
 
-// SetRequest sets the current request on the controller
+// SetRequest sets the current request on the controller.
+// This is typically called in HTTP handlers to provide request context:
+//
+//	func (c *MyController) handler(w http.ResponseWriter, r *http.Request) {
+//	    c.SetRequest(r)  // Set request for helper methods
+//	    // Handler logic here
+//	}
 func (base *Controller) SetRequest(r *http.Request) {
 	base.Request = r
 }
 
+// Use returns another controller configured for the current request.
+// This enables controller composition and delegation.
+//
+// Example:
+//
+//	auth := c.Use("auth").(*AuthController)
+//	if !auth.IsLoggedIn() {
+//	    c.Redirect(w, r, "/login")
+//	    return
+//	}
+//
+// Returns nil if the controller is not registered.
 func (base *Controller) Use(name string) Handler {
 	ctrl := base.App.Use(name)
 	if ctrl == nil {
@@ -45,8 +109,14 @@ func (base *Controller) Use(name string) Handler {
 	return ctrl.Handle(base.Request)
 }
 
-// UseWithRequest returns a controller with a specific request set
-// This is useful when you need to use another controller but with a different request
+// UseWithRequest returns a controller configured with a specific request.
+// This is useful for delegation with modified request contexts.
+//
+// Example:
+//
+//	// Create a modified request with additional context
+//	modifiedReq := r.WithContext(newContext)
+//	other := c.UseWithRequest("other", modifiedReq)
 func (base *Controller) UseWithRequest(name string, r *http.Request) Handler {
 	ctrl := base.App.Use(name)
 	if ctrl == nil {
@@ -55,37 +125,64 @@ func (base *Controller) UseWithRequest(name string, r *http.Request) Handler {
 	return ctrl.Handle(r)
 }
 
-// Params returns a parameter helper for the current request
+// Params returns a parameter helper for extracting request values.
+// It provides type-safe access to form values, query parameters, and path values.
 func (c *Controller) Params() *Params {
 	return NewParams(c.Request)
 }
 
-// MultipartParams returns a multipart parameter helper for file uploads
+// MultipartParams returns a parameter helper for multipart forms.
+// Use this for handling file uploads and mixed form data.
 func (c *Controller) MultipartParams() *Params {
 	return NewMultipartParams(c.Request)
 }
 
-// Pagination returns pagination parameters from the request
+// Pagination extracts pagination parameters from the request.
+// Common query parameters: ?page=2&size=20
 func (c *Controller) Pagination(defaultPageSize int) *Pagination {
 	return GetPagination(c.Request, defaultPageSize)
 }
 
-// Sort returns sort parameters from the request
+// Sort extracts sorting parameters from the request.
+// Common query parameters: ?sort=name&order=asc
 func (c *Controller) Sort(defaultField string) *Sort {
 	return GetSort(c.Request, defaultField)
 }
 
-// Validator returns a new validator for building validation errors
+// Validator creates a new validator for input validation.
+// Build validation errors incrementally and check with Result().
+//
+// Example:
+//
+//	v := c.Validator()
+//	v.CheckRequired("name", r.FormValue("name"))
+//	v.CheckEmail("email", r.FormValue("email"))
+//	if err := v.Result(); err != nil {
+//	    c.RenderError(w, r, err)
+//	    return
+//	}
 func (c *Controller) Validator() *Validator {
 	return NewValidator()
 }
 
-// IsHTMX checks if the request is from HTMX
+// IsHTMX checks if the request originates from HTMX.
+// HTMX sets the "HX-Request: true" header on all requests.
+// Use this to return partial HTML for HTMX vs full pages for direct navigation.
 func (c *Controller) IsHTMX(r *http.Request) bool {
 	return r.Header.Get("HX-Request") == "true"
 }
 
-// Refresh triggers a page refresh (HTMX-aware)
+// Refresh triggers a full page refresh.
+//
+// HTMX Behavior:
+//   - Sets "HX-Refresh: true" header
+//   - Returns 204 No Content
+//   - HTMX reloads the entire page
+//
+// Standard Behavior:
+//   - Redirects to current URL (POST-Redirect-GET pattern)
+//
+// Use this after successful form submissions to refresh the page state.
 func (c *Controller) Refresh(w http.ResponseWriter, r *http.Request) {
 	if c.IsHTMX(r) {
 		w.Header().Set("HX-Refresh", "true")
@@ -96,7 +193,17 @@ func (c *Controller) Refresh(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, r.URL.String(), http.StatusSeeOther)
 }
 
-// Redirect sends a redirect response (HTMX-aware)
+// Redirect navigates to a different path.
+//
+// HTMX Behavior:
+//   - Sets "HX-Location" header with target path
+//   - Returns 204 No Content
+//   - HTMX performs client-side navigation
+//
+// Standard Behavior:
+//   - Returns 303 See Other redirect
+//
+// IMPORTANT: Always use this instead of http.Redirect for HTMX compatibility.
 func (c *Controller) Redirect(w http.ResponseWriter, r *http.Request, path string) {
 	if c.IsHTMX(r) {
 		// Use HX-Location for client-side redirect
@@ -107,15 +214,21 @@ func (c *Controller) Redirect(w http.ResponseWriter, r *http.Request, path strin
 	http.Redirect(w, r, path, http.StatusSeeOther)
 }
 
-// RenderError renders an error using the appropriate template.
-// It automatically selects the right template based on the error type:
-//   - ValidationError -> "validation-errors.html"
-//   - ErrNotFound -> "error-404.html"
-//   - ErrForbidden -> "error-403.html"
-//   - ErrUnauthorized -> "error-401.html"
-//   - Others -> "error-message.html"
+// RenderError renders an error using the appropriate error template.
 //
-// IMPORTANT: Returns 200 OK for HTMX compatibility (needs to swap content)
+// Template Selection:
+//   - ValidationError → "validation-errors.html"
+//   - ErrNotFound → "error-404.html"
+//   - ErrForbidden → "error-403.html"
+//   - ErrUnauthorized → "error-401.html"
+//   - Others → "error-message.html"
+//
+// CRITICAL: Returns 200 OK status, not error codes.
+// Why: HTMX requires 200 OK to swap error content into the DOM.
+// This is intentional design, not a bug.
+//
+// For HTMX forms, target error containers:
+//   <form hx-post="/submit" hx-target=".error-message">
 func (c *Controller) RenderError(w http.ResponseWriter, r *http.Request, err error) {
 	// Select template based on error type
 	template := "error-message.html"
@@ -136,13 +249,32 @@ func (c *Controller) RenderError(w http.ResponseWriter, r *http.Request, err err
 	c.Render(w, r, template, err)
 }
 
+// RenderString renders a template to a string instead of HTTP response.
+// Useful for generating HTML for emails, reports, or embedded content.
+//
+// Example:
+//
+//	html, err := c.RenderString("email-template.html", data)
+//	// Send html via email service
 func (c *Controller) RenderString(templateName string, data any) (string, error) {
-	// Render a template to a string instead of writing to ResponseWriter
 	var buf bytes.Buffer
 	c.App.Render(&buf, c.Request, templateName, data)
 	return buf.String(), nil
 }
 
+// EventStream establishes a Server-Sent Events connection.
+// Returns a function to send events to the client.
+//
+// Example:
+//
+//	send, err := c.EventStream(w, r)
+//	if err != nil {
+//	    return
+//	}
+//	for i := 0; i < 10; i++ {
+//	    send("update", map[string]int{"progress": i * 10})
+//	    time.Sleep(time.Second)
+//	}
 func (c *Controller) EventStream(w http.ResponseWriter, r *http.Request) (func(string, any), error) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")

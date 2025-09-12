@@ -12,15 +12,39 @@ import (
 	"{{.Name}}/models"
 )
 
+// views contains all HTML templates for the application.
+// The //go:embed directive includes all files in the views directory
+// at compile time, making deployment a single binary with no external dependencies.
 //go:embed views
 var views embed.FS
 
 func main() {
-	// Start application
+	// Initialize and start the application.
+	// The framework will:
+	//  1. Compile templates once at startup (not per request for performance)
+	//  2. Set up middleware chains for security, logging, and compression
+	//  3. Register controllers for template access (e.g., {{auth.CurrentUser}})
+	//  4. Start HTTP server on PORT env var (default: 5000)
+	//  5. Start HTTPS server on 443 if SSL certificates are found
 	application.Serve(views,
+		// Register authentication controller with "auth" namespace.
+		// This makes auth methods available in templates: {{auth.CurrentUser}}
+		// The controller handles login, logout, and session management.
 		application.WithController("auth", models.Auth.Controller()),
+		
+		// Register application-specific controllers.
+		// Factory functions return (name, controller) pairs.
+		// The name becomes the template namespace (e.g., "home" → {{home.Method}})
 		application.WithController(controllers.Home()),
 		application.WithController(controllers.Todos()),
+		
+		// Configure UI theme using DaisyUI themes.
+		// Available themes: light, dark, cupcake, corporate, retro, cyberpunk, etc.
+		// See: https://daisyui.com/docs/themes/
 		application.WithDaisyTheme(cmp.Or(os.Getenv("THEME"), "corporate")),
+		
+		// Additional options available:
+		// application.WithMiddleware(customMiddleware)  // Add custom middleware
+		// application.WithHostPrefix("/app")            // For reverse proxies
 	)
 }

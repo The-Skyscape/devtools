@@ -10,19 +10,32 @@ import (
 	"github.com/google/uuid"
 )
 
-// ErrNotFound is returned when a database query finds no matching records
+// ErrNotFound indicates a database query returned no results.
+// Use errors.Is(err, database.ErrNotFound) for checking.
 var ErrNotFound = errors.New("not found")
 
-// Collection provides type-safe database operations for entities
+// Collection provides type-safe database operations for a specific entity type.
+// It uses Go generics to ensure compile-time type safety for all operations.
+//
+// The Collection pattern eliminates the need for code generation or reflection
+// at query time, providing both safety and performance.
 type Collection[E Entity] struct {
 	DB   *DynamicDB
 	Ent  E
 	Type reflect.Type
 }
 
-// Manage creates a new Collection for managing entities of type E in the database.
-// It registers the entity type with the database and returns a Collection for CRUD operations.
-// Example: Users := database.Manage(db, new(User))
+// Manage creates a Collection for type-safe database operations on entity E.
+//
+// This should be called once at package initialization:
+//
+//	var Users = database.Manage(db, new(User))
+//
+// Thread Safety: Since this is called at package init (before main),
+// there are no concurrency concerns. The registration happens once
+// in a single-threaded context.
+//
+// The returned Collection provides all CRUD operations with full type safety.
 func Manage[E Entity](db *DynamicDB, ent E) *Collection[E] {
 	db.Register(ent)
 	t := reflect.TypeOf(ent)
@@ -30,8 +43,15 @@ func Manage[E Entity](db *DynamicDB, ent E) *Collection[E] {
 	return &Collection[E]{db, ent, t}
 }
 
-// Count returns the count of entities matching the query
-// Example: Users.Count("") for all or Users.Count("WHERE CreatedAt >= ?", startOfMonth)
+// Count returns the number of entities matching the query.
+//
+// Examples:
+//
+//	total := Users.Count("")  // Count all users
+//	active := Users.Count("WHERE Status = ?", "active")
+//	recent := Users.Count("WHERE CreatedAt > ?", time.Now().AddDate(0, -1, 0))
+//
+// SQL Note: Use PascalCase for field names (Status, not status).
 func (c *Collection[E]) Count(query string, args ...any) (count int) {
 	countQuery := `SELECT COUNT(*) FROM ` + c.Ent.Table()
 	if query != "" {
@@ -67,15 +87,35 @@ func (c *Collection[E]) New() E {
 	return ent
 }
 
-// Get retrieves an entity by its ID.
-// Returns an error if the entity is not found.
+// Get retrieves an entity by its UUID.
+//
+// Returns database.ErrNotFound if the entity doesn't exist:
+//
+//	user, err := Users.Get(id)
+//	if errors.Is(err, database.ErrNotFound) {
+//	    // Handle not found
+//	}
+//
+// IDs are always strings (UUIDs) for consistency and distribution safety.
 func (c *Collection[E]) Get(id string) (E, error) {
 	ent := c.New()
 	return ent, c.DB.Get(id, ent)
 }
 
-// Insert adds a new entity to the database.
-// It automatically generates an ID and sets CreatedAt/UpdatedAt timestamps.
+// Insert creates a new entity in the database.
+//
+// Automatic fields:
+//   - ID: Generated UUID if not provided
+//   - CreatedAt: Current timestamp
+//   - UpdatedAt: Current timestamp
+//
+// Example:
+//
+//	user := &User{Name: "Alice", Email: "alice@example.com"}
+//	user, err := Users.Insert(user)
+//	// user.ID is now set
+//
+// Design Note: UUIDs are used for global uniqueness without coordination.
 func (c *Collection[E]) Insert(ent E) (E, error) {
 	ent.GetModel().SetDB(c.DB)
 	if ent.GetModel().ID == "" {
@@ -87,7 +127,11 @@ func (c *Collection[E]) Insert(ent E) (E, error) {
 }
 
 // Update modifies an existing entity in the database.
-// It automatically updates the UpdatedAt timestamp.
+//
+// Automatic updates:
+//   - UpdatedAt: Set to current timestamp
+//
+// The entity must have a valid ID. Returns error if not found.
 func (c *Collection[E]) Update(ent E) error {
 	ent.GetModel().UpdatedAt = time.Now()
 	return c.DB.Update(ent)
@@ -98,9 +142,26 @@ func (c *Collection[E]) Delete(ent E) error {
 	return c.DB.Delete(ent)
 }
 
-// Search performs a database query and returns matching entities.
-// The query should be a SQL WHERE clause and ORDER BY clause.
-// Example: repos.Search("WHERE UserID = ? ORDER BY Name", userID)
+// Search queries the database and returns matching entities.
+//
+// Query format: SQL WHERE and ORDER BY clauses
+//
+// Examples:
+//
+//	// Get all users ordered by name
+//	users, err := Users.Search("ORDER BY Name")
+//
+//	// Filter by status
+//	active, err := Users.Search("WHERE Status = ? ORDER BY CreatedAt DESC", "active")
+//
+//	// Complex query
+//	results, err := Users.Search(`
+//	    WHERE CreatedAt > ? AND Status IN (?, ?)
+//	    ORDER BY CreatedAt DESC
+//	    LIMIT 10
+//	`, since, "active", "pending")
+//
+// CRITICAL: Use PascalCase for SQL fields (UserID not user_id).
 func (c *Collection[E]) Search(query string, args ...any) ([]E, error) {
 	apps := []E{}
 	return apps, Cursor(c.DB, c.Ent, query, args...).
