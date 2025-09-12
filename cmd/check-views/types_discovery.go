@@ -71,7 +71,7 @@ func DiscoverAllTypes(dir string) (map[string]*TypeInfo, error) {
 		}
 	}
 
-	// 4. Add common interface{} types that are passed to templates
+	// 4. Add common any types that are passed to templates
 	addCommonTypes(allTypes)
 
 	return allTypes, nil

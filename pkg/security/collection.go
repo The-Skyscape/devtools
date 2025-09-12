@@ -17,19 +17,19 @@ type Collection struct {
 // Manage creates a new secrets collection with the given options
 func Manage(opts ...Option) *Collection {
 	config := &Config{
-		useVault:     true,
-		useFallback:  true,
-		vaultConfig:  nil,
+		useVault:    true,
+		useFallback: true,
+		vaultConfig: nil,
 	}
-	
+
 	// Apply options
 	for _, opt := range opts {
 		opt(config)
 	}
-	
+
 	// Build vault chain based on configuration
 	var vaults []fallback.Secrets
-	
+
 	// Add Vault if configured
 	if config.useVault && config.vaultConfig != nil {
 		v := vault.New(
@@ -42,7 +42,7 @@ func Manage(opts ...Option) *Collection {
 		)
 		vaults = append(vaults, v)
 	}
-	
+
 	// Add fallback vaults if enabled
 	if config.useFallback {
 		// Add file vault as primary fallback
@@ -51,39 +51,39 @@ func Manage(opts ...Option) *Collection {
 		} else {
 			vaults = append(vaults, file.New())
 		}
-		
+
 		// Add memory vault as last resort if specified
 		if config.useMemoryFallback {
 			vaults = append(vaults, memory.New())
 		}
 	}
-	
+
 	// If no vaults configured, use file vault by default
 	if len(vaults) == 0 {
 		vaults = append(vaults, file.New())
 	}
-	
+
 	// Create fallback vault with all configured vaults
 	fb := fallback.New(vaults...)
-	
+
 	// Initialize the fallback vault
 	if err := fb.Init(); err != nil {
 		log.Printf("Collection: Failed to initialize vaults: %v", err)
 		// Continue anyway, operations will fail but won't crash
 	}
-	
+
 	return &Collection{
 		vault: fb,
 	}
 }
 
 // StoreSecret stores a secret at the given path
-func (c *Collection) StoreSecret(path string, data map[string]interface{}) error {
+func (c *Collection) StoreSecret(path string, data map[string]any) error {
 	return c.vault.StoreSecret(path, data)
 }
 
 // GetSecret retrieves a secret from the given path
-func (c *Collection) GetSecret(path string) (map[string]interface{}, error) {
+func (c *Collection) GetSecret(path string) (map[string]any, error) {
 	return c.vault.GetSecret(path)
 }
 
@@ -114,7 +114,7 @@ func (c *Collection) GetStorageMode() string {
 }
 
 // GetStatus returns the current status
-func (c *Collection) GetStatus() interface{} {
+func (c *Collection) GetStatus() any {
 	return c.vault.GetStatus()
 }
 
@@ -124,7 +124,7 @@ func (c *Collection) Restart() error {
 	if fb, ok := c.vault.(*fallback.Fallback); ok {
 		return fb.TryReconnect()
 	}
-	
+
 	// Otherwise just reinitialize
 	return c.vault.Init()
 }

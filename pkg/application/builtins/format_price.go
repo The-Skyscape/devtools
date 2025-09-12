@@ -41,7 +41,7 @@ import (
 //	{{ formatPrice .Price }}
 //	{{ formatPrice 19.99 }}          <!-- outputs: $19.99 -->
 //	{{ .Discount | formatPrice }}    <!-- outputs: -$5.00 -->
-func FormatPrice(price interface{}) string {
+func FormatPrice(price any) string {
 	var value float64
 	
 	switch v := price.(type) {

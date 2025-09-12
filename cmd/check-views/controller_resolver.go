@@ -275,7 +275,7 @@ func (cr *ControllerResolver) getTypeName(t types.Type) string {
 		return typ.Name()
 	case *types.Interface:
 		if typ.Empty() {
-			return "interface{}"
+			return "any"
 		}
 		return "interface"
 	case *types.Struct:

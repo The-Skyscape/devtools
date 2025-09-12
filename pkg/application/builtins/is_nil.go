@@ -11,7 +11,8 @@ import "reflect"
 //   - v: Value to check for nil
 //
 // Returns:
-//   true if the value is nil, false otherwise
+//
+//	true if the value is nil, false otherwise
 //
 // Examples:
 //
@@ -29,19 +30,21 @@ import "reflect"
 //	IsNil(map[string]int{})     // false
 //
 // Nil-able Types:
-//   Only these types can be nil:
-//   - Pointers
-//   - Slices
-//   - Maps
-//   - Channels
-//   - Interfaces
-//   - Functions
+//
+//	Only these types can be nil:
+//	- Pointers
+//	- Slices
+//	- Maps
+//	- Channels
+//	- Interfaces
+//	- Functions
 //
 // Non-nil Types:
-//   These types can never be nil:
-//   - Basic types (int, string, bool, etc.)
-//   - Structs
-//   - Arrays (not slices)
+//
+//	These types can never be nil:
+//	- Basic types (int, string, bool, etc.)
+//	- Structs
+//	- Arrays (not slices)
 //
 // Template Usage:
 //
@@ -50,7 +53,7 @@ import "reflect"
 //	{{ else }}
 //	  <p>{{ .OptionalField }}</p>
 //	{{ end }}
-//	
+//
 //	{{ if not (isNil .Data) }}
 //	  <!-- Process data -->
 //	{{ end }}
@@ -64,12 +67,12 @@ import "reflect"
 // Difference from IsEmpty:
 //   - IsNil: Only checks for nil
 //   - IsEmpty: Checks for zero values (includes nil)
-//   Example: IsNil("") = false, IsEmpty("") = true
-func IsNil(v interface{}) bool {
+//     Example: IsNil("") = false, IsEmpty("") = true
+func IsNil(v any) bool {
 	if v == nil {
 		return true
 	}
-	
+
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
 	case reflect.Ptr, reflect.Interface, reflect.Slice, reflect.Map, reflect.Chan, reflect.Func:

@@ -9,7 +9,8 @@ package builtins
 //   - b: Divisor (converted to float64)
 //
 // Returns:
-//   The quotient as float64, or 0 if b is zero
+//
+//	The quotient as float64, or 0 if b is zero
 //
 // Examples:
 //
@@ -26,14 +27,15 @@ package builtins
 //	{{ .Percentage | divf 100 }}     <!-- convert from percentage -->
 //
 // Division by Zero:
-//   Returns 0 instead of +Inf, -Inf, or NaN.
-//   This makes templates safer but may hide errors.
+//
+//	Returns 0 instead of +Inf, -Inf, or NaN.
+//	This makes templates safer but may hide errors.
 //
 // Common Patterns:
 //   - Calculate average: divf total count
 //   - Convert from percentage: divf value 100
 //   - Calculate rate: divf completed total
-func DivideFloat(a, b interface{}) float64 {
+func DivideFloat(a, b any) float64 {
 	divisor := toFloat64(b)
 	if divisor == 0 {
 		return 0

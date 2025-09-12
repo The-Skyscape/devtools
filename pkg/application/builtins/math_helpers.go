@@ -5,9 +5,9 @@ import (
 	"math"
 )
 
-// toInt safely converts an interface{} to int if possible.
+// toInt safely converts an any to int if possible.
 // Returns the int value and true if successful, 0 and false otherwise.
-func toInt(v interface{}) (int, bool) {
+func toInt(v any) (int, bool) {
 	switch val := v.(type) {
 	case int:
 		return val, true
@@ -36,9 +36,9 @@ func toInt(v interface{}) (int, bool) {
 	}
 }
 
-// toFloat64 converts an interface{} to float64.
+// toFloat64 converts an any to float64.
 // Returns 0 if the value cannot be converted.
-func toFloat64(v interface{}) float64 {
+func toFloat64(v any) float64 {
 	switch val := v.(type) {
 	case int:
 		return float64(val)
@@ -63,7 +63,7 @@ func toFloat64(v interface{}) float64 {
 }
 
 // isNumeric checks if a value is a numeric type.
-func isNumeric(v interface{}) bool {
+func isNumeric(v any) bool {
 	switch v.(type) {
 	case int, int32, int64, float32, float64:
 		return true

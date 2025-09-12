@@ -9,7 +9,8 @@ package builtins
 //   - b: Subtrahend (converted to float64)
 //
 // Returns:
-//   The difference as float64
+//
+//	The difference as float64
 //
 // Examples:
 //
@@ -26,8 +27,9 @@ package builtins
 //	{{ .Price | subf .Reduction }}   <!-- reduce price -->
 //
 // Precision Note:
-//   Subject to floating point precision limitations.
-//   For exact decimal arithmetic, consider scaled integers.
-func SubtractFloat(a, b interface{}) float64 {
+//
+//	Subject to floating point precision limitations.
+//	For exact decimal arithmetic, consider scaled integers.
+func SubtractFloat(a, b any) float64 {
 	return toFloat64(a) - toFloat64(b)
 }

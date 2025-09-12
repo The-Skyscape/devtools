@@ -10,10 +10,12 @@ package builtins
 //   - b: Divisor (number to divide by)
 //
 // Returns:
-//   The quotient a / b, or 0 if b is zero
+//
+//	The quotient a / b, or 0 if b is zero
 //
 // Division by Zero:
-//   Returns 0 instead of infinity or panic
+//
+//	Returns 0 instead of infinity or panic
 //
 // Examples:
 //
@@ -30,17 +32,18 @@ package builtins
 //	{{ .Percentage | div 100 }}       <!-- convert from percentage -->
 //
 // Integer Division Note:
-//   When both operands are integers and you want integer division
-//   (truncating the remainder), the result will be integer only
-//   if it divides evenly. For forced integer division, cast the
-//   result or use a dedicated integer division function.
-func Divide(a, b interface{}) interface{} {
+//
+//	When both operands are integers and you want integer division
+//	(truncating the remainder), the result will be integer only
+//	if it divides evenly. For forced integer division, cast the
+//	result or use a dedicated integer division function.
+func Divide(a, b any) any {
 	// Check for division by zero early
 	bFloat := toFloat64(b)
 	if bFloat == 0 {
 		return 0
 	}
-	
+
 	// Try integer division if both are integers and divide evenly
 	if aInt, aOk := toInt(a); aOk {
 		if bInt, bOk := toInt(b); bOk && bInt != 0 {
@@ -51,7 +54,7 @@ func Divide(a, b interface{}) interface{} {
 			return float64(aInt) / float64(bInt)
 		}
 	}
-	
+
 	// Fall back to float division
 	aFloat := toFloat64(a)
 	if aFloat == 0 && !isNumeric(a) {

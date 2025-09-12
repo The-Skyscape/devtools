@@ -10,7 +10,8 @@ package builtins
 //   - b: Second addend (converted to float64)
 //
 // Returns:
-//   The sum as float64
+//
+//	The sum as float64
 //
 // Examples:
 //
@@ -21,12 +22,13 @@ package builtins
 //	AddFloat(nil, 5)       // 5.0 (nil treated as 0)
 //
 // Type Conversion:
-//   All types are converted to float64:
-//   - Integers: Converted directly
-//   - Floats: Used as-is
-//   - Strings: Parsed if numeric, otherwise 0
-//   - nil: Treated as 0
-//   - Other: Converted to 0
+//
+//	All types are converted to float64:
+//	- Integers: Converted directly
+//	- Floats: Used as-is
+//	- Strings: Parsed if numeric, otherwise 0
+//	- nil: Treated as 0
+//	- Other: Converted to 0
 //
 // Template Usage:
 //
@@ -35,8 +37,9 @@ package builtins
 //	{{ .Rate | addf 0.01 }}         <!-- increment rate -->
 //
 // Precision Note:
-//   Floating point arithmetic may have precision issues.
-//   For financial calculations, consider using integer cents.
-func AddFloat(a, b interface{}) float64 {
+//
+//	Floating point arithmetic may have precision issues.
+//	For financial calculations, consider using integer cents.
+func AddFloat(a, b any) float64 {
 	return toFloat64(a) + toFloat64(b)
 }

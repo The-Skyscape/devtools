@@ -11,7 +11,8 @@ import "reflect"
 //   - v: Value to check for emptiness
 //
 // Returns:
-//   true if the value is empty, false otherwise
+//
+//	true if the value is empty, false otherwise
 //
 // Examples:
 //
@@ -41,7 +42,7 @@ import "reflect"
 //	{{ if isEmpty .Field }}
 //	  <p>Field is empty</p>
 //	{{ end }}
-//	
+//
 //	{{ if not (isEmpty .Items) }}
 //	  {{ range .Items }}...{{ end }}
 //	{{ end }}
@@ -55,11 +56,11 @@ import "reflect"
 // Note: Struct values are never considered empty,
 // even if all fields are zero values. Use specific
 // field checks for struct emptiness.
-func IsEmpty(v interface{}) bool {
+func IsEmpty(v any) bool {
 	if v == nil {
 		return true
 	}
-	
+
 	rv := reflect.ValueOf(v)
 	switch rv.Kind() {
 	case reflect.Invalid:

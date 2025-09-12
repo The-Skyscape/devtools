@@ -18,7 +18,7 @@ func MockRequest(method, path string, body io.Reader) *http.Request {
 }
 
 // MockJSONRequest creates a new HTTP request with JSON body
-func MockJSONRequest(method, path string, body interface{}) *http.Request {
+func MockJSONRequest(method, path string, body any) *http.Request {
 	jsonBytes, _ := json.Marshal(body)
 	req := httptest.NewRequest(method, path, bytes.NewReader(jsonBytes))
 	req.Header.Set("Content-Type", "application/json")
@@ -64,7 +64,7 @@ func (r *MockResponse) AssertRedirect(t *testing.T, expectedLocation string) {
 	if r.Code != http.StatusFound && r.Code != http.StatusSeeOther && r.Code != http.StatusTemporaryRedirect {
 		t.Errorf("Expected redirect status, got %d", r.Code)
 	}
-	
+
 	location := r.Header().Get("Location")
 	if expectedLocation != "" && location != expectedLocation {
 		t.Errorf("Expected redirect to %s, got %s", expectedLocation, location)
@@ -72,14 +72,14 @@ func (r *MockResponse) AssertRedirect(t *testing.T, expectedLocation string) {
 }
 
 // AssertJSON checks if the response is valid JSON and unmarshals it
-func (r *MockResponse) AssertJSON(t *testing.T, target interface{}) {
+func (r *MockResponse) AssertJSON(t *testing.T, target any) {
 	t.Helper()
-	
+
 	contentType := r.Header().Get("Content-Type")
 	if !strings.Contains(contentType, "application/json") {
 		t.Errorf("Expected JSON content type, got %s", contentType)
 	}
-	
+
 	if err := json.Unmarshal(r.Body.Bytes(), target); err != nil {
 		t.Errorf("Failed to unmarshal JSON: %v", err)
 	}
@@ -125,60 +125,60 @@ func NewMockHTTPClient(responses ...MockHTTPResponse) *MockHTTPClient {
 		Requests:  make([]*http.Request, 0),
 		Responses: responses,
 	}
-	
+
 	client.Client = &http.Client{
 		Transport: client,
 	}
-	
+
 	return client
 }
 
 // RoundTrip implements http.RoundTripper
 func (c *MockHTTPClient) RoundTrip(req *http.Request) (*http.Response, error) {
 	c.Requests = append(c.Requests, req)
-	
+
 	if c.index >= len(c.Responses) {
 		return nil, io.EOF
 	}
-	
+
 	resp := c.Responses[c.index]
 	c.index++
-	
+
 	if resp.Error != nil {
 		return nil, resp.Error
 	}
-	
+
 	httpResp := &http.Response{
 		StatusCode: resp.StatusCode,
 		Body:       io.NopCloser(strings.NewReader(resp.Body)),
 		Header:     make(http.Header),
 		Request:    req,
 	}
-	
+
 	for k, v := range resp.Headers {
 		httpResp.Header.Set(k, v)
 	}
-	
+
 	return httpResp, nil
 }
 
 // AssertRequestMade checks if a request was made to the expected URL
 func (c *MockHTTPClient) AssertRequestMade(t *testing.T, method, url string) {
 	t.Helper()
-	
+
 	for _, req := range c.Requests {
 		if req.Method == method && req.URL.String() == url {
 			return
 		}
 	}
-	
+
 	t.Errorf("Expected request %s %s was not made", method, url)
 }
 
 // AssertRequestCount checks the number of requests made
 func (c *MockHTTPClient) AssertRequestCount(t *testing.T, expected int) {
 	t.Helper()
-	
+
 	if len(c.Requests) != expected {
 		t.Errorf("Expected %d requests, got %d", expected, len(c.Requests))
 	}

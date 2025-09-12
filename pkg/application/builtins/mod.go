@@ -11,7 +11,8 @@ import "math"
 //   - b: Divisor
 //
 // Returns:
-//   The remainder of a / b, or 0 if b is zero
+//
+//	The remainder of a / b, or 0 if b is zero
 //
 // Examples:
 //
@@ -26,19 +27,20 @@ import "math"
 //	{{ if eq (mod .Index 2) 0 }}even{{ else }}odd{{ end }}
 //
 // Negative Values:
-//   Follows Go's modulo semantics where the sign matches the dividend:
-//   - Mod(7, 3) = 1
-//   - Mod(-7, 3) = -1
-//   - Mod(7, -3) = 1
-//   - Mod(-7, -3) = -1
-func Mod(a, b interface{}) interface{} {
+//
+//	Follows Go's modulo semantics where the sign matches the dividend:
+//	- Mod(7, 3) = 1
+//	- Mod(-7, 3) = -1
+//	- Mod(7, -3) = 1
+//	- Mod(-7, -3) = -1
+func Mod(a, b any) any {
 	// Try integer modulo first
 	if aInt, aOk := toInt(a); aOk {
 		if bInt, bOk := toInt(b); bOk && bInt != 0 {
 			return aInt % bInt
 		}
 	}
-	
+
 	// Fall back to float modulo
 	bFloat := toFloat64(b)
 	if bFloat == 0 {

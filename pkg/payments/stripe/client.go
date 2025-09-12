@@ -90,7 +90,7 @@ func (c *Client) request(method, endpoint string, params url.Values) ([]byte, er
 				Param   string `json:"param"`
 			} `json:"error"`
 		}
-		
+
 		if err := json.Unmarshal(responseBody, &stripeErr); err == nil {
 			return nil, &payments.Error{
 				Type:    stripeErr.Error.Type,
@@ -99,7 +99,7 @@ func (c *Client) request(method, endpoint string, params url.Values) ([]byte, er
 				Param:   stripeErr.Error.Param,
 			}
 		}
-		
+
 		return nil, fmt.Errorf("stripe API error: status %d", resp.StatusCode)
 	}
 
@@ -150,13 +150,13 @@ func (c *Client) VerifyWebhookSignature(payload []byte, sigHeader string) bool {
 
 // ParseWebhookEvent parses a webhook event from Stripe
 func (c *Client) ParseWebhookEvent(payload []byte) (*payments.WebhookEvent, error) {
-	var raw map[string]interface{}
+	var raw map[string]any
 	if err := json.Unmarshal(payload, &raw); err != nil {
 		return nil, fmt.Errorf("failed to parse webhook payload: %w", err)
 	}
 
 	event := &payments.WebhookEvent{
-		Data: make(map[string]interface{}),
+		Data: make(map[string]any),
 	}
 
 	// Extract standard fields
@@ -171,7 +171,7 @@ func (c *Client) ParseWebhookEvent(payload []byte) (*payments.WebhookEvent, erro
 	}
 
 	// Extract data object
-	if data, ok := raw["data"].(map[string]interface{}); ok {
+	if data, ok := raw["data"].(map[string]any); ok {
 		event.Data = data
 		if object, ok := data["object"]; ok {
 			event.Object = object
@@ -213,7 +213,7 @@ func (c *Client) normalizeEventType(stripeType string) string {
 }
 
 // parseJSON is a helper to parse JSON responses
-func parseJSON(data []byte, v interface{}) error {
+func parseJSON(data []byte, v any) error {
 	return json.Unmarshal(data, v)
 }
 

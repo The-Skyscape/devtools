@@ -23,7 +23,7 @@ func NewVaultBackend(config *VaultConfig) *VaultBackend {
 			RootToken:     "skyscape-dev-token",
 		}
 	}
-	
+
 	vault := NewVaultService(
 		WithContainerName(config.ContainerName),
 		WithPort(config.Port),
@@ -32,7 +32,7 @@ func NewVaultBackend(config *VaultConfig) *VaultBackend {
 		WithDataDir(config.DataDir),
 		WithNetwork(config.Network),
 	)
-	
+
 	return &VaultBackend{
 		VaultService: vault,
 	}
@@ -41,10 +41,10 @@ func NewVaultBackend(config *VaultConfig) *VaultBackend {
 // Init initializes the Vault backend
 func (v *VaultBackend) Init() error {
 	log.Println("VaultBackend: Initializing HashiCorp Vault...")
-	
+
 	// Try to launch container
 	host := &containers.LocalHost{}
-	
+
 	// Check if already running
 	existing, err := containers.GetService(host, v.config.ContainerName)
 	if err == nil && existing != nil && existing.IsRunning() {
@@ -55,20 +55,20 @@ func (v *VaultBackend) Init() error {
 		if err := v.VaultService.InitWithHost(host); err != nil {
 			return fmt.Errorf("failed to initialize vault: %w", err)
 		}
-		
+
 		// Wait for vault to be ready
 		time.Sleep(3 * time.Second)
 	}
-	
+
 	log.Printf("VaultBackend: Vault initialized on port %d", v.config.Port)
 	if v.config.DevMode {
 		log.Printf("VaultBackend: Dev mode with root token: %s", v.config.RootToken)
 	}
-	
+
 	return nil
 }
 
-// GetStatus returns the current status as interface{}
-func (v *VaultBackend) GetStatus() interface{} {
+// GetStatus returns the current status as any
+func (v *VaultBackend) GetStatus() any {
 	return v.VaultService.GetStatus()
 }

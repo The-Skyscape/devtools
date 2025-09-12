@@ -10,7 +10,8 @@ package builtins
 //   - b: Second factor
 //
 // Returns:
-//   The product a * b, as int if possible, otherwise float64
+//
+//	The product a * b, as int if possible, otherwise float64
 //
 // Examples:
 //
@@ -24,7 +25,7 @@ package builtins
 //	{{ mul 5 3 }}                     <!-- 15 -->
 //	{{ mul .Quantity .Price }}        <!-- total price -->
 //	{{ .Rate | mul 100 }}             <!-- convert to percentage -->
-func Multiply(a, b interface{}) interface{} {
+func Multiply(a, b any) any {
 	// Try integer multiplication first
 	if aInt, aOk := toInt(a); aOk {
 		if bInt, bOk := toInt(b); bOk {
@@ -37,7 +38,7 @@ func Multiply(a, b interface{}) interface{} {
 			return float64(aInt) * float64(bInt)
 		}
 	}
-	
+
 	// Fall back to float multiplication
 	aFloat := toFloat64(a)
 	bFloat := toFloat64(b)

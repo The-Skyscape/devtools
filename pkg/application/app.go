@@ -118,7 +118,7 @@ func (app *App) SetTheme(theme string) {
 // Render renders a view with given data to the http writer
 func (app *App) Render(w io.Writer, r *http.Request, page string, data any) {
 	// Get all built-in functions
-	funcs := builtins.GetFuncMap()
+	funcs := builtins.FuncMap
 
 	// Add runtime-specific functions
 	funcs["req"] = func() *http.Request { return r }

@@ -46,7 +46,7 @@ func (v *View) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) prepareViews() {
 	// Get all built-in functions
-	builtinFuncs := builtins.GetFuncMap()
+	builtinFuncs := builtins.FuncMap
 	
 	// Start with built-in functions as base
 	funcs := builtinFuncs
@@ -62,8 +62,8 @@ func (app *App) prepareViews() {
 	funcs["title"] = func(title string) string { return strings.ReplaceAll(title, "_", " ") }
 	funcs["prefix"] = func(s, prefix string) bool { return strings.HasPrefix(s, prefix) }
 	
-	// JSON functions
-	funcs["jsonify"] = func(v interface{}) template.JS {
+	// JSON functionsany
+	funcs["jsonify"] = func(v any) template.JS {
 		data, err := json.Marshal(v)
 		if err != nil {
 			log.Printf("jsonify error: %v", err)
@@ -73,13 +73,13 @@ func (app *App) prepareViews() {
 	}
 	
 	// Charting functions
-	funcs["renderChart"] = func(dataOrFunc interface{}, placeholder ...string) template.HTML {
+	funcs["renderChart"] = func(dataOrFunc any, placeholder ...string) template.HTML {
 		// Handle function call if passed
 		var data *charting.ChartData
 		
 		// Check if it's a function that returns ChartData
 		switch v := dataOrFunc.(type) {
-		case func() interface{}:
+		case func() any:
 			if result := v(); result != nil {
 				data, _ = result.(*charting.ChartData)
 			}

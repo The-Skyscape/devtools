@@ -10,7 +10,8 @@ package builtins
 //   - b: Second operand (int or float64)
 //
 // Returns:
-//   The sum of a and b, preserving integer type when possible
+//
+//	The sum of a and b, preserving integer type when possible
 //
 // Type Handling:
 //   - int + int = int
@@ -33,18 +34,19 @@ package builtins
 //	{{ add .Price .Tax }}             <!-- total with tax -->
 //
 // Chaining:
-//   Can be chained with other math functions:
 //
-//	{{ add 10 5 | add 3 }}           <!-- 18 -->
-//	{{ .Base | add .Bonus | add .Extra }}
-func Add(a, b interface{}) interface{} {
+//	  Can be chained with other math functions:
+//
+//		{{ add 10 5 | add 3 }}           <!-- 18 -->
+//		{{ .Base | add .Bonus | add .Extra }}
+func Add(a, b any) any {
 	// Try integer addition first
 	if aInt, aOk := toInt(a); aOk {
 		if bInt, bOk := toInt(b); bOk {
 			return aInt + bInt
 		}
 	}
-	
+
 	// Fall back to float addition
 	aFloat := toFloat64(a)
 	bFloat := toFloat64(b)

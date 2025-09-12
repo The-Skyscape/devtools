@@ -10,7 +10,8 @@ package builtins
 //   - b: Second value to compare
 //
 // Returns:
-//   The smaller of a and b, preserving type when possible
+//
+//	The smaller of a and b, preserving type when possible
 //
 // Examples:
 //
@@ -33,10 +34,11 @@ package builtins
 //	{{ min .MaxSize .RequestedSize }} <!-- cap at maximum -->
 //
 // Chaining:
-//   Can be chained to find minimum of multiple values:
 //
-//	{{ min .A .B | min .C }}         <!-- min of three values -->
-func Min(a, b interface{}) interface{} {
+//	  Can be chained to find minimum of multiple values:
+//
+//		{{ min .A .B | min .C }}         <!-- min of three values -->
+func Min(a, b any) any {
 	// Try integer comparison first
 	if aInt, aOk := toInt(a); aOk {
 		if bInt, bOk := toInt(b); bOk {
@@ -46,7 +48,7 @@ func Min(a, b interface{}) interface{} {
 			return bInt
 		}
 	}
-	
+
 	// Fall back to float comparison
 	aFloat := toFloat64(a)
 	bFloat := toFloat64(b)

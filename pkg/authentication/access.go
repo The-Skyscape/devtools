@@ -2,6 +2,7 @@ package authentication
 
 import (
 	"net/http"
+
 	"github.com/The-Skyscape/devtools/pkg/application"
 )
 
@@ -11,7 +12,7 @@ type AccessCheck func(*application.App, http.ResponseWriter, *http.Request) bool
 
 // RequireAuth creates an access check that requires authentication
 // Takes the auth toolkit, cookie name, and a function to get the user
-func RequireAuth(auth *Auth, cookieName string, getUserFunc func(string) (interface{}, error)) AccessCheck {
+func RequireAuth(auth *Auth, cookieName string, getUserFunc func(string) (any, error)) AccessCheck {
 	return func(app *application.App, w http.ResponseWriter, r *http.Request) bool {
 		// Try to get token from cookie
 		token, err := auth.GetTokenFromCookie(r, cookieName)
@@ -19,14 +20,14 @@ func RequireAuth(auth *Auth, cookieName string, getUserFunc func(string) (interf
 			// Not authenticated
 			return false
 		}
-		
+
 		// Validate token
 		claims, err := auth.ValidateToken(token)
 		if err != nil {
 			// Invalid token
 			return false
 		}
-		
+
 		// Check if user exists
 		if getUserFunc != nil {
 			if userID, ok := claims["user_id"].(string); ok {
@@ -36,13 +37,13 @@ func RequireAuth(auth *Auth, cookieName string, getUserFunc func(string) (interf
 				}
 			}
 		}
-		
+
 		return true
 	}
 }
 
 // RequireAuthWithRender is like RequireAuth but renders a template on failure
-func RequireAuthWithRender(auth *Auth, cookieName string, getUserFunc func(string) (interface{}, error), failTemplate string) AccessCheck {
+func RequireAuthWithRender(auth *Auth, cookieName string, getUserFunc func(string) (any, error), failTemplate string) AccessCheck {
 	return func(app *application.App, w http.ResponseWriter, r *http.Request) bool {
 		if !RequireAuth(auth, cookieName, getUserFunc)(app, w, r) {
 			app.Render(w, r, failTemplate, nil)

@@ -46,7 +46,7 @@ package builtins
 //   Both parameters can be any type. The function
 //   returns the same type as provided, maintaining
 //   type consistency in templates.
-func Default(v, def interface{}) interface{} {
+func Default(v, def any) any {
 	if IsEmpty(v) {
 		return def
 	}

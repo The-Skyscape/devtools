@@ -7,7 +7,7 @@ import (
 )
 
 // AssertEqual checks if two values are equal
-func AssertEqual(t *testing.T, expected, actual interface{}, message ...string) {
+func AssertEqual(t *testing.T, expected, actual any, message ...string) {
 	t.Helper()
 	if !reflect.DeepEqual(expected, actual) {
 		msg := "Values not equal"
@@ -19,7 +19,7 @@ func AssertEqual(t *testing.T, expected, actual interface{}, message ...string) 
 }
 
 // AssertNotEqual checks if two values are not equal
-func AssertNotEqual(t *testing.T, expected, actual interface{}, message ...string) {
+func AssertNotEqual(t *testing.T, expected, actual any, message ...string) {
 	t.Helper()
 	if reflect.DeepEqual(expected, actual) {
 		msg := "Values are equal"
@@ -31,7 +31,7 @@ func AssertNotEqual(t *testing.T, expected, actual interface{}, message ...strin
 }
 
 // AssertNil checks if a value is nil
-func AssertNil(t *testing.T, value interface{}, message ...string) {
+func AssertNil(t *testing.T, value any, message ...string) {
 	t.Helper()
 	if !isNil(value) {
 		msg := "Expected nil"
@@ -43,7 +43,7 @@ func AssertNil(t *testing.T, value interface{}, message ...string) {
 }
 
 // AssertNotNil checks if a value is not nil
-func AssertNotNil(t *testing.T, value interface{}, message ...string) {
+func AssertNotNil(t *testing.T, value any, message ...string) {
 	t.Helper()
 	if isNil(value) {
 		msg := "Expected non-nil value"
@@ -140,7 +140,7 @@ func AssertTimeWithin(t *testing.T, actual, expected time.Time, tolerance time.D
 }
 
 // AssertLen checks the length of a slice, array, map, or string
-func AssertLen(t *testing.T, value interface{}, expected int, message ...string) {
+func AssertLen(t *testing.T, value any, expected int, message ...string) {
 	t.Helper()
 	actual := reflect.ValueOf(value).Len()
 	if actual != expected {
@@ -154,11 +154,11 @@ func AssertLen(t *testing.T, value interface{}, expected int, message ...string)
 
 // Helper functions
 
-func isNil(value interface{}) bool {
+func isNil(value any) bool {
 	if value == nil {
 		return true
 	}
-	
+
 	// Check for typed nil values
 	v := reflect.ValueOf(value)
 	switch v.Kind() {
@@ -169,7 +169,7 @@ func isNil(value interface{}) bool {
 }
 
 func contains(haystack, needle string) bool {
-	return len(needle) > 0 && len(haystack) >= len(needle) && 
+	return len(needle) > 0 && len(haystack) >= len(needle) &&
 		(haystack == needle || len(haystack) > len(needle) && containsSubstring(haystack, needle))
 }
 

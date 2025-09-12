@@ -18,12 +18,12 @@ func (c *Collection) Controller(opts ...ControllerOption) (string, *Controller) 
 	controller := &Controller{
 		Collection: c,
 	}
-	
+
 	// Apply controller options
 	for _, opt := range opts {
 		opt(controller)
 	}
-	
+
 	return "secrets", controller
 }
 
@@ -64,7 +64,7 @@ func (c *Controller) GetVaultStatus() VaultStatus {
 	if status, ok := c.Collection.GetStatus().(VaultStatus); ok {
 		return status
 	}
-	
+
 	// Return fallback status
 	return VaultStatus{
 		Running:   false,
@@ -85,7 +85,6 @@ func (c *Controller) GetVaultURL() string {
 	return ""
 }
 
-
 // GetLastError returns the last error encountered
 func (c *Controller) GetLastError() string {
 	// This functionality was removed in the new structure
@@ -96,12 +95,12 @@ func (c *Controller) GetLastError() string {
 // ========== Secret Management Methods ==========
 
 // StoreSecret stores a secret at the given path
-func (c *Controller) StoreSecret(path string, data map[string]interface{}) error {
+func (c *Controller) StoreSecret(path string, data map[string]any) error {
 	return c.Collection.StoreSecret(path, data)
 }
 
 // GetSecret retrieves a secret from the given path
-func (c *Controller) GetSecret(path string) (map[string]interface{}, error) {
+func (c *Controller) GetSecret(path string) (map[string]any, error) {
 	return c.Collection.GetSecret(path)
 }
 
@@ -109,7 +108,6 @@ func (c *Controller) GetSecret(path string) (map[string]interface{}, error) {
 func (c *Controller) DeleteSecret(path string) error {
 	return c.Collection.DeleteSecret(path)
 }
-
 
 // RestartVault attempts to restart the Vault backend
 func (c *Controller) RestartVault() error {
@@ -123,7 +121,7 @@ func (c *Controller) RequireSecrets(app *application.App, w http.ResponseWriter,
 	if c.Collection != nil && c.GetStorageMode() != "none" {
 		return true
 	}
-	
+
 	// No storage available
 	app.Render(w, r, "error-message.html", fmt.Errorf("Secret storage is not available"))
 	return false
@@ -134,7 +132,7 @@ func (c *Controller) RequireVault(app *application.App, w http.ResponseWriter, r
 	if c.IsVaultAvailable() {
 		return true
 	}
-	
+
 	app.Render(w, r, "error-message.html", fmt.Errorf("Vault is required but not available"))
 	return false
 }

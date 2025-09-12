@@ -21,14 +21,14 @@
 // General-purpose helpers for type conversion and default values.
 //
 // Type Safety:
-// All functions are designed with type safety in mind. Unlike generic interface{}
+// All functions are designed with type safety in mind. Unlike generic any
 // approaches, functions explicitly handle expected types and return predictable
 // zero values for invalid inputs rather than panicking.
 //
 // Template Usage:
 // These functions are designed to be registered with html/template.FuncMap:
 //
-//	funcs := builtins.GetFuncMap()
+//	funcs := builtins.FuncMap
 //	tmpl := template.New("").Funcs(funcs).Parse(templateString)
 //
 // Error Handling:
@@ -39,15 +39,14 @@ package builtins
 
 import "html/template"
 
-// GetFuncMap returns all builtin functions as a template.FuncMap
+// FuncMap contains all builtin functions as a template.FuncMap
 // ready to be used with html/template or text/template.
 //
 // Example:
 //
-//	tmpl := template.New("example").Funcs(builtins.GetFuncMap())
+//	tmpl := template.New("example").Funcs(builtins.FuncMap)
 //	tmpl.Parse(`Price: {{ formatPrice 19.99 }}`)
-func GetFuncMap() template.FuncMap {
-	return template.FuncMap{
+var FuncMap = template.FuncMap{
 		// Format functions
 		"formatBytes":    FormatBytes,
 		"formatPrice":    FormatPrice,
@@ -57,43 +56,43 @@ func GetFuncMap() template.FuncMap {
 		"formatDateTime": FormatDateTime,
 		"formatNumber":   FormatNumber,
 		"timeAgo":        TimeAgo,
-		
+
 		// String functions
 		"pluralize": Pluralize,
 		"truncate":  Truncate,
 		"join":      Join,
 		"split":     Split,
 		"contains":  Contains,
-		"hasPrefix": HasPrefix,
-		"hasSuffix": HasSuffix,
-		"replace":   Replace,
-		"slice":     Slice,
+		"hasPrefix":  HasPrefix,
+		"hasSuffix":  HasSuffix,
+		"replace":    Replace,
+		"replaceAll": ReplaceAll,
+		"slice":      Slice,
 		"lower":     Lower,
 		"upper":     Upper,
 		"title":     Title,
 		"trim":      Trim,
-		
+
 		// Math functions
-		"add":  Add,
-		"sub":  Subtract,
-		"mul":  Multiply,
-		"div":  Divide,
-		"addf": AddFloat,
-		"subf": SubtractFloat,
-		"mulf": MultiplyFloat,
-		"divf": DivideFloat,
-		"mod":  Mod,
-		"max":  Max,
-		"min":  Min,
+		"add":   Add,
+		"sub":   Subtract,
+		"mul":   Multiply,
+		"div":   Divide,
+		"addf":  AddFloat,
+		"subf":  SubtractFloat,
+		"mulf":  MultiplyFloat,
+		"divf":  DivideFloat,
+		"mod":   Mod,
+		"max":   Max,
+		"min":   Min,
 		"round": Round,
 		"floor": Floor,
 		"ceil":  Ceil,
-		
+
 		// Utility functions
 		"toString": ToString,
 		"default":  Default,
 		"coalesce": Coalesce,
 		"isEmpty":  IsEmpty,
 		"isNil":    IsNil,
-	}
 }

@@ -93,7 +93,7 @@ type BaseController struct {
 
 func (c *BaseController) Setup(app *App)
 func (c *BaseController) Handle(r *http.Request) Controller
-func (c *BaseController) Render(w http.ResponseWriter, r *http.Request, template string, data interface{})
+func (c *BaseController) Render(w http.ResponseWriter, r *http.Request, template string, data any)
 func (c *BaseController) Refresh(w http.ResponseWriter, r *http.Request)
 ```
 
@@ -205,7 +205,7 @@ func (r *Repository[T]) Get(id string) (*T, error)
 func (r *Repository[T]) Insert(model *T) error
 func (r *Repository[T]) Update(model *T) error
 func (r *Repository[T]) Delete(model *T) error
-func (r *Repository[T]) Search(query string, args ...interface{}) ([]*T, error)
+func (r *Repository[T]) Search(query string, args ...any) ([]*T, error)
 ```
 
 ### Local Database

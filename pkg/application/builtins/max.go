@@ -10,7 +10,8 @@ package builtins
 //   - b: Second value to compare
 //
 // Returns:
-//   The larger of a and b, preserving type when possible
+//
+//	The larger of a and b, preserving type when possible
 //
 // Examples:
 //
@@ -33,10 +34,11 @@ package builtins
 //	{{ max .MinSize .RequestedSize }} <!-- enforce minimum -->
 //
 // Chaining:
-//   Can be chained to find maximum of multiple values:
 //
-//	{{ max .A .B | max .C }}        <!-- max of three values -->
-func Max(a, b interface{}) interface{} {
+//	  Can be chained to find maximum of multiple values:
+//
+//		{{ max .A .B | max .C }}        <!-- max of three values -->
+func Max(a, b any) any {
 	// Try integer comparison first
 	if aInt, aOk := toInt(a); aOk {
 		if bInt, bOk := toInt(b); bOk {
@@ -46,7 +48,7 @@ func Max(a, b interface{}) interface{} {
 			return bInt
 		}
 	}
-	
+
 	// Fall back to float comparison
 	aFloat := toFloat64(a)
 	bFloat := toFloat64(b)

@@ -54,7 +54,7 @@ func TimeTravel(target time.Time, f func()) {
 }
 
 // WithTimeout runs a function with a timeout
-func WithTimeout(t interface{ Fatal(...interface{}) }, timeout time.Duration, f func()) {
+func WithTimeout(t interface{ Fatal(...any) }, timeout time.Duration, f func()) {
 	done := make(chan bool, 1)
 	go func() {
 		f()

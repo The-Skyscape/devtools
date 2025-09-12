@@ -29,7 +29,7 @@ func main() {
             security.WithDevMode(true),
         ),
     )
-    
+
     // Start application with SecretsController
     application.Serve(views,
         application.WithController(secrets.Controller()),
@@ -51,10 +51,10 @@ type AdminController struct {
 
 func (c *AdminController) Setup(app *application.App) {
     c.BaseController.Setup(app)
-    
+
     // Get the secrets controller
     secrets := app.Use("secrets").(*security.Controller)
-    
+
     // Check if Vault is available
     if !secrets.IsVaultAvailable() {
         log.Println("Warning: Running with fallback storage")
@@ -70,16 +70,16 @@ func (c *AdminController) IsStripeConfigured() bool {
 // Store API keys
 func (c *AdminController) saveStripeKeys(w http.ResponseWriter, r *http.Request) {
     secrets := c.Use("secrets").(*security.Controller)
-    
+
     secretKey := r.FormValue("secret_key")
     publishKey := r.FormValue("publish_key")
     webhookSecret := r.FormValue("webhook_secret")
-    
+
     if err := secrets.StoreStripeKeys(secretKey, publishKey, webhookSecret); err != nil {
         c.Render(w, r, "error.html", err)
         return
     }
-    
+
     c.Redirect(w, r, "/admin/integrations")
 }
 ```
@@ -118,16 +118,16 @@ Example 4: Protected Routes with Middleware
 ```go
 func (c *BillingController) Setup(app *application.App) {
     c.BaseController.Setup(app)
-    
+
     secrets := app.Use("secrets").(*security.Controller)
     auth := app.Use("auth").(*authentication.Controller)
-    
+
     // Route that requires secrets to be available
-    http.Handle("POST /billing/checkout", 
+    http.Handle("POST /billing/checkout",
         app.ProtectFunc(c.createCheckout, secrets.RequireSecrets, auth.Required))
-    
+
     // Route that requires real Vault (no fallback)
-    http.Handle("POST /admin/vault/restart", 
+    http.Handle("POST /admin/vault/restart",
         app.ProtectFunc(c.restartVault, secrets.RequireVault, auth.AdminOnly))
 }
 ```
@@ -135,15 +135,15 @@ func (c *BillingController) Setup(app *application.App) {
 Example 5: Handling Different Storage Modes
 
 ```go
-func (c *AdminController) GetSecretStatus() map[string]interface{} {
+func (c *AdminController) GetSecretStatus() map[string]any {
     secrets := c.Use("secrets").(*security.Controller)
-    
-    status := map[string]interface{}{
+
+    status := map[string]any{
         "mode": secrets.GetStorageMode(),
         "vault_available": secrets.IsVaultAvailable(),
         "fallback_mode": secrets.IsFallbackMode(),
     }
-    
+
     // Add warnings based on storage mode
     switch secrets.GetStorageMode() {
     case "memory":
@@ -155,7 +155,7 @@ func (c *AdminController) GetSecretStatus() map[string]interface{} {
     default:
         status["error"] = "Unknown storage mode"
     }
-    
+
     return status
 }
 ```
@@ -165,17 +165,17 @@ Example 6: Programmatic Fallback Configuration
 ```go
 func initSecrets() *security.Controller {
     vault := security.NewVaultService()
-    
+
     // Create a hybrid fallback with multiple backends
     fallback := security.NewHybridBackend(
         security.NewEnvBackend("MYAPP"),      // Try environment variables first
         security.NewFileBackend(),            // Then encrypted files
         security.NewMemoryBackend(),          // Finally in-memory
     )
-    
+
     // Set the fallback on the vault service
     vault.SetFallback(fallback)
-    
+
     _, controller := security.NewController(vault)
     return controller
 }
@@ -188,21 +188,21 @@ func TestBillingController(t *testing.T) {
     // Create a memory backend for testing
     mockStorage := security.NewMemoryBackend()
     mockStorage.Init()
-    
+
     // Store test credentials
-    mockStorage.StoreSecret("integrations/stripe", map[string]interface{}{
+    mockStorage.StoreSecret("integrations/stripe", map[string]any{
         "secret_key": "sk_test_123",
         "publishable_key": "pk_test_456",
         "webhook_secret": "whsec_789",
     })
-    
+
     // Create vault service with mock storage
     vault := security.NewVaultService()
     vault.SetFallback(mockStorage)
-    
+
     // Create controller with mocked secrets
     _, secrets := security.NewController(vault)
-    
+
     // Test your controller
     if !secrets.IsStripeConfigured() {
         t.Error("Expected Stripe to be configured")

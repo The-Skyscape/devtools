@@ -15,7 +15,8 @@ import (
 //   - n: The number to format (int, int32, int64, float32, float64)
 //
 // Returns:
-//   A formatted number string with commas, or the original value as string if not numeric
+//
+//	A formatted number string with commas, or the original value as string if not numeric
 //
 // Examples:
 //
@@ -45,12 +46,13 @@ import (
 //	{{ .Population | formatNumber }}      <!-- 8419600 -> "8,419,600" -->
 //
 // Internationalization Note:
-//   This function uses US/UK formatting (comma for thousands, period for decimal).
-//   For other locales, consider a localized number formatter.
-func FormatNumber(n interface{}) string {
+//
+//	This function uses US/UK formatting (comma for thousands, period for decimal).
+//	For other locales, consider a localized number formatter.
+func FormatNumber(n any) string {
 	var num float64
 	var isFloat bool
-	
+
 	// Convert to float64 and track if originally float
 	switch v := n.(type) {
 	case int:
@@ -69,14 +71,14 @@ func FormatNumber(n interface{}) string {
 		// Not a number, return as string
 		return fmt.Sprint(n)
 	}
-	
+
 	// Handle negative numbers
 	sign := ""
 	if num < 0 {
 		sign = "-"
 		num = math.Abs(num)
 	}
-	
+
 	// Format with appropriate decimal places
 	var str string
 	if isFloat {
@@ -89,7 +91,7 @@ func FormatNumber(n interface{}) string {
 		// For integers, no decimals
 		str = fmt.Sprintf("%.0f", num)
 	}
-	
+
 	// Split into integer and decimal parts
 	parts := strings.Split(str, ".")
 	intPart := parts[0]
@@ -97,7 +99,7 @@ func FormatNumber(n interface{}) string {
 	if len(parts) > 1 {
 		decPart = "." + parts[1]
 	}
-	
+
 	// Add commas to integer part
 	var result []rune
 	intRunes := []rune(intPart)
@@ -107,6 +109,6 @@ func FormatNumber(n interface{}) string {
 		}
 		result = append(result, r)
 	}
-	
+
 	return sign + string(result) + decPart
 }

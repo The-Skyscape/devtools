@@ -25,13 +25,13 @@ type FileBackend struct {
 type fileCommand struct {
 	action   string
 	path     string
-	data     map[string]interface{}
+	data     map[string]any
 	response chan fileResponse
 }
 
 // fileResponse represents a response from the file backend
 type fileResponse struct {
-	data  interface{}
+	data  any
 	error error
 }
 
@@ -57,7 +57,7 @@ func (f *FileBackend) Init() error {
 	if err := os.MkdirAll(f.baseDir, 0700); err != nil {
 		return fmt.Errorf("failed to create secrets directory: %w", err)
 	}
-	
+
 	// Generate or load encryption key
 	keyPath := filepath.Join(f.baseDir, ".key")
 	if _, err := os.Stat(keyPath); os.IsNotExist(err) {
@@ -66,12 +66,12 @@ func (f *FileBackend) Init() error {
 		if _, err := rand.Read(key); err != nil {
 			return fmt.Errorf("failed to generate encryption key: %w", err)
 		}
-		
+
 		// Save key
 		if err := os.WriteFile(keyPath, key, 0600); err != nil {
 			return fmt.Errorf("failed to save encryption key: %w", err)
 		}
-		
+
 		f.key = key
 	} else {
 		// Load existing key
@@ -79,44 +79,44 @@ func (f *FileBackend) Init() error {
 		if err != nil {
 			return fmt.Errorf("failed to load encryption key: %w", err)
 		}
-		
+
 		if len(key) != 32 {
 			return fmt.Errorf("invalid encryption key length")
 		}
-		
+
 		f.key = key
 	}
-	
+
 	// Start command processor
 	go f.run()
-	
+
 	log.Printf("FileBackend: Initialized file-based storage at %s", f.baseDir)
 	return nil
 }
 
 // run handles all commands in a single goroutine
 func (f *FileBackend) run() {
-	secrets := make(map[string]map[string]interface{})
-	
+	secrets := make(map[string]map[string]any)
+
 	// Load existing secrets on startup
 	if loadedSecrets, err := f.loadSecretsFromDisk(); err == nil {
 		secrets = loadedSecrets
 	}
-	
+
 	for cmd := range f.commands {
 		switch cmd.action {
 		case "store":
 			// Create a copy to avoid reference issues
-			secretCopy := make(map[string]interface{})
+			secretCopy := make(map[string]any)
 			for k, v := range cmd.data {
 				secretCopy[k] = v
 			}
 			secrets[cmd.path] = secretCopy
-			
+
 			// Save to disk
 			err := f.saveSecretsToDisk(secrets)
 			cmd.response <- fileResponse{error: err}
-			
+
 		case "get":
 			secret, exists := secrets[cmd.path]
 			if !exists {
@@ -125,25 +125,25 @@ func (f *FileBackend) run() {
 				}
 			} else {
 				// Return a copy to avoid modification
-				secretCopy := make(map[string]interface{})
+				secretCopy := make(map[string]any)
 				for k, v := range secret {
 					secretCopy[k] = v
 				}
 				cmd.response <- fileResponse{data: secretCopy}
 			}
-			
+
 		case "delete":
 			delete(secrets, cmd.path)
 			err := f.saveSecretsToDisk(secrets)
 			cmd.response <- fileResponse{error: err}
-			
+
 		case "list":
 			paths := make([]string, 0, len(secrets))
 			for path := range secrets {
 				paths = append(paths, path)
 			}
 			cmd.response <- fileResponse{data: paths}
-			
+
 		case "close":
 			cmd.response <- fileResponse{error: nil}
 			return
@@ -174,8 +174,8 @@ func (f *FileBackend) GetStorageMode() string {
 }
 
 // GetStatus returns the file backend status
-func (f *FileBackend) GetStatus() interface{} {
-	return map[string]interface{}{
+func (f *FileBackend) GetStatus() any {
+	return map[string]any{
 		"mode":      "file",
 		"directory": f.baseDir,
 		"encrypted": true,
@@ -183,7 +183,7 @@ func (f *FileBackend) GetStatus() interface{} {
 }
 
 // StoreSecret stores a secret in the file backend
-func (f *FileBackend) StoreSecret(path string, data map[string]interface{}) error {
+func (f *FileBackend) StoreSecret(path string, data map[string]any) error {
 	response := make(chan fileResponse)
 	f.commands <- fileCommand{
 		action:   "store",
@@ -196,7 +196,7 @@ func (f *FileBackend) StoreSecret(path string, data map[string]interface{}) erro
 }
 
 // GetSecret retrieves a secret from the file backend
-func (f *FileBackend) GetSecret(path string) (map[string]interface{}, error) {
+func (f *FileBackend) GetSecret(path string) (map[string]any, error) {
 	response := make(chan fileResponse)
 	f.commands <- fileCommand{
 		action:   "get",
@@ -207,7 +207,7 @@ func (f *FileBackend) GetSecret(path string) (map[string]interface{}, error) {
 	if result.error != nil {
 		return nil, result.error
 	}
-	return result.data.(map[string]interface{}), nil
+	return result.data.(map[string]any), nil
 }
 
 // DeleteSecret removes a secret from the file backend
@@ -237,62 +237,62 @@ func (f *FileBackend) ListSecrets() ([]string, error) {
 }
 
 // loadSecretsFromDisk loads all secrets from disk
-func (f *FileBackend) loadSecretsFromDisk() (map[string]map[string]interface{}, error) {
+func (f *FileBackend) loadSecretsFromDisk() (map[string]map[string]any, error) {
 	secretsFile := filepath.Join(f.baseDir, "secrets.enc")
-	
+
 	if _, err := os.Stat(secretsFile); os.IsNotExist(err) {
 		// No existing secrets
-		return make(map[string]map[string]interface{}), nil
+		return make(map[string]map[string]any), nil
 	}
-	
+
 	// Read encrypted data
 	encryptedData, err := os.ReadFile(secretsFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read secrets file: %w", err)
 	}
-	
+
 	// Decrypt data
 	decryptedData, err := f.decrypt(encryptedData)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decrypt secrets: %w", err)
 	}
-	
+
 	// Unmarshal secrets
-	var secrets map[string]map[string]interface{}
+	var secrets map[string]map[string]any
 	if err := json.Unmarshal(decryptedData, &secrets); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal secrets: %w", err)
 	}
-	
+
 	return secrets, nil
 }
 
 // saveSecretsToDisk saves all secrets to disk
-func (f *FileBackend) saveSecretsToDisk(secrets map[string]map[string]interface{}) error {
+func (f *FileBackend) saveSecretsToDisk(secrets map[string]map[string]any) error {
 	// Marshal secrets
 	data, err := json.Marshal(secrets)
 	if err != nil {
 		return fmt.Errorf("failed to marshal secrets: %w", err)
 	}
-	
+
 	// Encrypt data
 	encryptedData, err := f.encrypt(data)
 	if err != nil {
 		return fmt.Errorf("failed to encrypt secrets: %w", err)
 	}
-	
+
 	// Write to temp file first
 	secretsFile := filepath.Join(f.baseDir, "secrets.enc")
 	tempFile := secretsFile + ".tmp"
-	
+
 	if err := os.WriteFile(tempFile, encryptedData, 0600); err != nil {
 		return fmt.Errorf("failed to write secrets file: %w", err)
 	}
-	
+
 	// Atomic rename
 	if err := os.Rename(tempFile, secretsFile); err != nil {
 		return fmt.Errorf("failed to save secrets file: %w", err)
 	}
-	
+
 	return nil
 }
 
@@ -302,17 +302,17 @@ func (f *FileBackend) encrypt(plaintext []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	nonce := make([]byte, gcm.NonceSize())
 	if _, err := io.ReadFull(rand.Reader, nonce); err != nil {
 		return nil, err
 	}
-	
+
 	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
 	return ciphertext, nil
 }
@@ -323,22 +323,22 @@ func (f *FileBackend) decrypt(ciphertext []byte) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	gcm, err := cipher.NewGCM(block)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	nonceSize := gcm.NonceSize()
 	if len(ciphertext) < nonceSize {
 		return nil, fmt.Errorf("ciphertext too short")
 	}
-	
+
 	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
 	plaintext, err := gcm.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
 		return nil, err
 	}
-	
+
 	return plaintext, nil
 }

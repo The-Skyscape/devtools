@@ -10,7 +10,8 @@ import "math"
 //   - n: The number to ceil
 //
 // Returns:
-//   The ceiled value as float64
+//
+//	The ceiled value as float64
 //
 // Examples:
 //
@@ -22,9 +23,10 @@ import "math"
 //	Ceil(5)       // 5
 //
 // Negative Numbers:
-//   Note that ceil rounds toward positive infinity, not away from zero:
-//   - Ceil(2.5) = 3
-//   - Ceil(-2.5) = -2 (not -3)
+//
+//	Note that ceil rounds toward positive infinity, not away from zero:
+//	- Ceil(2.5) = 3
+//	- Ceil(-2.5) = -2 (not -3)
 //
 // Template Usage:
 //
@@ -36,6 +38,6 @@ import "math"
 //   - Calculating required capacity (always round up)
 //   - Pagination (number of pages needed)
 //   - Resource allocation (minimum units needed)
-func Ceil(n interface{}) float64 {
+func Ceil(n any) float64 {
 	return math.Ceil(toFloat64(n))
 }

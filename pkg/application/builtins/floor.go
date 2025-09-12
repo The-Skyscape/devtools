@@ -10,7 +10,8 @@ import "math"
 //   - n: The number to floor
 //
 // Returns:
-//   The floored value as float64
+//
+//	The floored value as float64
 //
 // Examples:
 //
@@ -22,9 +23,10 @@ import "math"
 //	Floor(5)      // 5
 //
 // Negative Numbers:
-//   Note that floor rounds toward negative infinity, not toward zero:
-//   - Floor(2.5) = 2
-//   - Floor(-2.5) = -3 (not -2)
+//
+//	Note that floor rounds toward negative infinity, not toward zero:
+//	- Floor(2.5) = 2
+//	- Floor(-2.5) = -3 (not -2)
 //
 // Template Usage:
 //
@@ -36,6 +38,6 @@ import "math"
 //   - Converting floats to integers (always rounding down)
 //   - Calculating complete units (e.g., complete pages, batches)
 //   - Array indexing after division
-func Floor(n interface{}) float64 {
+func Floor(n any) float64 {
 	return math.Floor(toFloat64(n))
 }

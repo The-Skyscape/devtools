@@ -8,9 +8,10 @@ import (
 	"os"
 	"time"
 
+	"context"
+
 	"github.com/golang-jwt/jwt/v5"
 	"golang.org/x/crypto/bcrypt"
-	"context"
 )
 
 // Auth provides core authentication primitives
@@ -32,12 +33,12 @@ func (a *Auth) HashPassword(password string) (string, error) {
 	if password == "" {
 		return "", errors.New("password cannot be empty")
 	}
-	
+
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return "", err
 	}
-	
+
 	return string(bytes), nil
 }
 
@@ -56,31 +57,31 @@ func (a *Auth) GenerateToken(claims jwt.MapClaims) (string, error) {
 // GenerateSessionToken creates a standard session token
 func (a *Auth) GenerateSessionToken(userID string, expiresIn time.Duration) (string, error) {
 	claims := jwt.MapClaims{
-		"user_id": userID,
+		"user_id":    userID,
 		"session_id": GenerateID(),
-		"iat": time.Now().Unix(),
-		"exp": time.Now().Add(expiresIn).Unix(),
+		"iat":        time.Now().Unix(),
+		"exp":        time.Now().Add(expiresIn).Unix(),
 	}
 	return a.GenerateToken(claims)
 }
 
 // ValidateToken validates and parses a JWT token
 func (a *Auth) ValidateToken(tokenString string) (jwt.MapClaims, error) {
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("unexpected signing method")
 		}
 		return []byte(a.secret), nil
 	})
-	
+
 	if err != nil {
 		return nil, err
 	}
-	
+
 	if claims, ok := token.Claims.(jwt.MapClaims); ok && token.Valid {
 		return claims, nil
 	}
-	
+
 	return nil, errors.New("invalid token")
 }
 
@@ -99,12 +100,12 @@ func (a *Auth) GetTokenFromHeader(r *http.Request) (string, error) {
 	if auth == "" {
 		return "", errors.New("no authorization header")
 	}
-	
+
 	// Remove "Bearer " prefix if present
 	if len(auth) > 7 && auth[:7] == "Bearer " {
 		return auth[7:], nil
 	}
-	
+
 	return auth, nil
 }
 
@@ -141,7 +142,7 @@ func GenerateID() string {
 
 // Middleware creates HTTP middleware that extracts auth info
 // Apps can use this as a starting point and customize as needed
-func (a *Auth) Middleware(cookieName string, getUserFunc func(userID string) (interface{}, error)) func(http.Handler) http.Handler {
+func (a *Auth) Middleware(cookieName string, getUserFunc func(userID string) (any, error)) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			// Try to get token from cookie
@@ -154,14 +155,14 @@ func (a *Auth) Middleware(cookieName string, getUserFunc func(userID string) (in
 					return
 				}
 			}
-			
+
 			// Validate token
 			claims, err := a.ValidateToken(token)
 			if err != nil {
 				next.ServeHTTP(w, r)
 				return
 			}
-			
+
 			// Get user if function provided
 			if getUserFunc != nil {
 				if userID, ok := claims["user_id"].(string); ok {
@@ -174,7 +175,7 @@ func (a *Auth) Middleware(cookieName string, getUserFunc func(userID string) (in
 					}
 				}
 			}
-			
+
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -189,7 +190,7 @@ var (
 )
 
 // GetUser extracts user from context
-func GetUser(r *http.Request) interface{} {
+func GetUser(r *http.Request) any {
 	return r.Context().Value(UserContextKey)
 }
 

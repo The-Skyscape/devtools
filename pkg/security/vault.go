@@ -27,7 +27,6 @@ type VaultService struct {
 	fallback Secrets
 }
 
-
 // VaultStatus represents the current status of the vault service
 type VaultStatus struct {
 	Running   bool
@@ -48,12 +47,12 @@ func NewVaultService(opts ...VaultOption) *VaultService {
 		RootToken:     "skyscape-dev-token",
 		Network:       "host",
 	}
-	
+
 	// Apply options
 	for _, opt := range opts {
 		opt(config)
 	}
-	
+
 	return &VaultService{
 		config: config,
 		client: NewVaultClient(fmt.Sprintf("http://localhost:%d", config.Port), config.RootToken),
@@ -65,7 +64,7 @@ func (v *VaultService) GetService() *containers.Service {
 	if v.service != nil {
 		return v.service
 	}
-	
+
 	// Create the service configuration
 	v.service = &containers.Service{
 		Name:          v.config.ContainerName,
@@ -79,20 +78,20 @@ func (v *VaultService) GetService() *containers.Service {
 			"VAULT_API_ADDR":           "http://0.0.0.0:8200",
 		},
 	}
-	
+
 	// Configure for dev or production mode
 	if v.config.DevMode {
 		v.service.Command = "vault server -dev -dev-listen-address=0.0.0.0:8200"
 	} else {
 		// For production mode, mount data directory and config
 		v.service.Mounts = map[string]string{
-			v.config.DataDir:                "/vault/data",
-			v.config.DataDir + "/config":    "/vault/config",
+			v.config.DataDir:             "/vault/data",
+			v.config.DataDir + "/config": "/vault/config",
 		}
 		v.service.Command = "vault server -config=/vault/config"
 		v.service.Env["VAULT_DISABLE_MLOCK"] = "true"
 	}
-	
+
 	return v.service
 }
 
@@ -104,7 +103,7 @@ func (v *VaultService) Init() error {
 
 // InitWithHost initializes the vault service with a specific host
 func (v *VaultService) InitWithHost(host containers.Host) error {
-	
+
 	// Check if service already exists and is running
 	existing, err := containers.GetService(host, v.config.ContainerName)
 	if err == nil && existing != nil && existing.IsRunning() {
@@ -112,18 +111,18 @@ func (v *VaultService) InitWithHost(host containers.Host) error {
 		v.service = existing
 		return nil
 	}
-	
+
 	log.Println("Initializing Vault service...")
-	
+
 	// Get the service definition
 	service := v.GetService()
 	service.Host = host
-	
+
 	// Launch the container
 	if err := containers.Launch(host, service); err != nil {
 		return fmt.Errorf("failed to launch vault container: %w", err)
 	}
-	
+
 	// Wait for vault to be ready
 	if err := service.WaitForReady(30, func() error {
 		// Simple health check - vault will respond on its API port
@@ -131,49 +130,49 @@ func (v *VaultService) InitWithHost(host containers.Host) error {
 	}); err != nil {
 		log.Printf("Warning: Vault may not be fully ready: %v", err)
 	}
-	
+
 	log.Printf("Vault service started successfully on port %d", v.config.Port)
 	if v.config.DevMode {
 		log.Printf("Vault running in dev mode with root token: %s", v.config.RootToken)
 		log.Printf("Access Vault UI at: http://localhost:%d", v.config.Port)
 	}
-	
+
 	v.service = service
 	return nil
 }
 
 // Start starts the vault service
 func (v *VaultService) Start(host containers.Host) error {
-	
+
 	if v.service == nil {
 		v.service = v.GetService()
 		v.service.Host = host
 	}
-	
+
 	if v.IsRunning() {
 		return nil
 	}
-	
+
 	log.Printf("Starting Vault service on port %d", v.config.Port)
-	
+
 	// Launch the container
 	if err := containers.Launch(host, v.service); err != nil {
 		return fmt.Errorf("failed to launch vault container: %w", err)
 	}
-	
+
 	// Wait for readiness
 	time.Sleep(3 * time.Second)
-	
+
 	return nil
 }
 
 // Stop stops the vault service
 func (v *VaultService) Stop() error {
-	
+
 	if v.service == nil {
 		return nil
 	}
-	
+
 	log.Println("Stopping Vault service")
 	return v.service.Stop()
 }
@@ -219,14 +218,14 @@ func (v *VaultService) Restart(host containers.Host) error {
 	return v.Start(host)
 }
 
-// GetStatus returns the current status as interface{}
-func (v *VaultService) GetStatus() interface{} {
+// GetStatus returns the current status as any
+func (v *VaultService) GetStatus() any {
 	return v.GetVaultStatus()
 }
 
 // GetVaultStatus returns the current status of the vault service
 func (v *VaultService) GetVaultStatus() VaultStatus {
-	
+
 	status := VaultStatus{
 		Running:   v.IsRunning(),
 		Port:      v.config.Port,
@@ -234,13 +233,13 @@ func (v *VaultService) GetVaultStatus() VaultStatus {
 		URL:       fmt.Sprintf("http://localhost:%d", v.config.Port),
 		RootToken: v.config.RootToken,
 	}
-	
+
 	if status.Running {
 		status.Health = "healthy"
 	} else {
 		status.Health = "stopped"
 	}
-	
+
 	return status
 }
 
@@ -260,7 +259,7 @@ func (v *VaultService) HasFallback() bool {
 }
 
 // StoreSecret stores a secret at the given path
-func (v *VaultService) StoreSecret(path string, data map[string]interface{}) error {
+func (v *VaultService) StoreSecret(path string, data map[string]any) error {
 	if v.client != nil {
 		return v.client.StoreSecret(path, data)
 	}
@@ -271,7 +270,7 @@ func (v *VaultService) StoreSecret(path string, data map[string]interface{}) err
 }
 
 // GetSecret retrieves a secret from the given path
-func (v *VaultService) GetSecret(path string) (map[string]interface{}, error) {
+func (v *VaultService) GetSecret(path string) (map[string]any, error) {
 	if v.client != nil {
 		return v.client.GetSecret(path)
 	}
@@ -291,4 +290,3 @@ func (v *VaultService) DeleteSecret(path string) error {
 	}
 	return fmt.Errorf("no storage backend available")
 }
-

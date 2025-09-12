@@ -9,7 +9,8 @@ package builtins
 //   - b: Subtrahend (number to subtract)
 //
 // Returns:
-//   The difference a - b, preserving integer type when possible
+//
+//	The difference a - b, preserving integer type when possible
 //
 // Examples:
 //
@@ -23,14 +24,14 @@ package builtins
 //	{{ sub 10 3 }}                    <!-- 7 -->
 //	{{ sub .Total .Discount }}        <!-- discounted total -->
 //	{{ .Count | sub 1 }}              <!-- decrements count -->
-func Subtract(a, b interface{}) interface{} {
+func Subtract(a, b any) any {
 	// Try integer subtraction first
 	if aInt, aOk := toInt(a); aOk {
 		if bInt, bOk := toInt(b); bOk {
 			return aInt - bInt
 		}
 	}
-	
+
 	// Fall back to float subtraction
 	aFloat := toFloat64(a)
 	bFloat := toFloat64(b)

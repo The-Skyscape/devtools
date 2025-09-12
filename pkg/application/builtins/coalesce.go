@@ -9,7 +9,8 @@ package builtins
 //   - values: Variadic list of values to check
 //
 // Returns:
-//   First non-empty value, or nil if all are empty
+//
+//	First non-empty value, or nil if all are empty
 //
 // Examples:
 //
@@ -22,12 +23,13 @@ package builtins
 //	Coalesce(false, true, false)       // true
 //
 // Empty Detection:
-//   Uses the same empty detection as Default():
-//   - Strings: Empty string ""
-//   - Numbers: Zero value (0, 0.0)
-//   - Booleans: false
-//   - Slices/Maps: nil or length 0
-//   - Pointers/Interfaces: nil
+//
+//	Uses the same empty detection as Default():
+//	- Strings: Empty string ""
+//	- Numbers: Zero value (0, 0.0)
+//	- Booleans: false
+//	- Slices/Maps: nil or length 0
+//	- Pointers/Interfaces: nil
 //
 // Template Usage:
 //
@@ -47,7 +49,7 @@ package builtins
 //
 // Note: Particularly useful for template logic where
 // multiple fallback values need to be checked.
-func Coalesce(values ...interface{}) interface{} {
+func Coalesce(values ...any) any {
 	for _, v := range values {
 		if !IsEmpty(v) {
 			return v

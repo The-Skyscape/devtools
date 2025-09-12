@@ -45,7 +45,7 @@ import "fmt"
 //
 //	{{ formatPercent 75.5 }}               <!-- outputs: 75.5% -->
 //	{{ .GrowthRate | formatPercent }}      <!-- outputs: 12.3% -->
-func FormatPercent(value interface{}) string {
+func FormatPercent(value any) string {
 	var percent float64
 	
 	switch v := value.(type) {

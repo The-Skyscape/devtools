@@ -244,7 +244,7 @@ func main() {
 - ✅ **DO USE**: Formatting functions (`formatBytes`, `formatDate`, `timeAgo`, etc.) for display
 - ✅ **DO USE**: String manipulation (`truncate`, `pluralize`, `join`, `slice`, etc.) for text processing
 - ✅ **DO USE**: Math functions - both integer (`add`, `sub`, `mul`, `div`) and float versions (`addf`, `subf`, `mulf`, `divf`)
-- ❌ **NOT PROVIDED**: `dict`, `set`, `head` or similar functions that create untyped map[string]interface{}
+- ❌ **NOT PROVIDED**: `dict`, `set`, `head` or similar functions that create untyped map[string]any
 - **PRINCIPLE**: Go is a type-safe language - use typed structs from controllers, not generic maps
 - **BEST PRACTICE**: All data should come from controller methods that return typed values
 - **CONTEXT**: Use `request.Context()` directly in handlers, not wrapper methods

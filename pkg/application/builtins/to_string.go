@@ -11,7 +11,8 @@ import "fmt"
 //   - v: Any value to convert
 //
 // Returns:
-//   String representation of the value
+//
+//	String representation of the value
 //
 // Examples:
 //
@@ -48,7 +49,7 @@ import "fmt"
 //
 // Note: Uses fmt.Sprint internally, which provides
 // consistent formatting across all Go types.
-func ToString(v interface{}) string {
+func ToString(v any) string {
 	if v == nil {
 		return "<nil>"
 	}

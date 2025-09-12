@@ -36,12 +36,12 @@ func New(opts ...Option) *Vault {
 		RootToken:     "skyscape-dev-token",
 		Network:       "host",
 	}
-	
+
 	// Apply options
 	for _, opt := range opts {
 		opt(config)
 	}
-	
+
 	return &Vault{
 		config: config,
 	}
@@ -95,7 +95,7 @@ func WithNetwork(network string) Option {
 // Init initializes the Vault backend
 func (v *Vault) Init() error {
 	log.Println("Vault: Initializing HashiCorp Vault...")
-	
+
 	// Create container service
 	v.service = &containers.Service{
 		Name:          v.config.ContainerName,
@@ -112,23 +112,23 @@ func (v *Vault) Init() error {
 			"VAULT_API_ADDR":           "http://0.0.0.0:8200",
 		},
 	}
-	
+
 	// Configure for dev or production mode
 	if v.config.DevMode {
 		v.service.Command = "vault server -dev -dev-listen-address=0.0.0.0:8200"
 	} else {
 		// For production mode, mount data directory and config
 		v.service.Mounts = map[string]string{
-			v.config.DataDir:            "/vault/data",
+			v.config.DataDir:             "/vault/data",
 			v.config.DataDir + "/config": "/vault/config",
 		}
 		v.service.Command = "vault server -config=/vault/config"
 		v.service.Env["VAULT_DISABLE_MLOCK"] = "true"
 	}
-	
+
 	// Try to launch container
 	host := &containers.LocalHost{}
-	
+
 	// Check if already running
 	existing, err := containers.GetService(host, v.config.ContainerName)
 	if err == nil && existing != nil && existing.IsRunning() {
@@ -140,22 +140,22 @@ func (v *Vault) Init() error {
 		if err := containers.Launch(host, v.service); err != nil {
 			return fmt.Errorf("failed to launch vault container: %w", err)
 		}
-		
+
 		// Wait for vault to be ready
 		time.Sleep(3 * time.Second)
 	}
-	
+
 	// Initialize client
 	v.client = NewClient(
 		fmt.Sprintf("http://localhost:%d", v.config.Port),
 		v.config.RootToken,
 	)
-	
+
 	log.Printf("Vault: Initialized on port %d", v.config.Port)
 	if v.config.DevMode {
 		log.Printf("Vault: Dev mode with root token: %s", v.config.RootToken)
 	}
-	
+
 	return nil
 }
 
@@ -181,8 +181,8 @@ func (v *Vault) GetStorageMode() string {
 }
 
 // GetStatus returns the current Vault status
-func (v *Vault) GetStatus() interface{} {
-	return map[string]interface{}{
+func (v *Vault) GetStatus() any {
+	return map[string]any{
 		"running":   v.IsAvailable(),
 		"port":      v.config.Port,
 		"dev_mode":  v.config.DevMode,
@@ -192,7 +192,7 @@ func (v *Vault) GetStatus() interface{} {
 }
 
 // StoreSecret stores a secret at the given path
-func (v *Vault) StoreSecret(path string, data map[string]interface{}) error {
+func (v *Vault) StoreSecret(path string, data map[string]any) error {
 	if v.client == nil {
 		return fmt.Errorf("vault client not initialized")
 	}
@@ -200,7 +200,7 @@ func (v *Vault) StoreSecret(path string, data map[string]interface{}) error {
 }
 
 // GetSecret retrieves a secret from the given path
-func (v *Vault) GetSecret(path string) (map[string]interface{}, error) {
+func (v *Vault) GetSecret(path string) (map[string]any, error) {
 	if v.client == nil {
 		return nil, fmt.Errorf("vault client not initialized")
 	}

@@ -11,7 +11,8 @@ import "math"
 //   - n: The number to round
 //
 // Returns:
-//   The rounded value as float64
+//
+//	The rounded value as float64
 //
 // Examples:
 //
@@ -24,11 +25,12 @@ import "math"
 //	Round(0)      // 0
 //
 // Banker's Rounding:
-//   Also known as "round half to even" or "unbiased rounding":
-//   - 0.5 rounds to 0
-//   - 1.5 rounds to 2
-//   - 2.5 rounds to 2
-//   - 3.5 rounds to 4
+//
+//	Also known as "round half to even" or "unbiased rounding":
+//	- 0.5 rounds to 0
+//	- 1.5 rounds to 2
+//	- 2.5 rounds to 2
+//	- 3.5 rounds to 4
 //
 // This reduces statistical bias when summing rounded values.
 //
@@ -42,6 +44,6 @@ import "math"
 //   - Use ceil for always rounding up
 //   - Use floor for always rounding down
 //   - Use custom logic for round-half-up behavior
-func Round(n interface{}) float64 {
+func Round(n any) float64 {
 	return math.Round(toFloat64(n))
 }

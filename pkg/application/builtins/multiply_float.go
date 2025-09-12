@@ -9,7 +9,8 @@ package builtins
 //   - b: Second factor (converted to float64)
 //
 // Returns:
-//   The product as float64
+//
+//	The product as float64
 //
 // Examples:
 //
@@ -29,6 +30,6 @@ package builtins
 //   - Convert decimal to percentage: mulf value 100
 //   - Calculate percentage of value: mulf value 0.15
 //   - Scale values: mulf value scaleFactor
-func MultiplyFloat(a, b interface{}) float64 {
+func MultiplyFloat(a, b any) float64 {
 	return toFloat64(a) * toFloat64(b)
 }
