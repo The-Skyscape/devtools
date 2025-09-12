@@ -19,7 +19,7 @@ We've rejected the complexity of modern JavaScript frameworks in favor of HTMX w
 Our controllers use a unique pattern for request isolation without mutexes:
 ```go
 // Value receiver creates a copy
-func (c TodosController) Handle(r *http.Request) application.Controller {
+func (c TodosController) Handle(r *http.Request) application.IController {
     c.Request = r  // Modifies the copy
     return &c      // Returns pointer to the copy
 }
@@ -102,7 +102,7 @@ go mod download
 ### Controller Pattern
 Controllers should:
 1. Implement factory function returning `(string, *ControllerType)`
-2. Embed `application.BaseController`
+2. Embed `application.Controller`
 3. Implement `Setup(app *App)` to register routes
 4. Implement `Handle(r *Request) Controller` returning instance
 5. Use public methods for template access (e.g., `AllTodos()`)

@@ -12,7 +12,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
-	
+
 	"github.com/The-Skyscape/devtools/pkg/application/builtins"
 )
 
@@ -20,7 +20,7 @@ import (
 // It provides a complete MVC framework for building web applications with
 // server-side rendering and HTMX support.
 type App struct {
-	controllers map[string]Controller
+	controllers map[string]IController
 	viewEngine  *template.Template
 	hostPrefix  string
 	views       []fs.FS
@@ -48,7 +48,7 @@ type AccessCheck func(*App, http.ResponseWriter, *http.Request) bool
 //
 //	//go:embed all:views
 //	var views embed.FS
-//	
+//
 //	func main() {
 //		application.Serve(views,
 //			application.WithController(controllers.Home()),
@@ -73,7 +73,7 @@ func Serve(views fs.FS, opts ...Option) {
 // served as static files at the "/public/" URL path.
 func New(views fs.FS, opts ...Option) *App {
 	app := App{
-		controllers: map[string]Controller{},
+		controllers: map[string]IController{},
 		views:       []fs.FS{appViews},
 		theme:       "retro",
 		middlewares: []Middleware{},
@@ -167,7 +167,7 @@ func (app *App) Start() error {
 //		auth := c.App.Use("auth").(*AuthController)
 //		// ...
 //	}
-func (app App) Use(name string) Controller {
+func (app App) Use(name string) IController {
 	return app.controllers[name]
 }
 
@@ -203,7 +203,7 @@ func (app *App) Render(w io.Writer, r *http.Request, page string, data any) {
 
 	// Add controller functions
 	for name, ctrl := range app.controllers {
-		funcs[name] = func() Controller { return ctrl.Handle(r) }
+		funcs[name] = func() IController { return ctrl.Handle(r) }
 	}
 
 	view := app.viewEngine.Lookup(page)

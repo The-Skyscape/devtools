@@ -14,19 +14,19 @@ func Ducks() (string, *DucksController) {
 
 // DucksController is the controller for the ducks
 type DucksController struct {
-	application.BaseController
+	application.Controller
 }
 
 // Setup is called when the application is started
 func (c *DucksController) Setup(app *application.App) {
-	c.BaseController.Setup(app)
+	c.Controller.Setup(app)
 
 	http.Handle("GET /", app.Serve("dashboard.html", nil))
 	http.Handle("POST /", app.ProtectFunc(c.spawnDuck, nil))
 }
 
 // Handle is called when each request is handled
-func (c DucksController) Handle(req *http.Request) application.Controller {
+func (c DucksController) Handle(req *http.Request) application.IController {
 	c.Request = req
 	return &c
 }
@@ -39,7 +39,7 @@ func (c *DucksController) AllDucks() ([]*models.Duck, error) {
 // spawnDuck is a HandlerFunc that is called when the user submits a duck
 func (c *DucksController) spawnDuck(w http.ResponseWriter, r *http.Request) {
 	c.SetRequest(r)
-	
+
 	// Creating a instance model of a duck
 	duck := &models.Duck{
 		Name:  r.FormValue("name"),

@@ -9,7 +9,7 @@ import (
 
 // Controller provides a web controller for managing secrets
 type Controller struct {
-	application.BaseController
+	application.Controller
 	*Collection
 }
 
@@ -32,12 +32,12 @@ type ControllerOption func(*Controller)
 
 // Setup initializes the secrets controller
 func (c *Controller) Setup(app *application.App) {
-	c.BaseController.Setup(app)
+	c.Controller.Setup(app)
 	// Collection is already initialized, nothing else needed
 }
 
 // Handle returns the controller instance for the current request
-func (c *Controller) Handle(r *http.Request) application.Controller {
+func (c *Controller) Handle(r *http.Request) application.IController {
 	c.Request = r
 	return c
 }

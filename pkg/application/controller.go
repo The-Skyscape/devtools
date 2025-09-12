@@ -18,26 +18,26 @@ var (
 	ErrInternal     = errors.New("internal server error")
 )
 
-type Controller interface {
+type IController interface {
 	Setup(*App)
-	Handle(*http.Request) Controller
+	Handle(*http.Request) IController
 }
 
-type BaseController struct {
+type Controller struct {
 	*App
 	*http.Request
 }
 
-func (base *BaseController) Setup(app *App) {
+func (base *Controller) Setup(app *App) {
 	base.App = app
 }
 
 // SetRequest sets the current request on the controller
-func (base *BaseController) SetRequest(r *http.Request) {
+func (base *Controller) SetRequest(r *http.Request) {
 	base.Request = r
 }
 
-func (base *BaseController) Use(name string) Controller {
+func (base *Controller) Use(name string) IController {
 	ctrl := base.App.Use(name)
 	if ctrl == nil {
 		return nil
@@ -47,7 +47,7 @@ func (base *BaseController) Use(name string) Controller {
 
 // UseWithRequest returns a controller with a specific request set
 // This is useful when you need to use another controller but with a different request
-func (base *BaseController) UseWithRequest(name string, r *http.Request) Controller {
+func (base *Controller) UseWithRequest(name string, r *http.Request) IController {
 	ctrl := base.App.Use(name)
 	if ctrl == nil {
 		return nil
@@ -56,37 +56,37 @@ func (base *BaseController) UseWithRequest(name string, r *http.Request) Control
 }
 
 // Params returns a parameter helper for the current request
-func (c *BaseController) Params() *Params {
+func (c *Controller) Params() *Params {
 	return NewParams(c.Request)
 }
 
 // MultipartParams returns a multipart parameter helper for file uploads
-func (c *BaseController) MultipartParams() *Params {
+func (c *Controller) MultipartParams() *Params {
 	return NewMultipartParams(c.Request)
 }
 
 // Pagination returns pagination parameters from the request
-func (c *BaseController) Pagination(defaultPageSize int) *Pagination {
+func (c *Controller) Pagination(defaultPageSize int) *Pagination {
 	return GetPagination(c.Request, defaultPageSize)
 }
 
 // Sort returns sort parameters from the request
-func (c *BaseController) Sort(defaultField string) *Sort {
+func (c *Controller) Sort(defaultField string) *Sort {
 	return GetSort(c.Request, defaultField)
 }
 
 // Validator returns a new validator for building validation errors
-func (c *BaseController) Validator() *Validator {
+func (c *Controller) Validator() *Validator {
 	return NewValidator()
 }
 
 // IsHTMX checks if the request is from HTMX
-func (c *BaseController) IsHTMX(r *http.Request) bool {
+func (c *Controller) IsHTMX(r *http.Request) bool {
 	return r.Header.Get("HX-Request") == "true"
 }
 
 // Refresh triggers a page refresh (HTMX-aware)
-func (c *BaseController) Refresh(w http.ResponseWriter, r *http.Request) {
+func (c *Controller) Refresh(w http.ResponseWriter, r *http.Request) {
 	if c.IsHTMX(r) {
 		w.Header().Set("HX-Refresh", "true")
 		w.WriteHeader(http.StatusNoContent)
@@ -97,7 +97,7 @@ func (c *BaseController) Refresh(w http.ResponseWriter, r *http.Request) {
 }
 
 // Redirect sends a redirect response (HTMX-aware)
-func (c *BaseController) Redirect(w http.ResponseWriter, r *http.Request, path string) {
+func (c *Controller) Redirect(w http.ResponseWriter, r *http.Request, path string) {
 	if c.IsHTMX(r) {
 		// Use HX-Location for client-side redirect
 		w.Header().Set("HX-Location", c.hostPrefix+path)
@@ -107,45 +107,43 @@ func (c *BaseController) Redirect(w http.ResponseWriter, r *http.Request, path s
 	http.Redirect(w, r, path, http.StatusSeeOther)
 }
 
-// RenderError renders an error message (HTMX-aware)
-func (c *BaseController) RenderError(w http.ResponseWriter, r *http.Request, err error) {
-	// IMPORTANT: We intentionally don't set HTTP status codes here
-	// HTMX needs 200 OK to swap the error content into the DOM
-	c.Render(w, r, "error-message.html", err)
-}
-
-// RenderErrorMsg renders an error message from string
-func (c *BaseController) RenderErrorMsg(w http.ResponseWriter, r *http.Request, msg string) {
-	c.RenderError(w, r, errors.New(msg))
-}
-
-// RenderValidationError renders validation errors
-func (c *BaseController) RenderValidationError(w http.ResponseWriter, r *http.Request, err error) {
-	if ve, ok := err.(ValidationError); ok {
-		c.Render(w, r, "validation-errors.html", ve)
-	} else {
-		c.RenderError(w, r, err)
+// RenderError renders an error using the appropriate template.
+// It automatically selects the right template based on the error type:
+//   - ValidationError -> "validation-errors.html"
+//   - ErrNotFound -> "error-404.html"
+//   - ErrForbidden -> "error-403.html"
+//   - ErrUnauthorized -> "error-401.html"
+//   - Others -> "error-message.html"
+//
+// IMPORTANT: Returns 200 OK for HTMX compatibility (needs to swap content)
+func (c *Controller) RenderError(w http.ResponseWriter, r *http.Request, err error) {
+	// Select template based on error type
+	template := "error-message.html"
+	
+	switch {
+	case errors.Is(err, ErrNotFound):
+		template = "error-404.html"
+	case errors.Is(err, ErrForbidden):
+		template = "error-403.html"
+	case errors.Is(err, ErrUnauthorized):
+		template = "error-401.html"
+	case err != nil:
+		if _, ok := err.(ValidationError); ok {
+			template = "validation-errors.html"
+		}
 	}
+	
+	c.Render(w, r, template, err)
 }
 
-// RenderNotFound renders a 404 error
-func (c *BaseController) RenderNotFound(w http.ResponseWriter, r *http.Request) {
-	c.Render(w, r, "error-404.html", ErrNotFound)
-}
-
-// RenderForbidden renders a 403 error
-func (c *BaseController) RenderForbidden(w http.ResponseWriter, r *http.Request) {
-	c.Render(w, r, "error-403.html", ErrForbidden)
-}
-
-func (c *BaseController) RenderString(templateName string, data any) (string, error) {
+func (c *Controller) RenderString(templateName string, data any) (string, error) {
 	// Render a template to a string instead of writing to ResponseWriter
 	var buf bytes.Buffer
 	c.App.Render(&buf, c.Request, templateName, data)
 	return buf.String(), nil
 }
 
-func (c *BaseController) EventStream(w http.ResponseWriter, r *http.Request) (func(string, any), error) {
+func (c *Controller) EventStream(w http.ResponseWriter, r *http.Request) (func(string, any), error) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")

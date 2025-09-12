@@ -1,8 +1,9 @@
 package controllers
 
 import (
-	"github.com/The-Skyscape/devtools/pkg/application"
 	"net/http"
+
+	"github.com/The-Skyscape/devtools/pkg/application"
 )
 
 // Home returns the home controller
@@ -12,16 +13,16 @@ func Home() (string, *HomeController) {
 
 // HomeController handles home page
 type HomeController struct {
-	application.BaseController
+	application.Controller
 }
 
 // Setup initializes the controller
 func (c *HomeController) Setup(app *application.App) {
-	c.BaseController.Setup(app)
+	c.Controller.Setup(app)
 }
 
 // Handle returns the controller instance
-func (c *HomeController) Handle(r *http.Request) application.Controller {
+func (c *HomeController) Handle(r *http.Request) application.IController {
 	c.Request = r
 	return c
 }

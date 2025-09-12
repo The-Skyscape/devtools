@@ -80,8 +80,8 @@ func DiscoverControllers(dir string) ([]ControllerInfo, error) {
 	// Build the final controller list
 	var controllers []ControllerInfo
 	for _, info := range controllerMap {
-		// Add embedded BaseController methods
-		info.Methods = append(info.Methods, getBaseControllerMethods()...)
+		// Add embedded Controller methods
+		info.Methods = append(info.Methods, getControllerMethods()...)
 		info.Methods = removeDuplicates(info.Methods)
 		controllers = append(controllers, *info)
 	}
@@ -212,8 +212,8 @@ func parseControllerFile(filePath string) ([]ControllerInfo, error) {
 
 	// Build the final controller list with all methods
 	for _, info := range controllerTypes {
-		// Add embedded BaseController methods
-		info.Methods = append(info.Methods, getBaseControllerMethods()...)
+		// Add embedded Controller methods
+		info.Methods = append(info.Methods, getControllerMethods()...)
 		info.Methods = removeDuplicates(info.Methods)
 		controllers = append(controllers, *info)
 	}
@@ -288,8 +288,8 @@ func getReceiverType(recv *ast.FieldList) string {
 	return ""
 }
 
-// getBaseControllerMethods returns common methods from embedded BaseController
-func getBaseControllerMethods() []string {
+// getControllerMethods returns common methods from embedded Controller
+func getControllerMethods() []string {
 	return []string{
 		"Render",
 		"Refresh",

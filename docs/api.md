@@ -86,15 +86,15 @@ type Controller interface {
     Handle(*http.Request) Controller
 }
 
-type BaseController struct {
+type Controller struct {
     *App
     *http.Request
 }
 
-func (c *BaseController) Setup(app *App)
-func (c *BaseController) Handle(r *http.Request) Controller
-func (c *BaseController) Render(w http.ResponseWriter, r *http.Request, template string, data any)
-func (c *BaseController) Refresh(w http.ResponseWriter, r *http.Request)
+func (c *Controller) Setup(app *App)
+func (c *Controller) Handle(r *http.Request) Controller
+func (c *Controller) Render(w http.ResponseWriter, r *http.Request, template string, data any)
+func (c *Controller) Refresh(w http.ResponseWriter, r *http.Request)
 ```
 
 #### `Model`

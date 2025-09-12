@@ -8,7 +8,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
-	
+
 	"github.com/The-Skyscape/devtools/pkg/application/builtins"
 	"github.com/The-Skyscape/devtools/pkg/charting"
 )
@@ -47,21 +47,21 @@ func (v *View) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (app *App) prepareViews() {
 	// Get all built-in functions
 	builtinFuncs := builtins.FuncMap
-	
+
 	// Start with built-in functions as base
 	funcs := builtinFuncs
-	
+
 	// Add app-specific functions
 	funcs["req"] = func() *http.Request { return nil }
 	funcs["host"] = func() string { return app.hostPrefix }
 	funcs["path"] = func(parts ...string) string { return fmt.Sprintf("/%s", strings.Join(parts, "/")) }
 	funcs["theme"] = func() string { return app.theme }
 	funcs["path_eq"] = func(parts ...string) bool { return false }
-	
+
 	// Override the title function to use the specific behavior
 	funcs["title"] = func(title string) string { return strings.ReplaceAll(title, "_", " ") }
 	funcs["prefix"] = func(s, prefix string) bool { return strings.HasPrefix(s, prefix) }
-	
+
 	// JSON functionsany
 	funcs["jsonify"] = func(v any) template.JS {
 		data, err := json.Marshal(v)
@@ -71,12 +71,12 @@ func (app *App) prepareViews() {
 		}
 		return template.JS(data)
 	}
-	
+
 	// Charting functions
 	funcs["renderChart"] = func(dataOrFunc any, placeholder ...string) template.HTML {
 		// Handle function call if passed
 		var data *charting.ChartData
-		
+
 		// Check if it's a function that returns ChartData
 		switch v := dataOrFunc.(type) {
 		case func() any:
@@ -88,7 +88,7 @@ func (app *App) prepareViews() {
 		case *charting.ChartData:
 			data = v
 		}
-		
+
 		// Return placeholder if no data
 		if data == nil || len(data.Data) == 0 {
 			title := "No data"
@@ -101,18 +101,18 @@ func (app *App) prepareViews() {
 			}
 			return charting.PlaceholderChart(title, message)
 		}
-		
+
 		return charting.RenderLineChart(data, 600, 300)
 	}
-	
+
 	funcs["renderSparkline"] = func(data []float64) template.HTML {
 		return charting.RenderSparkline(data, 100, 30)
 	}
-	
+
 	funcs["placeholderChart"] = func(title, message string) template.HTML {
 		return charting.PlaceholderChart(title, message)
 	}
-	
+
 	funcs["chartLoader"] = func(endpoint, title string) template.HTML {
 		return template.HTML(fmt.Sprintf(`
 			<div hx-get="%s" 
@@ -128,7 +128,7 @@ func (app *App) prepareViews() {
 	}
 
 	for name, ctrl := range app.controllers {
-		funcs[name] = func() Controller { return ctrl }
+		funcs[name] = func() IController { return ctrl }
 	}
 
 	if app.viewEngine == nil {

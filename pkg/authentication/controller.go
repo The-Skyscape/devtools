@@ -25,7 +25,7 @@ func (c *Collection) Controller(opts ...Option) *Controller {
 }
 
 type Controller struct {
-	application.BaseController
+	application.Controller
 	*Collection
 
 	// Frontend state
@@ -79,13 +79,13 @@ func (auth *Controller) AdminOnly(app *application.App, w http.ResponseWriter, r
 }
 
 func (auth *Controller) Setup(app *application.App) {
-	auth.BaseController.Setup(app)
+	auth.Controller.Setup(app)
 	http.HandleFunc("POST /_auth/signup", auth.HandleSignup)
 	http.HandleFunc("POST /_auth/signin", auth.HandleSignin)
 	http.HandleFunc("POST /_auth/signout", auth.HandleSignout)
 }
 
-func (auth Controller) Handle(r *http.Request) application.Controller {
+func (auth Controller) Handle(r *http.Request) application.IController {
 	auth.Request = r
 	return &auth
 }

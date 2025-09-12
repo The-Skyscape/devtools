@@ -151,16 +151,16 @@ func Todos() (string, *TodosController) {
 }
 
 type TodosController struct {
-    application.BaseController
+    application.Controller
 }
 
 func (c *TodosController) Setup(app *application.App) {
-    c.BaseController.Setup(app)
+    c.Controller.Setup(app)
     app.Serve("GET /", "todos.html", models.Auth.Required)
     app.ProtectFunc("POST /todos", c.createTodo, models.Auth.Required)
 }
 
-func (c *TodosController) Handle(r *http.Request) application.Controller {
+func (c *TodosController) Handle(r *http.Request) application.IController {
     c.Request = r
     return c
 }

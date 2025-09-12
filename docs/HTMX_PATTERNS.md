@@ -196,7 +196,7 @@ c.Refresh(w, r)  // Triggers page refresh via HX-Refresh header
 
 ## Integration with DevTools
 
-The DevTools `BaseController` provides built-in HTMX support:
+The DevTools `Controller` provides built-in HTMX support:
 
 ```go
 // In your controller

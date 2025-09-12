@@ -12,12 +12,12 @@ import (
 
 // TodosController is the controller for todos
 type TodosController struct {
-	application.BaseController
+	application.Controller
 }
 
 // Setup is called when the application is started
 func (c *TodosController) Setup(app *application.App) {
-	c.BaseController.Setup(app)
+	c.Controller.Setup(app)
 
 	auth := app.Use("auth").(*authentication.Controller)
 	http.Handle("GET /todos", app.Serve("todos.html", auth.Required))
@@ -28,7 +28,7 @@ func (c *TodosController) Setup(app *application.App) {
 }
 
 // Handle is called when each request is handled
-func (c TodosController) Handle(req *http.Request) application.Controller {
+func (c TodosController) Handle(req *http.Request) application.IController {
 	c.Request = req
 	return &c
 }

@@ -128,15 +128,15 @@ func Home() (string, *HomeController) {
 }
 
 type HomeController struct {
-	application.BaseController
+	application.Controller
 }
 
 func (c *HomeController) Setup(app *application.App) {
-	c.BaseController.Setup(app)
+	c.Controller.Setup(app)
 	app.Serve("GET /", "home.html", nil)
 }
 
-func (c *HomeController) Handle(r *http.Request) application.Controller {
+func (c *HomeController) Handle(r *http.Request) application.IController {
 	c.Request = r
 	return c
 }
@@ -158,18 +158,18 @@ func Todos() (string, *TodosController) {
 }
 
 type TodosController struct {
-	application.BaseController
+	application.Controller
 }
 
 func (c *TodosController) Setup(app *application.App) {
-	c.BaseController.Setup(app)
+	c.Controller.Setup(app)
 	app.Serve("GET /todos", "todos.html", models.Auth.Required)
 	app.ProtectFunc("POST /todos", c.createTodo, models.Auth.Required)
 	app.ProtectFunc("PUT /todos/{id}/toggle", c.toggleTodo, models.Auth.Required)
 	app.ProtectFunc("DELETE /todos/{id}", c.deleteTodo, models.Auth.Required)
 }
 
-func (c *TodosController) Handle(r *http.Request) application.Controller {
+func (c *TodosController) Handle(r *http.Request) application.IController {
 	c.Request = r
 	return c
 }

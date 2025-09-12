@@ -45,12 +45,12 @@ Example 2: Using SecretsController in Other Controllers
 package controllers
 
 type AdminController struct {
-    application.BaseController
+    application.Controller
     // ... other fields
 }
 
 func (c *AdminController) Setup(app *application.App) {
-    c.BaseController.Setup(app)
+    c.Controller.Setup(app)
 
     // Get the secrets controller
     secrets := app.Use("secrets").(*security.Controller)
@@ -117,7 +117,7 @@ Example 4: Protected Routes with Middleware
 
 ```go
 func (c *BillingController) Setup(app *application.App) {
-    c.BaseController.Setup(app)
+    c.Controller.Setup(app)
 
     secrets := app.Use("secrets").(*security.Controller)
     auth := app.Use("auth").(*authentication.Controller)
