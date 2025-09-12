@@ -24,12 +24,12 @@ type DucksController struct {
 // PATTERN: Called ONCE at application startup, not per request
 // AI: Register all routes here, don't create routes elsewhere
 func (c *DucksController) Setup(app *application.App) {
-	c.Controller.Setup(app)  // PATTERN: Always call parent Setup first
+	c.Controller.Setup(app) // PATTERN: Always call parent Setup first
 
 	// PATTERN: GET routes typically render pages
 	http.Handle("GET /", app.Serve("dashboard.html", nil))
 	http.Handle("GET /ducks/{id}", app.Serve("duck-detail.html", nil))
-	
+
 	// PATTERN: POST routes typically modify data then refresh/redirect
 	http.Handle("POST /ducks", app.ProtectFunc(c.spawnDuck, nil))
 	http.Handle("POST /ducks/{id}/update", app.ProtectFunc(c.updateDuck, nil))
@@ -39,9 +39,9 @@ func (c *DucksController) Setup(app *application.App) {
 // Handle creates a request-scoped controller instance
 // PATTERN: MUST use VALUE receiver (not pointer) for request isolation
 // AI: This creates a COPY for each request - no shared state!
-func (c DucksController) Handle(req *http.Request) application.IController {
-	c.Request = req  // Modifies the copy, not the original
-	return &c        // Returns pointer to the copy
+func (c DucksController) Handle(req *http.Request) application.Handler {
+	c.Request = req // Modifies the copy, not the original
+	return &c       // Returns pointer to the copy
 }
 
 // AllDucks returns all ducks for template display
@@ -74,22 +74,22 @@ func (c *DucksController) CountDucks() int {
 // PATTERN: Private methods (lowercase) are HTTP handlers
 // AI: These are NOT accessible in templates, only through routes
 func (c *DucksController) spawnDuck(w http.ResponseWriter, r *http.Request) {
-	c.SetRequest(r)  // PATTERN: Always set request first in handlers
+	c.SetRequest(r) // PATTERN: Always set request first in handlers
 
 	// PATTERN: Use Validator for input validation
 	validator := c.Validator()
 	validator.CheckRequired("name", r.FormValue("name"))
 	validator.CheckLength("name", r.FormValue("name"), 2, 50)
-	
+
 	// Validate breed is one of allowed values
 	breed := r.FormValue("breed")
 	if breed != "mallard" && breed != "redbone" && breed != "rubber" {
 		validator.AddError("breed", "Invalid breed selected")
 	}
-	
+
 	// PATTERN: Always check validation result
 	if err := validator.Result(); err != nil {
-		c.RenderError(w, r, err)  // PATTERN: Always render errors to user
+		c.RenderError(w, r, err) // PATTERN: Always render errors to user
 		return
 	}
 
@@ -128,7 +128,7 @@ func (c *DucksController) updateDuck(w http.ResponseWriter, r *http.Request) {
 	// Validate input
 	validator := c.Validator()
 	validator.CheckRequired("name", r.FormValue("name"))
-	
+
 	if err := validator.Result(); err != nil {
 		c.RenderError(w, r, err)
 		return
@@ -137,7 +137,7 @@ func (c *DucksController) updateDuck(w http.ResponseWriter, r *http.Request) {
 	// Update the duck
 	duck.Name = r.FormValue("name")
 	duck.Breed = r.FormValue("breed")
-	
+
 	if err := models.Ducks.Update(duck); err != nil {
 		c.RenderError(w, r, err)
 		return

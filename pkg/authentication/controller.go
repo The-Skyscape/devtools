@@ -85,7 +85,7 @@ func (auth *Controller) Setup(app *application.App) {
 	http.HandleFunc("POST /_auth/signout", auth.HandleSignout)
 }
 
-func (auth Controller) Handle(r *http.Request) application.IController {
+func (auth Controller) Handle(r *http.Request) application.Handler {
 	auth.Request = r
 	return &auth
 }

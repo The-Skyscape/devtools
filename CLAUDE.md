@@ -19,7 +19,7 @@ We've rejected the complexity of modern JavaScript frameworks in favor of HTMX w
 Our controllers use a unique pattern for request isolation without mutexes:
 ```go
 // Value receiver creates a copy
-func (c HomeController) Handle(r *http.Request) application.IController {
+func (c HomeController) Handle(r *http.Request) application.Handler {
     c.Request = r  // Modifies the copy
     return &c      // Returns pointer to the copy
 }
@@ -343,7 +343,7 @@ func (c *ResourcesController) Setup(app *application.App) {
 }
 
 // VALUE receiver for request isolation
-func (c ResourcesController) Handle(req *http.Request) application.IController {
+func (c ResourcesController) Handle(req *http.Request) application.Handler {
     c.Request = req
     return &c
 }

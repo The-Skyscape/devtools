@@ -160,7 +160,7 @@ func (c *TodosController) Setup(app *application.App) {
     app.ProtectFunc("POST /todos", c.createTodo, models.Auth.Required)
 }
 
-func (c *TodosController) Handle(r *http.Request) application.IController {
+func (c *TodosController) Handle(r *http.Request) application.Handler {
     c.Request = r
     return c
 }

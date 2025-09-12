@@ -50,7 +50,7 @@ func (c *ResourceNameController) Setup(app *application.App) {
 
 // Handle creates a request-scoped controller instance
 // PATTERN: MUST use value receiver (not pointer)
-func (c ResourceNameController) Handle(req *http.Request) application.IController {
+func (c ResourceNameController) Handle(req *http.Request) application.Handler {
     c.Request = req  // Modifies the copy
     return &c        // Returns pointer to the copy
 }
@@ -282,13 +282,13 @@ func main() {
 
 ```go
 // ❌ WRONG - Pointer receiver breaks request isolation
-func (c *Controller) Handle(req *http.Request) application.IController {
+func (c *Controller) Handle(req *http.Request) application.Handler {
     c.Request = req  // Modifies shared instance!
     return c
 }
 
 // ✅ CORRECT - Value receiver creates copy
-func (c Controller) Handle(req *http.Request) application.IController {
+func (c Controller) Handle(req *http.Request) application.Handler {
     c.Request = req  // Modifies the copy
     return &c
 }

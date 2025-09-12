@@ -22,7 +22,7 @@ func (c *HomeController) Setup(app *application.App) {
 }
 
 // Handle returns the controller instance
-func (c *HomeController) Handle(r *http.Request) application.IController {
+func (c *HomeController) Handle(r *http.Request) application.Handler {
 	c.Request = r
 	return c
 }

@@ -52,7 +52,7 @@ func (c *ControllerNameController) Setup(app *application.App) {
 }
 
 // PATTERN: Handle uses VALUE receiver for request isolation
-func (c ControllerNameController) Handle(req *http.Request) application.IController {
+func (c ControllerNameController) Handle(req *http.Request) application.Handler {
     c.Request = req  // Modifies the copy
     return &c        // Returns pointer to the copy
 }

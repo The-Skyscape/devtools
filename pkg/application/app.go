@@ -20,7 +20,7 @@ import (
 // It provides a complete MVC framework for building web applications with
 // server-side rendering and HTMX support.
 type App struct {
-	controllers map[string]IController
+	controllers map[string]Handler
 	viewEngine  *template.Template
 	hostPrefix  string
 	views       []fs.FS
@@ -73,7 +73,7 @@ func Serve(views fs.FS, opts ...Option) {
 // served as static files at the "/public/" URL path.
 func New(views fs.FS, opts ...Option) *App {
 	app := App{
-		controllers: map[string]IController{},
+		controllers: map[string]Handler{},
 		views:       []fs.FS{appViews},
 		theme:       "retro",
 		middlewares: []Middleware{},
@@ -167,7 +167,7 @@ func (app *App) Start() error {
 //		auth := c.App.Use("auth").(*AuthController)
 //		// ...
 //	}
-func (app App) Use(name string) IController {
+func (app App) Use(name string) Handler {
 	return app.controllers[name]
 }
 
@@ -203,7 +203,7 @@ func (app *App) Render(w io.Writer, r *http.Request, page string, data any) {
 
 	// Add controller functions
 	for name, ctrl := range app.controllers {
-		funcs[name] = func() IController { return ctrl.Handle(r) }
+		funcs[name] = func() Handler { return ctrl.Handle(r) }
 	}
 
 	view := app.viewEngine.Lookup(page)

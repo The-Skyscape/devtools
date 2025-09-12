@@ -18,9 +18,9 @@ var (
 	ErrInternal     = errors.New("internal server error")
 )
 
-type IController interface {
+type Handler interface {
 	Setup(*App)
-	Handle(*http.Request) IController
+	Handle(*http.Request) Handler
 }
 
 type Controller struct {
@@ -37,7 +37,7 @@ func (base *Controller) SetRequest(r *http.Request) {
 	base.Request = r
 }
 
-func (base *Controller) Use(name string) IController {
+func (base *Controller) Use(name string) Handler {
 	ctrl := base.App.Use(name)
 	if ctrl == nil {
 		return nil
@@ -47,7 +47,7 @@ func (base *Controller) Use(name string) IController {
 
 // UseWithRequest returns a controller with a specific request set
 // This is useful when you need to use another controller but with a different request
-func (base *Controller) UseWithRequest(name string, r *http.Request) IController {
+func (base *Controller) UseWithRequest(name string, r *http.Request) Handler {
 	ctrl := base.App.Use(name)
 	if ctrl == nil {
 		return nil
@@ -119,7 +119,7 @@ func (c *Controller) Redirect(w http.ResponseWriter, r *http.Request, path strin
 func (c *Controller) RenderError(w http.ResponseWriter, r *http.Request, err error) {
 	// Select template based on error type
 	template := "error-message.html"
-	
+
 	switch {
 	case errors.Is(err, ErrNotFound):
 		template = "error-404.html"
@@ -132,7 +132,7 @@ func (c *Controller) RenderError(w http.ResponseWriter, r *http.Request, err err
 			template = "validation-errors.html"
 		}
 	}
-	
+
 	c.Render(w, r, template, err)
 }
 

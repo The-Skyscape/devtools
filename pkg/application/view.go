@@ -128,7 +128,7 @@ func (app *App) prepareViews() {
 	}
 
 	for name, ctrl := range app.controllers {
-		funcs[name] = func() IController { return ctrl }
+		funcs[name] = func() Handler { return ctrl }
 	}
 
 	if app.viewEngine == nil {

@@ -19,14 +19,14 @@ func WithFunc(name string, fn any) Option {
 }
 
 // WithController adds a controller to the application
-func WithController(name string, ctrl IController) Option {
+func WithController(name string, ctrl Handler) Option {
 	return func(app *App) error {
 		return app.WithController(name, ctrl)
 	}
 }
 
 // WithController adds a controller to the application
-func (app *App) WithController(name string, controller IController) error {
+func (app *App) WithController(name string, controller Handler) error {
 	if _, ok := app.controllers[name]; !ok {
 		app.controllers[name] = controller
 		controller.Setup(app)

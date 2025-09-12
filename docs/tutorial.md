@@ -136,7 +136,7 @@ func (c *HomeController) Setup(app *application.App) {
 	app.Serve("GET /", "home.html", nil)
 }
 
-func (c *HomeController) Handle(r *http.Request) application.IController {
+func (c *HomeController) Handle(r *http.Request) application.Handler {
 	c.Request = r
 	return c
 }
@@ -169,7 +169,7 @@ func (c *TodosController) Setup(app *application.App) {
 	app.ProtectFunc("DELETE /todos/{id}", c.deleteTodo, models.Auth.Required)
 }
 
-func (c *TodosController) Handle(r *http.Request) application.IController {
+func (c *TodosController) Handle(r *http.Request) application.Handler {
 	c.Request = r
 	return c
 }

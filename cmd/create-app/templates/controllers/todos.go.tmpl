@@ -28,7 +28,7 @@ func (c *TodosController) Setup(app *application.App) {
 }
 
 // Handle is called when each request is handled
-func (c TodosController) Handle(req *http.Request) application.IController {
+func (c TodosController) Handle(req *http.Request) application.Handler {
 	c.Request = req
 	return &c
 }

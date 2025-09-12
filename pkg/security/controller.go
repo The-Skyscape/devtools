@@ -37,7 +37,7 @@ func (c *Controller) Setup(app *application.App) {
 }
 
 // Handle returns the controller instance for the current request
-func (c *Controller) Handle(r *http.Request) application.IController {
+func (c *Controller) Handle(r *http.Request) application.Handler {
 	c.Request = r
 	return c
 }
