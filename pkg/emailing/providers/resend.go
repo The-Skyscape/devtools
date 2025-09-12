@@ -1,13 +1,14 @@
 package providers
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
-	"strings"
 
 	"github.com/The-Skyscape/devtools/pkg/emailing"
+	"github.com/The-Skyscape/devtools/pkg/security"
 )
 
 // ResendProvider implements the Provider interface for Resend
@@ -15,6 +16,35 @@ type ResendProvider struct {
 	ApiKey   string
 	FromAddr string
 	FromName string
+}
+
+func (p *ResendProvider) Init(vault *security.Collection) error {
+	if vault == nil {
+		return nil
+	}
+	
+	secret, err := vault.GetSecret("integrations/email/resend")
+	if err != nil {
+		return err
+	}
+	
+	apiKey, ok := secret["api_key"].(string)
+	if !ok || apiKey == "" {
+		return nil
+	}
+	
+	// Update provider configuration
+	p.ApiKey = apiKey
+	
+	// Get from address from vault or keep existing
+	if addr, ok := secret["from_address"].(string); ok && addr != "" {
+		p.FromAddr = addr
+	}
+	if name, ok := secret["from_name"].(string); ok && name != "" {
+		p.FromName = name
+	}
+	
+	return nil
 }
 
 func (p *ResendProvider) Name() string {
@@ -40,28 +70,35 @@ func (p *ResendProvider) Send(e *emailing.Email) error {
 		fromStr = fmt.Sprintf("%s <%s>", p.FromName, p.FromAddr)
 	}
 
-	// Build Resend request
-	payload := url.Values{}
-	payload.Add("from", fromStr)
-	payload.Add("to", e.ToAddr)
-	payload.Add("subject", e.Subject)
+	// Build Resend request as JSON
+	payload := map[string]any{
+		"from":    fromStr,
+		"to":      e.ToAddr,
+		"subject": e.Subject,
+	}
 
 	// Add HTML content if provided
 	if e.Body != "" {
-		payload.Add("html", e.Body)
+		payload["html"] = e.Body
 	}
 
 	// Add text content if provided
 	if e.PlainText != "" {
-		payload.Add("text", e.PlainText)
+		payload["text"] = e.PlainText
 	}
 
 	// Add reply-to if provided
 	if e.ReplyTo != "" {
-		payload.Add("reply_to", e.ReplyTo)
+		payload["reply_to"] = e.ReplyTo
 	}
 
-	req, err := http.NewRequest("POST", uri, strings.NewReader(payload.Encode()))
+	// Encode to JSON
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to encode JSON: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", uri, bytes.NewBuffer(jsonData))
 	if err != nil {
 		return fmt.Errorf("failed to create Resend request: %w", err)
 	}

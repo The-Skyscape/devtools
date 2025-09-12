@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/The-Skyscape/devtools/pkg/emailing"
+	"github.com/The-Skyscape/devtools/pkg/security"
 )
 
 // MockProvider is a mock email provider for testing
@@ -18,6 +19,12 @@ func NewMockProvider() *MockProvider {
 	return &MockProvider{
 		SentEmails: []*emailing.Email{},
 	}
+}
+
+// Init implements the Provider interface (no-op for mock)
+func (m *MockProvider) Init(vault *security.Collection) error {
+	// Mock provider doesn't need vault initialization
+	return nil
 }
 
 // Name implements the Provider interface

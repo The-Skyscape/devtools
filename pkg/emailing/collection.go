@@ -1,12 +1,8 @@
 package emailing
 
 import (
-	"html/template"
-	"io/fs"
-	"strings"
 	"time"
 
-	"github.com/The-Skyscape/devtools/pkg/application"
 	"github.com/The-Skyscape/devtools/pkg/database"
 	"github.com/The-Skyscape/devtools/pkg/security"
 )
@@ -16,25 +12,16 @@ type Collection struct {
 	db     *database.DynamicDB
 	Emails *database.Collection[*Email]
 
-	vault        *security.Collection // Vault for getting email provider credentials
-	provider     Provider
-	templates    *template.Template
-	templateFunc template.FuncMap
-	controllers  map[string]application.Controller // Controllers available to templates
+	vault    *security.Collection // Vault for getting email provider credentials
+	provider Provider
 }
 
 // Manage creates a new email collection with the given database and options
 func Manage(db *database.DynamicDB, opts ...Option) *Collection {
 	c := &Collection{
-		db:           db,
-		Emails:       database.Manage(db, new(Email)),
-		templates:    template.New(""),
-		templateFunc: defaultEmailFuncs(),
-		controllers:  make(map[string]application.Controller),
+		db:     db,
+		Emails: database.Manage(db, new(Email)),
 	}
-
-	// Apply template functions
-	c.templates = c.templates.Funcs(c.templateFunc)
 
 	// Apply options
 	for _, opt := range opts {
@@ -59,30 +46,27 @@ func (c *Collection) IsConfigured() bool {
 }
 
 // SetProvider updates the email provider
-func (c *Collection) SetProvider(p Provider) {
+func (c *Collection) SetProvider(p Provider) error {
 	c.provider = p
-}
-
-// GetVault returns the vault if configured
-func (c *Collection) GetVault() *security.Collection {
-	return c.vault
-}
-
-// LoadTemplates loads templates from a filesystem
-func (c *Collection) LoadTemplates(fsys fs.FS, patterns ...string) {
-	if len(patterns) == 0 {
-		patterns = []string{"emails/*.html", "emails/**/*.html"}
-	}
-	
-	for _, pattern := range patterns {
-		tmpl, err := c.templates.Funcs(c.templateFunc).ParseFS(fsys, pattern)
-		if err != nil {
-			// Log but don't fail if pattern doesn't match
-			continue
+	if c.vault != nil {
+		if err := c.provider.Init(c.vault); err != nil {
+			return err
 		}
-		c.templates = tmpl
 	}
+	return nil
 }
+
+// SetVault updates the vault
+func (c *Collection) SetVault(vault *security.Collection) error {
+	c.vault = vault
+	if c.provider != nil {
+		if err := c.provider.Init(c.vault); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 
 // GetEmailByMessageID retrieves an email by provider message ID
 func (c *Collection) GetEmailByMessageID(messageID string) (*Email, error) {
@@ -124,28 +108,3 @@ func (c *Collection) GetEmailStats(since time.Time) (map[string]int, error) {
 	return stats, nil
 }
 
-// defaultEmailFuncs returns the default template functions for emails
-func defaultEmailFuncs() template.FuncMap {
-	return template.FuncMap{
-		// String functions
-		"upper":   strings.ToUpper,
-		"lower":   strings.ToLower,
-		"title":   strings.Title,
-		"trim":    strings.TrimSpace,
-		"replace": strings.ReplaceAll,
-
-		// Utility functions
-		"default": func(def, val any) any {
-			if val == nil || val == "" {
-				return def
-			}
-			return val
-		},
-		"safeHTML": func(s string) template.HTML {
-			return template.HTML(s)
-		},
-		"safeURL": func(s string) template.URL {
-			return template.URL(s)
-		},
-	}
-}

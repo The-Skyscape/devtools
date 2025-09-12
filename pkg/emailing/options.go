@@ -1,10 +1,6 @@
 package emailing
 
 import (
-	"html/template"
-	"io/fs"
-
-	"github.com/The-Skyscape/devtools/pkg/application"
 	"github.com/The-Skyscape/devtools/pkg/security"
 )
 
@@ -14,64 +10,19 @@ type Option func(*Collection)
 // Collection configuration options
 
 // WithVault sets the security vault for the collection
-func WithVault(vault *security.Collection) Option {
+func WithVault(v *security.Collection) Option {
 	return func(c *Collection) {
-		c.vault = vault
-		// Provider should be set separately with WithProvider
+		c.SetVault(v)
 	}
 }
 
 // WithProvider sets the email provider (overrides vault configuration)
 func WithProvider(p Provider) Option {
 	return func(c *Collection) {
-		c.provider = p // nil is OK, means no provider
+		c.SetProvider(p)
 	}
 }
 
-// WithTemplates sets the templates directly
-func WithTemplates(tmpl *template.Template) Option {
-	return func(c *Collection) {
-		if tmpl != nil {
-			c.templates = tmpl.Funcs(c.templateFunc)
-		}
-	}
-}
-
-// WithFunc adds a template function to the email templates
-func WithFunc(name string, fn any) Option {
-	return func(c *Collection) {
-		c.templateFunc[name] = fn
-		c.templates = c.templates.Funcs(c.templateFunc)
-	}
-}
-
-// WithController adds a controller to make it available in email templates
-func WithController(name string, controller application.Controller) Option {
-	return func(c *Collection) {
-		c.controllers[name] = controller
-		// Also add to template functions for direct access
-		WithFunc(name, func() application.Controller { return controller })(c)
-	}
-}
-
-// WithTemplateFS loads templates from a filesystem
-func WithTemplateFS(fsys fs.FS, patterns ...string) Option {
-	return func(c *Collection) {
-		// If no patterns specified, use common email patterns
-		if len(patterns) == 0 {
-			patterns = []string{"emails/*.html", "emails/**/*.html"}
-		}
-
-		for _, pattern := range patterns {
-			tmpl, err := c.templates.Funcs(c.templateFunc).ParseFS(fsys, pattern)
-			if err != nil {
-				// Log but don't fail if pattern doesn't match
-				continue
-			}
-			c.templates = tmpl
-		}
-	}
-}
 
 // Send operation options
 

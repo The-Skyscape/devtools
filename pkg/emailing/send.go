@@ -1,7 +1,6 @@
 package emailing
 
 import (
-	"bytes"
 	"cmp"
 	"fmt"
 )
@@ -67,39 +66,3 @@ func (c *Collection) SendHTML(to, subject, html, text string) error {
 	)
 }
 
-// SendWithTemplate sends an email using a template
-func (c *Collection) SendWithTemplate(to, templateName string, data any) error {
-	// Render the template
-	if c.templates == nil {
-		return fmt.Errorf("no templates configured")
-	}
-
-	var buf bytes.Buffer
-	err := c.templates.ExecuteTemplate(&buf, templateName, data)
-	if err != nil {
-		return fmt.Errorf("failed to render template %s: %w", templateName, err)
-	}
-
-	// Extract subject from data if available
-	subject := extractSubject(data)
-
-	return c.Send(to,
-		WithSubject(subject),
-		WithHTML(buf.String()),
-	)
-}
-
-// Helper functions
-
-func extractSubject(data any) string {
-	if m, ok := data.(map[string]any); ok {
-		for _, key := range []string{"Subject", "Title"} {
-			if val, ok := m[key]; ok {
-				if s, ok := val.(string); ok {
-					return s
-				}
-			}
-		}
-	}
-	return ""
-}
