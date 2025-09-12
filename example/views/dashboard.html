@@ -1,35 +1,149 @@
+<!DOCTYPE html>
 <html data-theme="{{theme}}">
-
 <head>
     {{template "includes"}}
-    <title>Example Ducks</title>
+    <title>Duck Management - DevTools Example</title>
 </head>
 
 <body class="bg-base-200 min-h-screen">
+    <div class="container mx-auto p-4 max-w-4xl">
+        <!-- Header -->
+        <div class="navbar bg-base-100 rounded-box shadow-lg mb-6">
+            <div class="flex-1">
+                <h1 class="text-2xl font-bold">🦆 Duck Management System</h1>
+            </div>
+            <div class="flex-none">
+                <div class="badge badge-primary">{{ducks.CountDucks}} ducks</div>
+            </div>
+        </div>
 
-    <h1 class="text-2xl font-bold">
-        Get Your Ducks in Order
-    </h1>
+        <!-- Error Display Area -->
+        <!-- PATTERN: Error messages appear here via HTMX -->
+        <div id="error-container"></div>
 
-    <form action="POST" hx-post="{{host}}/" class="flex flex-col items-center justify-center w-full max-w-xs">
-        <input name="name" type="text" placeholder="Name" class="input input-bordered w-full max-w-xs">
+        <!-- Add Duck Form -->
+        <!-- PATTERN: HTMX form with validation -->
+        <div class="card bg-base-100 shadow-xl mb-6">
+            <div class="card-body">
+                <h2 class="card-title">Spawn a New Duck</h2>
+                
+                <!-- PATTERN: hx-post for form submission, hx-swap="none" when using Refresh() -->
+                <form hx-post="/ducks" 
+                      hx-target="#error-container" 
+                      hx-swap="innerHTML"
+                      class="flex flex-col gap-4">
+                    
+                    <!-- Name Input -->
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Duck Name</span>
+                            <span class="label-text-alt">2-50 characters</span>
+                        </label>
+                        <input type="text" 
+                               name="name" 
+                               placeholder="Enter duck name" 
+                               class="input input-bordered" 
+                               required
+                               minlength="2"
+                               maxlength="50">
+                    </div>
 
-        <select name="breed" class="select select-bordered w-full max-w-xs">
-            <option value="mallard">Mallard</option>
-            <option value="redbone">Redbone</option>
-        </select>
+                    <!-- Breed Selection -->
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Breed</span>
+                        </label>
+                        <select name="breed" class="select select-bordered" required>
+                            <option value="" disabled selected>Choose a breed</option>
+                            <option value="mallard">Mallard</option>
+                            <option value="redbone">Redbone</option>
+                            <option value="rubber">Rubber Duck</option>
+                        </select>
+                    </div>
 
-        <button type="submit" class="btn btn-primary">Spawn Duck</button>
-    </form>
+                    <!-- Submit Button -->
+                    <button type="submit" class="btn btn-primary">
+                        <span class="loading loading-spinner htmx-indicator"></span>
+                        Spawn Duck
+                    </button>
+                </form>
+            </div>
+        </div>
 
-    <ul class="list">
-        {{range ducks.AllDucks}}
-        <li class="list-row">
-            <div class="badge badge-primary">{{.Name}}</div>
-            <div class="badge badge-secondary">{{.Breed}}</div>
-        </li>
-        {{end}}
-    </ul>
+        <!-- Duck List -->
+        <div class="card bg-base-100 shadow-xl">
+            <div class="card-body">
+                <h2 class="card-title mb-4">Your Ducks</h2>
+                
+                <!-- PATTERN: Check if empty using controller method -->
+                {{if ducks.IsEmpty}}
+                    <div class="alert alert-info">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="stroke-current shrink-0 w-6 h-6"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        <span>No ducks yet! Spawn your first duck above.</span>
+                    </div>
+                {{else}}
+                    <!-- PATTERN: Range over controller method results -->
+                    <div class="space-y-3">
+                        {{range ducks.AllDucks}}
+                        <div class="flex items-center justify-between p-4 bg-base-200 rounded-lg">
+                            <div class="flex items-center gap-3">
+                                <!-- Duck Icon -->
+                                <div class="text-3xl">🦆</div>
+                                
+                                <!-- Duck Info -->
+                                <div>
+                                    <div class="font-bold text-lg">{{.Name}}</div>
+                                    <div class="badge badge-secondary">{{.Breed}}</div>
+                                    <div class="text-xs opacity-60">
+                                        Spawned {{timeAgo .CreatedAt}}
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Actions -->
+                            <div class="flex gap-2">
+                                <!-- View Details -->
+                                <a href="/ducks/{{.ID}}" class="btn btn-sm btn-ghost">
+                                    View
+                                </a>
+                                
+                                <!-- Delete with Confirmation -->
+                                <!-- PATTERN: hx-confirm for user confirmation -->
+                                <form hx-post="/ducks/{{.ID}}/delete" 
+                                      hx-confirm="Are you sure you want to delete {{.Name}}?"
+                                      hx-swap="none"
+                                      class="inline">
+                                    <button type="submit" class="btn btn-sm btn-error">
+                                        Delete
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                        {{end}}
+                    </div>
+                {{end}}
+            </div>
+        </div>
+
+        <!-- Footer with helpful info -->
+        <div class="mt-8 text-center text-sm opacity-60">
+            <p>This is an example application demonstrating the DevTools MVC framework.</p>
+            <p>View the source code to learn the patterns.</p>
+        </div>
+    </div>
+
+    <!-- HTMX Loading Indicator CSS -->
+    <style>
+        .htmx-indicator {
+            display: none;
+        }
+        .htmx-request .htmx-indicator {
+            display: inline-block;
+        }
+        .htmx-request.btn {
+            pointer-events: none;
+            opacity: 0.7;
+        }
+    </style>
 </body>
-
 </html>

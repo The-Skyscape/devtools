@@ -321,6 +321,76 @@ my-app/
 └── go.mod
 ```
 
+## Concrete Examples for AI Assistants
+
+### Complete Controller Example
+```go
+// controllers/resources.go
+func Resources() (string, *ResourcesController) {
+    return "resources", &ResourcesController{}
+}
+
+type ResourcesController struct {
+    application.Controller  // ALWAYS embed Controller
+}
+
+func (c *ResourcesController) Setup(app *application.App) {
+    c.Controller.Setup(app)  // ALWAYS call parent first
+    
+    // Routes
+    http.Handle("GET /resources", app.Serve("resources.html", nil))
+    http.Handle("POST /resources", app.ProtectFunc(c.create, nil))
+}
+
+// VALUE receiver for request isolation
+func (c ResourcesController) Handle(req *http.Request) application.IController {
+    c.Request = req
+    return &c
+}
+
+// Template method - uppercase, uses c.PathValue()
+func (c *ResourcesController) GetResource() (*models.Resource, error) {
+    id := c.PathValue("id")  // Request from Handle()
+    return models.Resources.Get(id)
+}
+
+// Handler method - lowercase, uses r.PathValue()
+func (c *ResourcesController) create(w http.ResponseWriter, r *http.Request) {
+    c.SetRequest(r)
+    
+    // Validation
+    validator := c.Validator()
+    validator.CheckRequired("name", r.FormValue("name"))
+    
+    if err := validator.Result(); err != nil {
+        c.RenderError(w, r, err)  // ALWAYS render errors
+        return
+    }
+    
+    // Create
+    resource := &models.Resource{
+        Name: r.FormValue("name"),
+    }
+    
+    if _, err := models.Resources.Insert(resource); err != nil {
+        c.RenderError(w, r, err)
+        return
+    }
+    
+    c.Refresh(w, r)  // HTMX refresh
+}
+```
+
+### Key Patterns to Remember
+
+1. **IDs are ALWAYS strings** - Never convert to int
+2. **SQL uses PascalCase** - `WHERE UserID = ?` not `WHERE user_id = ?`
+3. **PathValue usage**:
+   - In handlers: `r.PathValue("id")` (have request param)
+   - In template methods: `c.PathValue("id")` (request from Handle)
+4. **Error handling**: Always use `c.RenderError(w, r, err)`
+5. **HTMX responses**: Use `c.Refresh()` or `c.Redirect()`
+
 ## Recent Improvements (Go Best Practices)
 
 ### Core Framework Improvements
