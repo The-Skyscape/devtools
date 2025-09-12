@@ -28,7 +28,11 @@ type App struct {
 	hostPrefix  string
 	views       []fs.FS
 	theme       string
-	middlewares []func(http.Handler) http.Handler
+	middlewares []Middleware
+}
+
+type Middleware interface {
+	Handle(http.Handler) http.Handler
 }
 
 func New(views fs.FS, opts ...Option) *App {
@@ -36,7 +40,7 @@ func New(views fs.FS, opts ...Option) *App {
 		controllers: map[string]Controller{},
 		views:       []fs.FS{appViews},
 		theme:       "retro",
-		middlewares: []func(http.Handler) http.Handler{},
+		middlewares: []Middleware{},
 	}
 
 	if views != nil {
@@ -71,7 +75,7 @@ func (app *App) Start() error {
 	// Build middleware chain
 	var handler http.Handler = http.DefaultServeMux
 	for i := len(app.middlewares) - 1; i >= 0; i-- {
-		handler = app.middlewares[i](handler)
+		handler = app.middlewares[i].Handle(handler)
 	}
 
 	go func() {
@@ -113,7 +117,7 @@ func (app *App) SetTheme(theme string) {
 func (app *App) Render(w io.Writer, r *http.Request, page string, data any) {
 	// Get all built-in functions
 	funcs := GetBuiltinFuncs()
-	
+
 	// Add runtime-specific functions
 	funcs["req"] = func() *http.Request { return r }
 	funcs["host"] = func() string { return app.hostPrefix }

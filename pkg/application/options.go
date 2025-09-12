@@ -5,7 +5,6 @@ import (
 	"html/template"
 	"io/fs"
 	"log"
-	"net/http"
 )
 
 // Option is a function that configures an Application
@@ -67,9 +66,9 @@ func WithDaisyTheme(theme string) Option {
 }
 
 // WithMiddleware adds middleware to the application
-func WithMiddleware(middleware func(http.Handler) http.Handler) Option {
+func WithMiddleware(middlewares ...Middleware) Option {
 	return func(app *App) error {
-		app.middlewares = append(app.middlewares, middleware)
+		app.middlewares = append(app.middlewares, middlewares...)
 		return nil
 	}
 }
