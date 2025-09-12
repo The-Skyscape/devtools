@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 	
+	"github.com/The-Skyscape/devtools/pkg/application/builtins"
 	"github.com/The-Skyscape/devtools/pkg/charting"
 )
 
@@ -45,7 +46,7 @@ func (v *View) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 func (app *App) prepareViews() {
 	// Get all built-in functions
-	builtinFuncs := GetBuiltinFuncs()
+	builtinFuncs := builtins.GetFuncMap()
 	
 	// Start with built-in functions as base
 	funcs := builtinFuncs
