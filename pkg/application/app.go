@@ -56,7 +56,7 @@ func New(views fs.FS, opts ...Option) *App {
 
 	for _, opt := range opts {
 		if err := opt(&app); err != nil {
-			log.Fatal("Failed to setup Congo server:", err)
+			log.Fatal("Failed to setup Application:", err)
 		}
 	}
 
@@ -68,9 +68,9 @@ func (app App) Use(name string) Controller {
 	return app.controllers[name]
 }
 
-// Start runs the application HTTP server and SSL server
-func (app *App) Start() error {
-	log.Println("Starting Application...")
+// Server prepares the application and returns the address and handler
+func (app *App) Server() (string, http.Handler) {
+	log.Println("Preparing Application...")
 
 	app.prepareViews()
 
@@ -80,34 +80,35 @@ func (app *App) Start() error {
 		handler = app.middlewares[i].Handle(handler)
 	}
 
+	addr := "0.0.0.0:" + cmp.Or(os.Getenv("PORT"), "5000")
+	return addr, handler
+}
+
+// Start runs the application HTTP server and SSL server
+func (app *App) Start() error {
+	addr, handler := app.Server()
+
 	go func() {
-		cert := cmp.Or(os.Getenv("CONGO_SSL_FULLCHAIN"), "/root/fullchain.pem")
+		cert := cmp.Or(os.Getenv("SKYSCAPE_SSL_FULLCHAIN"), "/root/fullchain.pem")
 		if _, err := os.Stat(cert); err != nil {
 			log.Println("No SSL Certificate found at:", cert)
 			return
 		}
 
-		key := cmp.Or(os.Getenv("CONGO_SSL_PRIVKEY"), "/root/privkey.pem")
+		key := cmp.Or(os.Getenv("SKYSCAPE_SSL_PRIVKEY"), "/root/privkey.pem")
 		if _, err := os.Stat(key); err != nil {
 			log.Println("No SSL Key found at:", key)
 			return
 		}
 
 		if cert != "" && key != "" {
-			log.Print("Serving Secure Congo @ https://localhost:443")
+			log.Print("Serving Secure Application @ https://localhost:443")
 			log.Fatal(http.ListenAndServeTLS("0.0.0.0:443", cert, key, handler))
 		}
 	}()
 
-	addr := "0.0.0.0:" + cmp.Or(os.Getenv("PORT"), "5000")
-	log.Print("Serving Unsecure Congo @ http://" + addr)
+	log.Print("Serving Application @ http://" + addr)
 	return http.ListenAndServe(addr, handler)
-}
-
-func (app *App) Server() (string, http.Handler) {
-	addr := "0.0.0.0:" + cmp.Or(os.Getenv("PORT"), "5000")
-	log.Print("Serving Unsecure Congo @ http://" + addr)
-	return addr, nil
 }
 
 // SetTheme updates the application theme
@@ -117,8 +118,11 @@ func (app *App) SetTheme(theme string) {
 
 // Render renders a view with given data to the http writer
 func (app *App) Render(w io.Writer, r *http.Request, page string, data any) {
-	// Get all built-in functions
-	funcs := builtins.FuncMap
+	// Create a copy of built-in functions to avoid modifying the shared map
+	funcs := make(template.FuncMap)
+	for k, v := range builtins.FuncMap {
+		funcs[k] = v
+	}
 
 	// Add runtime-specific functions
 	funcs["req"] = func() *http.Request { return r }
@@ -134,12 +138,12 @@ func (app *App) Render(w io.Writer, r *http.Request, page string, data any) {
 
 	view := app.viewEngine.Lookup(page)
 	if view == nil {
-		log.Println("view not found", page)
+		log.Printf("Template not found: %s", page)
 		if rw, ok := w.(http.ResponseWriter); ok {
-			http.Error(rw, "view not found 1", http.StatusNotFound)
+			http.Error(rw, fmt.Sprintf("Template not found: %s", page), http.StatusNotFound)
 			return
 		} else {
-			fmt.Fprintf(w, "view not found 2")
+			fmt.Fprintf(w, "Template not found in non-HTTP context: %s", page)
 			os.Exit(1)
 		}
 	}

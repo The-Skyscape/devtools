@@ -80,15 +80,16 @@ func (c *BaseController) Validator() *Validator {
 	return NewValidator()
 }
 
-// Deprecated: Use Params().Int() instead
-func (c *BaseController) Atoi(name string, defaultValue int) int {
-	return c.Params().Int(name, defaultValue)
+// IsHTMX checks if the request is from HTMX
+func (c *BaseController) IsHTMX(r *http.Request) bool {
+	return r.Header.Get("HX-Request") == "true"
 }
 
 // Refresh triggers a page refresh (HTMX-aware)
 func (c *BaseController) Refresh(w http.ResponseWriter, r *http.Request) {
-	if IsHTMX(r) {
-		HTMXRefresh(w)
+	if c.IsHTMX(r) {
+		w.Header().Set("HX-Refresh", "true")
+		w.WriteHeader(http.StatusNoContent)
 		return
 	}
 	// Non-HTMX fallback - redirect to current URL
@@ -97,7 +98,7 @@ func (c *BaseController) Refresh(w http.ResponseWriter, r *http.Request) {
 
 // Redirect sends a redirect response (HTMX-aware)
 func (c *BaseController) Redirect(w http.ResponseWriter, r *http.Request, path string) {
-	if IsHTMX(r) {
+	if c.IsHTMX(r) {
 		// Use HX-Location for client-side redirect
 		w.Header().Set("HX-Location", c.hostPrefix+path)
 		w.WriteHeader(http.StatusNoContent)
@@ -160,8 +161,16 @@ func (c *BaseController) EventStream(w http.ResponseWriter, r *http.Request) (fu
 	return func(template string, data any) {
 		var buf bytes.Buffer
 		c.Render(&buf, r, template, data)
-		data = strings.ReplaceAll(buf.String(), "\n", "")
-		if _, err := fmt.Fprintf(w, "event: message\ndata: %s\n\n", data); err != nil {
+		// For SSE, we need to escape newlines in the data field
+		// Each line of data must be prefixed with "data: "
+		lines := strings.Split(buf.String(), "\n")
+		fmt.Fprintf(w, "event: message\n")
+		for _, line := range lines {
+			if line != "" {
+				fmt.Fprintf(w, "data: %s\n", line)
+			}
+		}
+		if _, err := fmt.Fprintf(w, "\n"); err != nil {
 			log.Println("Failed to flush: ", template, data)
 		}
 		flusher.Flush()
