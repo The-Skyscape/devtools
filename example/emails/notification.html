@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{if Subject}}{{Subject}}{{else}}Notification{{end}}</title>
+    {{template "email-styles"}}
+</head>
+<body>
+    <div class="email-wrapper">
+        {{template "email-header"}}
+        
+        <div class="email-content">
+            {{if Greeting}}
+            <h2>{{Greeting}}</h2>
+            {{else}}
+            <h2>Hello{{if UserName}} {{UserName}}{{end}},</h2>
+            {{end}}
+
+            {{if Message}}
+            <p>{{Message}}</p>
+            {{end}}
+
+            {{if AlertMessage}}
+            <div class="alert alert-{{if AlertType}}{{AlertType}}{{else}}info{{end}}">
+                {{AlertMessage}}
+            </div>
+            {{end}}
+
+            {{if Sections}}
+            {{range Sections}}
+            <div class="section">
+                {{if .Title}}<h3>{{.Title}}</h3>{{end}}
+                {{if .Content}}<p>{{.Content}}</p>{{end}}
+                {{if .List}}
+                <ul>
+                    {{range .List}}
+                    <li>{{.}}</li>
+                    {{end}}
+                </ul>
+                {{end}}
+            </div>
+            {{end}}
+            {{end}}
+
+            {{if and ButtonText ButtonURL}}
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="{{ButtonURL}}" class="btn">{{ButtonText}}</a>
+            </div>
+            {{end}}
+
+            {{if Footer}}
+            <p>{{Footer}}</p>
+            {{end}}
+
+            {{if Signature}}
+            <p>
+                {{Signature}}
+            </p>
+            {{else}}
+            <p>
+                Best regards,<br>
+                <strong>The Duck Debug Team</strong>
+            </p>
+            {{end}}
+        </div>
+        
+        {{template "email-footer"}}
+    </div>
+</body>
+</html>

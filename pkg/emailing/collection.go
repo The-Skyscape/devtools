@@ -1,6 +1,7 @@
 package emailing
 
 import (
+	"embed"
 	"time"
 
 	"github.com/The-Skyscape/devtools/pkg/database"
@@ -12,8 +13,12 @@ type Collection struct {
 	db     *database.DynamicDB
 	Emails *database.Collection[*Email]
 
-	vault    *security.Collection // Vault for getting email provider credentials
-	provider Provider
+	vault      *security.Collection // Vault for getting email provider credentials
+	provider   Provider
+	emailFS    embed.FS  // Embedded filesystem with email templates
+	emailFSDir string    // Root directory in the filesystem
+	fromAddr   string    // Default from address
+	fromName   string    // Default from name
 }
 
 // Manage creates a new email collection with the given database and options
@@ -64,6 +69,13 @@ func (c *Collection) SetVault(vault *security.Collection) error {
 			return err
 		}
 	}
+	return nil
+}
+
+// LoadTemplates stores the embedded filesystem for lazy template parsing
+func (c *Collection) LoadTemplates(emailFS embed.FS) error {
+	c.emailFS = emailFS
+	c.emailFSDir = "emails"
 	return nil
 }
 

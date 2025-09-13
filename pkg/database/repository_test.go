@@ -4,7 +4,6 @@ import (
 	"errors"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/The-Skyscape/devtools/pkg/database"
 	"github.com/The-Skyscape/devtools/pkg/database/engines/sqlite3"
@@ -397,11 +396,11 @@ func BenchmarkRepositoryGet(b *testing.B) {
 func setupTestDB(t testing.TB) *database.DynamicDB {
 	t.Helper()
 	
-	// Create in-memory database
-	db := sqlite3.Open(":memory:")
+	// Create in-memory database (pass nil for no migrations)
+	sqliteDB := sqlite3.Open(":memory:", nil)
 	
-	// Create test table
-	_, err := db.Query(`
+	// Create test table - SQLite3 embeds *sql.DB
+	_, err := sqliteDB.Exec(`
 		CREATE TABLE test_users (
 			ID TEXT PRIMARY KEY,
 			CreatedAt DATETIME,
@@ -411,13 +410,13 @@ func setupTestDB(t testing.TB) *database.DynamicDB {
 			Age INTEGER,
 			Active BOOLEAN
 		)
-	`).Exec()
-	
+	`)
 	if err != nil {
 		t.Fatalf("Failed to create test table: %v", err)
 	}
 	
-	return db
+	// Use the Dynamic() method to get DynamicDB
+	return sqliteDB.Dynamic()
 }
 
 func cleanupTestDB(t testing.TB, db *database.DynamicDB) {

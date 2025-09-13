@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>New Duck Created!</title>
+    {{template "email-styles"}}
+</head>
+<body>
+    <div class="email-wrapper">
+        {{template "email-header"}}
+        
+        <div class="email-content">
+            <h2>🦆 New Duck Created!</h2>
+
+            <div class="duck-card">
+                <h3>{{if DuckName}}{{DuckName}}{{else}}Your New Duck{{end}}</h3>
+                <table class="duck-details">
+                    <tr>
+                        <td><strong>Color:</strong></td>
+                        <td>{{if DuckColor}}{{DuckColor}}{{else}}Yellow{{end}}</td>
+                    </tr>
+                    {{if DuckDescription}}
+                    <tr>
+                        <td><strong>Purpose:</strong></td>
+                        <td>{{DuckDescription}}</td>
+                    </tr>
+                    {{end}}
+                    <tr>
+                        <td><strong>Created:</strong></td>
+                        <td>{{if Timestamp}}{{Timestamp}}{{else}}Just now{{end}}</td>
+                    </tr>
+                </table>
+            </div>
+
+            <p>Your new debugging companion "{{if DuckName}}{{DuckName}}{{else}}Duck{{end}}" is ready to help you solve problems!</p>
+
+            <h3>How to Use Your Duck:</h3>
+            <ol>
+                <li>Place your duck (physically or mentally) next to your screen</li>
+                <li>Explain your code to the duck, line by line</li>
+                <li>Describe what each part should do</li>
+                <li>Often, you'll spot the problem mid-explanation!</li>
+            </ol>
+
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="http://localhost:9000/ducks" class="btn">View Your Duck Collection</a>
+            </div>
+
+            <div class="alert alert-success">
+                <strong>Fun Fact:</strong> {{if DuckColor}}{{DuckColor}}{{else}}Yellow{{end}} ducks are known to be particularly good at finding 
+                {{if DuckColor}}{{if eq DuckColor "Yellow"}}syntax errors{{else if eq DuckColor "Blue"}}logic bugs{{else if eq DuckColor "Red"}}race conditions{{else if eq DuckColor "Green"}}memory leaks{{else if eq DuckColor "Purple"}}type mismatches{{else if eq DuckColor "Orange"}}off-by-one errors{{else if eq DuckColor "Pink"}}null pointer exceptions{{else if eq DuckColor "Black"}}edge cases{{else if eq DuckColor "White"}}infinite loops{{else}}mysterious bugs{{end}}{{else}}syntax errors{{end}}!
+            </div>
+
+            <p>May your duck guide you to bug-free code!</p>
+
+            <p>
+                Happy debugging,<br>
+                <strong>The Duck Debug Team</strong>
+            </p>
+        </div>
+        
+        {{template "email-footer"}}
+    </div>
+</body>
+</html>

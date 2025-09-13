@@ -48,17 +48,35 @@
                                maxlength="50">
                     </div>
 
-                    <!-- Breed Selection -->
+                    <!-- Color Selection -->
                     <div class="form-control">
                         <label class="label">
-                            <span class="label-text">Breed</span>
+                            <span class="label-text">Color</span>
                         </label>
-                        <select name="breed" class="select select-bordered" required>
-                            <option value="" disabled selected>Choose a breed</option>
-                            <option value="mallard">Mallard</option>
-                            <option value="redbone">Redbone</option>
-                            <option value="rubber">Rubber Duck</option>
+                        <select name="color" class="select select-bordered" required>
+                            <option value="" disabled selected>Choose a color</option>
+                            <option value="Yellow">Yellow</option>
+                            <option value="Blue">Blue</option>
+                            <option value="Red">Red</option>
+                            <option value="Green">Green</option>
+                            <option value="Pink">Pink</option>
+                            <option value="Purple">Purple</option>
+                            <option value="Orange">Orange</option>
+                            <option value="Black">Black</option>
+                            <option value="White">White</option>
                         </select>
+                    </div>
+                    
+                    <!-- Description Input -->
+                    <div class="form-control">
+                        <label class="label">
+                            <span class="label-text">Description</span>
+                            <span class="label-text-alt">What does this duck help debug?</span>
+                        </label>
+                        <textarea name="description" 
+                                  placeholder="e.g., Helps me debug async issues" 
+                                  class="textarea textarea-bordered"
+                                  rows="2"></textarea>
                     </div>
 
                     <!-- Submit Button -->
@@ -93,7 +111,10 @@
                                 <!-- Duck Info -->
                                 <div>
                                     <div class="font-bold text-lg">{{.Name}}</div>
-                                    <div class="badge badge-secondary">{{.Breed}}</div>
+                                    <div class="badge badge-secondary">{{.Color}}</div>
+                                    {{if .Description}}
+                                    <div class="text-sm opacity-70">{{.Description}}</div>
+                                    {{end}}
                                     <div class="text-xs opacity-60">
                                         Spawned {{timeAgo .CreatedAt}}
                                     </div>
@@ -102,11 +123,6 @@
                             
                             <!-- Actions -->
                             <div class="flex gap-2">
-                                <!-- View Details -->
-                                <a href="/ducks/{{.ID}}" class="btn btn-sm btn-ghost">
-                                    View
-                                </a>
-                                
                                 <!-- Delete with Confirmation -->
                                 <!-- PATTERN: hx-confirm for user confirmation -->
                                 <form hx-post="/ducks/{{.ID}}/delete" 

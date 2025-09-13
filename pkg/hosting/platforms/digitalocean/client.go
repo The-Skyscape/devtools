@@ -10,20 +10,24 @@ import (
 	"golang.org/x/oauth2"
 )
 
+// ApiKey is the global DigitalOcean API key, loaded from DIGITAL_OCEAN_API_KEY environment variable.
+// While global variables are generally discouraged, this provides a simple interface for CLI tools
+// and follows the pattern of other cloud SDKs.
+var ApiKey = os.Getenv("DIGITAL_OCEAN_API_KEY")
+
 // DigitalOceanClient wraps the godo client with our hosting interface.
 // It provides a clean abstraction over DigitalOcean's API.
 type DigitalOceanClient struct {
 	*godo.Client
-	apiKey string // Store API key internally for reconnection if needed
 }
 
 // Connect creates a new DigitalOcean client with the provided API key.
-// If no API key is provided, it falls back to the DIGITAL_OCEAN_API_KEY environment variable.
+// If no API key is provided, it falls back to the global ApiKey variable.
 // This allows both explicit configuration and environment-based configuration.
 func Connect(apiKey string) *DigitalOceanClient {
-	// Use provided key or fall back to environment variable
+	// Use provided key or fall back to global variable
 	if apiKey == "" {
-		apiKey = os.Getenv("DIGITAL_OCEAN_API_KEY")
+		apiKey = ApiKey
 	}
 	
 	return &DigitalOceanClient{
@@ -33,7 +37,6 @@ func Connect(apiKey string) *DigitalOceanClient {
 				AccessToken: apiKey,
 			}),
 		)),
-		apiKey: apiKey,
 	}
 }
 

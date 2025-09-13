@@ -1,7 +1,6 @@
 package application_test
 
 import (
-	"bytes"
 	"errors"
 	"net/http"
 	"net/http/httptest"

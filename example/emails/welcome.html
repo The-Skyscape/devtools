@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to Duck Debug!</title>
+    {{template "email-styles"}}
+</head>
+<body>
+    <div class="email-wrapper">
+        {{template "email-header"}}
+        
+        <div class="email-content">
+            <h2>Hi {{if username}}{{username}}{{else}}there{{end}},</h2>
+
+            <p>Welcome to Duck Debug - your rubber duck debugging companion! 🦆</p>
+
+            <p>Your account has been successfully created, and you're ready to start debugging with the help of our virtual rubber ducks.</p>
+
+            <h3>What is Rubber Duck Debugging?</h3>
+            <p>It's a method where you explain your code, line by line, to a rubber duck (or any inanimate object). 
+            By forcing yourself to articulate the problem, you often find the solution!</p>
+
+            <h3>Getting Started:</h3>
+            <ul>
+                <li>🦆 Create your first rubber duck</li>
+                <li>🎨 Choose a color that inspires you</li>
+                <li>📝 Give it a name and description</li>
+                <li>💡 Start explaining your code problems</li>
+                <li>✨ Watch the magic happen!</li>
+            </ul>
+
+            <div style="text-align: center; margin: 30px 0;">
+                <a href="http://localhost:9000/ducks" class="btn">Create Your First Duck</a>
+            </div>
+
+            <div class="alert alert-info">
+                <strong>Pro Tip:</strong> The more detailed your explanation to the duck, the more likely you are to spot the bug!
+            </div>
+
+            <p>Happy debugging!</p>
+
+            <p>
+                Best regards,<br>
+                <strong>The Duck Debug Team</strong>
+            </p>
+        </div>
+        
+        {{template "email-footer"}}
+    </div>
+</body>
+</html>

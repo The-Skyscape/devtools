@@ -1,13 +1,14 @@
 package emailing
 
 import (
+	"embed"
+	"log"
+	
 	"github.com/The-Skyscape/devtools/pkg/security"
 )
 
 // Option is a functional option for configuring the collection
 type Option func(*Collection)
-
-// Collection configuration options
 
 // WithVault sets the security vault for the collection
 func WithVault(v *security.Collection) Option {
@@ -23,43 +24,20 @@ func WithProvider(p Provider) Option {
 	}
 }
 
-
-// Send operation options
-
-// SendOption configures an email send operation
-type SendOption func(*Email)
-
-// WithSubject sets the email subject
-func WithSubject(subject string) SendOption {
-	return func(e *Email) {
-		e.Subject = subject
+// WithTemplates sets the email templates from an embedded filesystem
+// DEPRECATED: Use LoadTemplates() method instead for lazy parsing
+func WithTemplates(emailFS embed.FS) Option {
+	return func(c *Collection) {
+		c.emailFS = emailFS
+		c.emailFSDir = "emails"
+		log.Printf("Email: Templates configured for lazy loading")
 	}
 }
 
-// WithHTML sets the HTML content
-func WithHTML(html string) SendOption {
-	return func(e *Email) {
-		e.Body = html
-	}
-}
-
-// WithPlainText sets the plain text content
-func WithPlainText(text string) SendOption {
-	return func(e *Email) {
-		e.PlainText = text
-	}
-}
-
-// WithType sets the email type for tracking
-func WithType(emailType string) SendOption {
-	return func(e *Email) {
-		e.Type = emailType
-	}
-}
-
-// WithReplyTo sets the reply-to address
-func WithReplyTo(replyTo string) SendOption {
-	return func(e *Email) {
-		e.ReplyTo = replyTo
+// WithFrom sets the default from address and name
+func WithFrom(addr, name string) Option {
+	return func(c *Collection) {
+		c.fromAddr = addr
+		c.fromName = name
 	}
 }

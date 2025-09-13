@@ -4,26 +4,45 @@ This example demonstrates the **correct patterns** for building applications wit
 
 ## 🎯 Purpose
 
-This example shows:
-- ✅ Proper MVC structure with server-side rendering
+This comprehensive example demonstrates ALL DevTools features used in production:
+
+### Core Features
+- ✅ MVC architecture with server-side rendering
 - ✅ Type-safe controller callbacks in templates  
 - ✅ HTMX for dynamic interactions without client state
-- ✅ Database models with embedded composition
-- ✅ Authentication integration
+- ✅ Database models with repository pattern
+- ✅ JWT authentication with middleware
+
+### Advanced Features (New)
+- ✅ **Monitoring** - System metrics, container stats (`pkg/monitoring`)
+- ✅ **Email** - Multi-provider support: Resend, SendGrid, Postmark (`pkg/emailing`)
+- ✅ **Security** - HashiCorp Vault with fallback storage (`pkg/security`)
+- ✅ **Charts** - SVG visualization: line, bar, sparkline (`pkg/charting`)
+- ✅ **Middleware** - Rate limiting, CORS, logging, auth (`pkg/middleware`)
+- ✅ **Containers** - Docker lifecycle management (`pkg/containers`)
+- ✅ **Hosting** - Cloud server provisioning, DigitalOcean (`pkg/hosting`)
 
 ## 📁 Structure
 
 ```
 example/
-├── main.go                 # Application entry point
+├── main.go                 # Application entry point with all controllers
 ├── controllers/
-│   └── ducks.go           # Example controller with CRUD operations
+│   ├── ducks.go           # Basic CRUD operations example
+│   ├── monitoring.go      # System monitoring with metrics
+│   ├── email.go           # Email provider integration
+│   ├── secrets.go         # Vault/secrets management
+│   ├── charts.go          # Data visualization (line, bar, sparkline)
+│   ├── middleware.go      # Middleware patterns and auth
+│   ├── containers.go      # Docker container management
+│   └── hosting.go         # Cloud server provisioning (DigitalOcean)
 ├── models/
-│   ├── database.go        # Database setup and collections
-│   └── duck.go            # Model with embedded application.Model
+│   ├── database.go        # Database setup and auth
+│   ├── duck.go            # Example model
+│   └── email.go           # Email tracking model
 └── views/
-    ├── dashboard.html     # Main page with HTMX forms
-    └── includes.html      # Shared template includes
+    ├── dashboard.html     # Main page with HTMX
+    └── *.html             # Feature-specific templates
 ```
 
 ## 🔑 Key Patterns for AI Assistants
@@ -155,12 +174,30 @@ Templates can call controller methods directly:
 ## 🚀 Running the Example
 
 ```bash
-# From the example directory
+# Basic run with minimal features
 export AUTH_SECRET="example-secret"
+go run .
+
+# Full features enabled
+export AUTH_SECRET="example-secret"
+export THEME="corporate"                    # DaisyUI theme
+export DIGITAL_OCEAN_API_KEY="your-key"    # For hosting features
+export EMAIL_API_KEY="your-key"            # For email features
+export PORT="5000"                          # Custom port
 go run .
 
 # Visit http://localhost:5000
 ```
+
+### Available Routes
+- `/` - Main dashboard (ducks CRUD demo)
+- `/monitoring` - System metrics and container stats
+- `/email` - Email sending interface
+- `/secrets` - Vault/secrets management
+- `/charts` - Data visualization examples
+- `/middleware/*` - Middleware demonstrations
+- `/containers` - Docker container management
+- `/hosting` - Cloud server provisioning
 
 ## 📝 How Controllers Work
 

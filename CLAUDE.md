@@ -174,33 +174,47 @@ go run ./example
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` - AWS credentials
 - `GCP_PROJECT_ID`, `GCP_SERVICE_ACCOUNT_KEY`, `GCP_ZONE` - GCP credentials
 
-### Email Package
-The email package provides a unified interface for sending transactional emails:
+### Email Package (pkg/emailing)
+The emailing package provides a clean, function-based API for sending emails with lazy template parsing:
 
 ```go
-// Provider interface for email services
-type Provider interface {
-    Send(msg *Message) error
-    GetName() string
-}
+// Send an email with options
+err := collection.Send(to, subject, opts...)
 
-// Message struct
-type Message struct {
-    To          string   // Recipient email
-    From        string   // Sender email
-    FromName    string   // Sender name
-    Subject     string
-    HTMLContent string   // HTML version
-    TextContent string   // Plain text version
-    ReplyTo     string   // Optional reply-to
-    Tags        []string  // Optional tags for tracking
-}
+// Available options:
+emailing.WithTemplate("filename.html")  // Use HTML template (lazy parsed)
+emailing.WithHTML(htmlContent)          // Direct HTML content
+emailing.WithText(textContent)          // Plain text version
+emailing.WithRequest(r)                  // Inject HTTP request for templates
+emailing.WithData(key, value)           // Register data as function returning value
+emailing.WithFunc(name, fn)             // Register custom function for lazy evaluation
+emailing.WithType(emailType)            // Set email type for tracking
+emailing.WithReplyTo(email)             // Set reply-to address
+emailing.WithFromOverride(addr, name)   // Override default from address
 
-// Available providers
-- ResendProvider - Modern email API with great DX
-- SendGridProvider - Enterprise-grade delivery
-- PostmarkProvider - Transactional email specialist
+// Example usage:
+models.Emails.Send(
+    "user@example.com",
+    "Welcome!", 
+    emailing.WithTemplate("welcome.html"),
+    emailing.WithRequest(req),
+    emailing.WithData("username", "Alice"),  // Creates: func() any { return "Alice" }
+    emailing.WithFunc("timestamp", func() string { 
+        return time.Now().Format(time.RFC3339) // Lazy evaluation
+    }),
+)
 ```
+
+**Key Features:**
+- **Function-based, not map-based** - No `map[string]any`, everything is type-safe functions
+- **Lazy template parsing** - Templates parsed at send time with all functions registered
+- **Consistent with application package** - Same patterns as controller/template system
+- **WithData vs WithFunc** - Use WithData for static values, WithFunc for dynamic/computed values
+
+**Template Access:**
+- Templates can call any registered function: `{{username}}`, `{{timestamp}}`
+- Built-in functions: `{{now}}`, `{{Year}}`, `{{baseURL req}}`
+- Conditionals work with function results: `{{if username}}Hi {{username}}{{end}}`
 
 ## Application Development Patterns
 
