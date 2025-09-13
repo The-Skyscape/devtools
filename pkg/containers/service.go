@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -198,4 +199,83 @@ func (s *Service) WaitForReady(timeout time.Duration, healthCheck func() error) 
 
 		time.Sleep(500 * time.Millisecond)
 	}
+}
+
+// Stats retrieves container statistics
+func (s *Service) Stats() (*ContainerStats, error) {
+	if s.Host == nil {
+		return nil, errors.New("host not set")
+	}
+
+	if !s.IsRunning() {
+		return nil, errors.New("container is not running")
+	}
+
+	var stdout bytes.Buffer
+	var stderr bytes.Buffer
+	s.SetStdout(&stdout)
+	s.SetStderr(&stderr)
+
+	// Get container stats in a parseable format
+	args := []string{"docker", "stats", s.Name, "--no-stream", "--format", 
+		"{{.Container}},{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}},{{.NetIO}},{{.BlockIO}}"}
+	
+	if err := s.Host.Exec(args...); err != nil {
+		return nil, errors.Wrapf(err, "failed to get stats: %s", stderr.String())
+	}
+
+	// Parse the stats output
+	stats := &ContainerStats{
+		Name: s.Name,
+		ID:   s.ID,
+	}
+	
+	// Basic parsing - can be enhanced
+	output := strings.TrimSpace(stdout.String())
+	if output != "" {
+		parts := strings.Split(output, ",")
+		if len(parts) >= 4 {
+			// Parse CPU percentage
+			cpuStr := strings.TrimSuffix(parts[1], "%")
+			if cpu, err := strconv.ParseFloat(cpuStr, 64); err == nil {
+				stats.CPUPercent = cpu
+			}
+			
+			// Parse memory percentage  
+			memStr := strings.TrimSuffix(parts[3], "%")
+			if mem, err := strconv.ParseFloat(memStr, 64); err == nil {
+				stats.MemPercent = mem
+			}
+			
+			// Store raw network and block I/O strings
+			if len(parts) >= 5 {
+				stats.NetIO = parts[4]
+			}
+			if len(parts) >= 6 {
+				stats.BlockIO = parts[5]
+			}
+		}
+	}
+
+	return stats, nil
+}
+
+// HealthCheck performs a health check on the container
+func (s *Service) HealthCheck() error {
+	if !s.IsRunning() {
+		return errors.New("container is not running")
+	}
+
+	// Basic health check - just verify container is running
+	// Can be overridden by specific services for custom health checks
+	return nil
+}
+
+// RestartIfUnhealthy restarts the container if health check fails
+func (s *Service) RestartIfUnhealthy() error {
+	if err := s.HealthCheck(); err != nil {
+		log.Printf("Health check failed for %s: %v, restarting...", s.Name, err)
+		return s.Restart()
+	}
+	return nil
 }
