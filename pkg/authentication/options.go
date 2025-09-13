@@ -41,8 +41,13 @@ func WithSigninView(view, dest string) Option {
 }
 
 func WithSignoutURL(url string) Option {
-	if url == "" {
-		log.Fatal("cannot have empty signout redirect url")
+	return func(d *Controller) { 
+		if url == "" {
+			// Use a sensible default instead of failing
+			d.signoutRedir = "/"
+			log.Printf("WARNING: empty signout redirect URL provided, using default '/'")
+		} else {
+			d.signoutRedir = url
+		}
 	}
-	return func(d *Controller) { d.signoutRedir = url }
 }

@@ -37,7 +37,8 @@ type DynamicDBOption func(*DynamicDB)
 func WithModel(ent Entity) DynamicDBOption {
 	return func(db *DynamicDB) {
 		if err := db.Register(ent); err != nil {
-			log.Fatalf("failed to register model %v", err)
+			// Log the error but don't exit - the application can decide how to handle it
+			log.Printf("WARNING: failed to register model %s: %v", ent.Table(), err)
 		}
 	}
 }

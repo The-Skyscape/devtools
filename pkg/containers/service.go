@@ -88,12 +88,16 @@ func (s *Service) Copy(srcPath, destPath string) error {
 }
 
 func (s *Service) Proxy(port int) http.Handler {
-	url, err := url.Parse(fmt.Sprintf("http://localhost:%d", port))
+	targetURL, err := url.Parse(fmt.Sprintf("http://localhost:%d", port))
 	if err != nil {
-		log.Fatal("Failed to create reverse proxy: ", err)
+		// This should never happen with a valid port number
+		// Return a handler that returns an error response
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, fmt.Sprintf("Invalid proxy configuration: %v", err), http.StatusInternalServerError)
+		})
 	}
 
-	return httputil.NewSingleHostReverseProxy(url)
+	return httputil.NewSingleHostReverseProxy(targetURL)
 }
 
 // ExecInContainer executes a command inside the running container
