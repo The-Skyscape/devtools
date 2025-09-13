@@ -10,6 +10,7 @@ import (
 	"github.com/The-Skyscape/devtools/example/models"
 	"github.com/The-Skyscape/devtools/pkg/application"
 	"github.com/The-Skyscape/devtools/pkg/authentication"
+	"github.com/The-Skyscape/devtools/pkg/database/local"
 )
 
 var (
@@ -21,6 +22,8 @@ var (
 )
 
 func main() {
+	models.InitDB(local.Database("example.db"))
+
 	// Load email templates from embedded filesystem
 	if err := models.Emails.LoadTemplates(emails); err != nil {
 		log.Fatal("Failed to load email templates:", err)

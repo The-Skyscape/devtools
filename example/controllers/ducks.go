@@ -17,6 +17,16 @@ func Ducks() (string, *DucksController) {
 // DucksController handles all duck-related operations
 type DucksController struct {
 	application.Controller  // Always embed for base functionality
+	
+	// DucksCollection allows dependency injection for testing
+	// If nil, defaults to models.Ducks
+	DucksCollection interface {
+		Get(string) (*models.Duck, error)
+		Search(string, ...interface{}) ([]*models.Duck, error)
+		Count(string, ...interface{}) int
+		Insert(*models.Duck) (*models.Duck, error)
+		Delete(*models.Duck) error
+	}
 }
 
 // Setup registers routes (called once at startup)
@@ -35,21 +45,42 @@ func (c DucksController) Handle(req *http.Request) application.Handler {
 	return &c        // Return pointer to copy
 }
 
+// getDucks returns the ducks collection (test or production)
+func (c *DucksController) getDucks() interface {
+	Get(string) (*models.Duck, error)
+	Search(string, ...interface{}) ([]*models.Duck, error)
+	Count(string, ...interface{}) int
+	Insert(*models.Duck) (*models.Duck, error)
+	Delete(*models.Duck) error
+} {
+	if c.DucksCollection != nil {
+		return c.DucksCollection
+	}
+	return models.Ducks
+}
+
 // Template Methods (accessible in views as {{ducks.MethodName}})
 
 // AllDucks returns all ducks ordered by creation date
-func (c *DucksController) AllDucks() ([]*models.Duck, error) {
-	return models.Ducks.Search("ORDER BY CreatedAt DESC")
+// Returns empty slice on error to prevent template execution halt
+func (c *DucksController) AllDucks() []*models.Duck {
+	ducks, err := c.getDucks().Search("ORDER BY CreatedAt DESC")
+	if err != nil {
+		// Log error but return empty slice for template safety
+		// This prevents template execution from halting
+		return []*models.Duck{}
+	}
+	return ducks
 }
 
 // CountDucks returns total duck count
 func (c *DucksController) CountDucks() int {
-	return models.Ducks.Count("")
+	return c.getDucks().Count("")
 }
 
 // IsEmpty checks if there are no ducks
 func (c *DucksController) IsEmpty() bool {
-	return models.Ducks.Count("") == 0
+	return c.getDucks().Count("") == 0
 }
 
 // HTTP Handlers (private methods for routes)
@@ -77,7 +108,7 @@ func (c *DucksController) createDuck(w http.ResponseWriter, r *http.Request) {
 		UserID:      "", // Would be from auth.CurrentUser()
 	}
 
-	if _, err := models.Ducks.Insert(duck); err != nil {
+	if _, err := c.getDucks().Insert(duck); err != nil {
 		c.RenderError(w, r, err)
 		return
 	}
@@ -104,13 +135,13 @@ func (c *DucksController) deleteDuck(w http.ResponseWriter, r *http.Request) {
 	c.SetRequest(r)
 
 	id := r.PathValue("id")
-	duck, err := models.Ducks.Get(id)
+	duck, err := c.getDucks().Get(id)
 	if err != nil {
 		c.RenderError(w, r, application.ErrNotFound)
 		return
 	}
 
-	if err := models.Ducks.Delete(duck); err != nil {
+	if err := c.getDucks().Delete(duck); err != nil {
 		c.RenderError(w, r, err)
 		return
 	}
