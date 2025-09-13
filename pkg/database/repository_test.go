@@ -396,7 +396,8 @@ func BenchmarkRepositoryGet(b *testing.B) {
 func setupTestDB(t testing.TB) *database.DynamicDB {
 	t.Helper()
 	
-	// Create in-memory database (pass nil for no migrations)
+	// Create new in-memory database for each test (pass nil for no migrations)
+	// Each call to Open(":memory:") creates a new, isolated database
 	sqliteDB := sqlite3.Open(":memory:", nil)
 	
 	// Create test table - SQLite3 embeds *sql.DB

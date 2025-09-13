@@ -2,7 +2,11 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"log"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 )
 
@@ -632,4 +636,86 @@ func ValidateWithResolver(dir string, controllers []ControllerInfo, templateRefs
 	}
 
 	return result, nil
+}
+
+// ValidateTemplateDuplicates checks for duplicate template names across directories
+func ValidateTemplateDuplicates(dir string) ([]ValidationError, error) {
+	var errors []ValidationError
+	templateLocations := make(map[string][]string) // template name -> list of full paths
+	
+	// Find views directory
+	viewsDir := filepath.Join(dir, "views")
+	if _, err := os.Stat(viewsDir); os.IsNotExist(err) {
+		viewsDir = dir
+	}
+	
+	// Walk through all HTML files
+	err := filepath.WalkDir(viewsDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		
+		// Skip directories and non-HTML files
+		if d.IsDir() || !strings.HasSuffix(path, ".html") {
+			return nil
+		}
+		
+		// Get the base filename (template name)
+		templateName := filepath.Base(path)
+		
+		// Store the full path for this template name
+		templateLocations[templateName] = append(templateLocations[templateName], path)
+		
+		return nil
+	})
+	
+	if err != nil {
+		return nil, fmt.Errorf("failed to walk views directory: %w", err)
+	}
+	
+	// Check for duplicates
+	for templateName, paths := range templateLocations {
+		if len(paths) > 1 {
+			// Found duplicate template names
+			relPaths := make([]string, len(paths))
+			for i, p := range paths {
+				relPath, _ := filepath.Rel(dir, p)
+				if relPath == "" {
+					relPath = p
+				}
+				relPaths[i] = relPath
+			}
+			
+			// Create an error for each duplicate location
+			for i, path := range paths {
+				relPath, _ := filepath.Rel(dir, path)
+				if relPath == "" {
+					relPath = path
+				}
+				
+				// Build suggestion with all duplicate locations
+				otherPaths := []string{}
+				for j, rp := range relPaths {
+					if i != j {
+						otherPaths = append(otherPaths, rp)
+					}
+				}
+				
+				errors = append(errors, ValidationError{
+					File:      relPath,
+					Line:      0,
+					Reference: templateName,
+					Problem:   fmt.Sprintf("Duplicate template name '%s' found in %d locations", templateName, len(paths)),
+					Suggestion: fmt.Sprintf("Also exists in: %s. Consider renaming to avoid conflicts.", strings.Join(otherPaths, ", ")),
+				})
+			}
+		}
+	}
+	
+	// Sort errors by file path for consistent output
+	sort.Slice(errors, func(i, j int) bool {
+		return errors[i].File < errors[j].File
+	})
+	
+	return errors, nil
 }

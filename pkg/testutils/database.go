@@ -3,7 +3,10 @@ package testutils
 import (
 	"database/sql"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/The-Skyscape/devtools/pkg/database"
 	_ "github.com/mattn/go-sqlite3"
@@ -138,4 +141,78 @@ func joinStrings(strs []string, sep string) string {
 		result += s
 	}
 	return result
+}
+
+// SetupTestDB creates a new test database with a unique name
+// This is the function expected by existing test files
+func SetupTestDB(t *testing.T) *sql.DB {
+	t.Helper()
+	
+	// Create unique database file
+	timestamp := time.Now().UnixNano()
+	dbPath := filepath.Join(os.TempDir(), fmt.Sprintf("test_%d.db", timestamp))
+	
+	// Open database
+	db, err := sql.Open("sqlite3", dbPath)
+	if err != nil {
+		t.Fatalf("Failed to open test database: %v", err)
+	}
+	
+	// Enable foreign keys
+	if _, err := db.Exec("PRAGMA foreign_keys = ON"); err != nil {
+		t.Fatalf("Failed to enable foreign keys: %v", err)
+	}
+	
+	// Clean up on test completion
+	t.Cleanup(func() {
+		db.Close()
+		os.Remove(dbPath)
+	})
+	
+	return db
+}
+
+// CleanupTestDB closes and removes the test database
+// This is the function expected by existing test files
+func CleanupTestDB(t *testing.T, db *sql.DB) {
+	t.Helper()
+	
+	if db != nil {
+		db.Close()
+	}
+}
+
+// CreateTestUser creates a test user in the database
+func CreateTestUser(t *testing.T, db *sql.DB, email string) (string, error) {
+	t.Helper()
+	
+	// Ensure users table exists
+	_, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS users (
+			ID TEXT PRIMARY KEY,
+			Email TEXT UNIQUE NOT NULL,
+			PasswordHash TEXT,
+			IsAdmin BOOLEAN DEFAULT FALSE,
+			CreatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+			UpdatedAt DATETIME DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return "", fmt.Errorf("failed to create users table: %w", err)
+	}
+	
+	// Generate unique ID
+	userID := fmt.Sprintf("user_%d", time.Now().UnixNano())
+	
+	// Insert user
+	_, err = db.Exec(`
+		INSERT INTO users (ID, Email, PasswordHash) 
+		VALUES (?, ?, ?)
+	`, userID, email, "hashed_password")
+	
+	if err != nil {
+		return "", fmt.Errorf("failed to create test user: %w", err)
+	}
+	
+	return userID, nil
 }

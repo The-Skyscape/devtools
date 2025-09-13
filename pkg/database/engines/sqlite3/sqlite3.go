@@ -39,13 +39,22 @@ func Open(name string, tables fs.FS) *SQLite3 {
 // returning an error instead of calling log.Fatal on failure.
 func OpenWithError(name string, tables fs.FS) (*SQLite3, error) {
 	db := SQLite3{name: name, root: database.DataDir()}
-	err := os.MkdirAll(db.root, os.ModePerm)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create database directory: %w", err)
+	
+	var dbPath string
+	if name == ":memory:" {
+		// Special case for in-memory database - no file path needed
+		dbPath = ":memory:"
+	} else {
+		// For file-based databases, create directory and build path
+		err := os.MkdirAll(db.root, os.ModePerm)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create database directory: %w", err)
+		}
+		dbPath = fmt.Sprintf("file:%s?_journal_mode=WAL&_synchronous=NORMAL", filepath.Join(db.root, name))
 	}
-
-	dbFilePath := filepath.Join(db.root, name)
-	if db.DB, err = sql.Open("sqlite3", fmt.Sprintf("file:%s?_journal_mode=WAL&_synchronous=NORMAL", dbFilePath)); err != nil {
+	
+	var err error
+	if db.DB, err = sql.Open("sqlite3", dbPath); err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 
@@ -54,9 +63,12 @@ func OpenWithError(name string, tables fs.FS) (*SQLite3, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	if _, err = db.DB.Exec("PRAGMA journal_mode = WAL;"); err != nil {
-		db.DB.Close()
-		return nil, fmt.Errorf("failed to set WAL mode: %w", err)
+	// Only set WAL mode for file-based databases
+	if name != ":memory:" {
+		if _, err = db.DB.Exec("PRAGMA journal_mode = WAL;"); err != nil {
+			db.DB.Close()
+			return nil, fmt.Errorf("failed to set WAL mode: %w", err)
+		}
 	}
 
 	if tables != nil {

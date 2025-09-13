@@ -2,8 +2,11 @@ package main
 
 import (
 	"fmt"
+	"io/fs"
 	"log"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -198,6 +201,18 @@ func runValidation(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  ✓ Found %d field references\n", len(fieldRefs))
 		fmt.Printf("  ✓ Found %d URL references\n", len(urlRefs))
 		fmt.Printf("  ✓ Found %d template includes\n", len(templateIncludes))
+		
+		// Count unique template names for duplicate check
+		templateCount := 0
+		err = filepath.WalkDir(filepath.Join(dir, "views"), func(path string, d fs.DirEntry, err error) error {
+			if err == nil && !d.IsDir() && strings.HasSuffix(path, ".html") {
+				templateCount++
+			}
+			return nil
+		})
+		if templateCount > 0 {
+			fmt.Printf("  ✓ Checking %d templates for duplicates\n", templateCount)
+		}
 	}
 
 	// Validate URL references
@@ -205,6 +220,15 @@ func runValidation(cmd *cobra.Command, args []string) error {
 
 	// Validate template includes
 	templateIncludeErrors := ValidateTemplateIncludes(templateIncludes)
+
+	// Validate template duplicates (new check for template name collisions)
+	templateDuplicateErrors, err := ValidateTemplateDuplicates(dir)
+	if err != nil {
+		if verbose {
+			log.Printf("Warning: Failed to check for template duplicates: %v", err)
+		}
+		templateDuplicateErrors = []ValidationError{} // Continue without duplicate check
+	}
 
 	// Validate all references using enhanced validation with type resolver
 	result, err := ValidateWithResolver(dir, controllers, templateRefs, fieldRefs)
@@ -227,8 +251,13 @@ func runValidation(cmd *cobra.Command, args []string) error {
 		result.ControllerErrors = append(result.ControllerErrors, err)
 	}
 
-	// Update valid flag if there are URL errors or template include errors
-	if len(urlErrors) > 0 || len(templateIncludeErrors) > 0 {
+	// Add template duplicate errors to result
+	for _, err := range templateDuplicateErrors {
+		result.ControllerErrors = append(result.ControllerErrors, err)
+	}
+
+	// Update valid flag if there are URL errors, template include errors, or duplicate errors
+	if len(urlErrors) > 0 || len(templateIncludeErrors) > 0 || len(templateDuplicateErrors) > 0 {
 		result.Valid = false
 	}
 
