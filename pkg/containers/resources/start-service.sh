@@ -14,12 +14,15 @@ docker create \
   --name {{.Name}} \
   {{if .RestartPolicy}}--restart {{.RestartPolicy}}{{end}} \
   {{if .Network}}--network {{.Network}}{{end}} \
-  {{if .Privileged}}--privileged{{end}} \
   {{if .Entrypoint}}--entrypoint {{.Entrypoint}}{{end}} \
+  {{if .MemoryLimit}}--memory {{.MemoryLimit}}{{end}} \
+  {{if .CPULimit}}--cpus {{.CPULimit}}{{end}} \
+  {{if .PidsLimit}}--pids-limit {{.PidsLimit}}{{end}} \
+  {{if .ReadOnly}}--read-only{{end}} \
+  {{range .SecurityOpts}}--security-opt {{.}} {{end}} \
   {{range $key, $val := .Ports}}-p {{$key}}:{{$val}} {{end}} \
   {{range $key, $val := .Mounts}}-v {{$key}}:{{$val}} {{end}} \
   {{range $key, $val := .Env}}-e {{$key}}={{$val}} {{end}} \
-  {{if .Privileged}}-v /var/run/docker.sock:/var/run/docker.sock{{end}} \
   {{.Image}} {{.Command}}{{range $src, $dst := .Copied}} && \
 docker cp {{$src}} {{$.Name}}:{{$dst}}{{end}} && \
 docker start {{.Name}} && \

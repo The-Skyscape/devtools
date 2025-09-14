@@ -12,21 +12,13 @@ import (
 )
 
 func setupTestApp() *application.App {
-	app := application.New()
-	
-	// Mock render function for testing
-	renderCalled := false
-	var renderTemplate string
-	var renderData any
-	
-	app.Render = func(w http.ResponseWriter, r *http.Request, template string, data any) {
-		renderCalled = true
-		renderTemplate = template
-		renderData = data
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("rendered: " + template))
-	}
-	
+	// Create a minimal embedded FS for testing
+	views := http.Dir(".")
+	app := application.New(views)
+
+	// Note: In newer versions, Render is not directly assignable
+	// Tests should use the actual rendering behavior
+
 	return app
 }
 

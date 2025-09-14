@@ -333,7 +333,7 @@ func TestValidatePasswordStrength(t *testing.T) {
 	}
 }
 
-func TestHashPassword(t *testing.T) {
+func TestPasswordResetHashPassword(t *testing.T) {
 	tests := []struct {
 		name     string
 		password string

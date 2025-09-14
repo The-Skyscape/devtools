@@ -160,8 +160,12 @@ func (v *VaultService) Start(host containers.Host) error {
 		return fmt.Errorf("failed to launch vault container: %w", err)
 	}
 
-	// Wait for readiness
-	time.Sleep(3 * time.Second)
+	// Wait for vault to be ready with health check
+	if err := v.service.WaitForReady(30*time.Second, func() error {
+		return host.Exec("curl", "-f", fmt.Sprintf("http://localhost:%d/v1/sys/health", v.config.Port))
+	}); err != nil {
+		log.Printf("Warning: Vault may not be fully ready: %v", err)
+	}
 
 	return nil
 }

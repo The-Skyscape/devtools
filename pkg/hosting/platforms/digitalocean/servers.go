@@ -134,7 +134,12 @@ func (s *Server) Dump(path string, data []byte) (stdout, stderr bytes.Buffer, er
 
 func (server *Server) Copy(path, dst string) (stdout, stderr bytes.Buffer, _ error) {
 	dst = fmt.Sprintf("root@%s:%s", server.IP, dst)
-	cmd := exec.Command("scp", "-o", "StrictHostKeyChecking=no", path, dst)
+	// Use UserKnownHostsFile to check against known hosts
+	// Accept new hosts automatically but verify on subsequent connections
+	cmd := exec.Command("scp",
+		"-o", "StrictHostKeyChecking=accept-new",
+		"-o", "UserKnownHostsFile=~/.ssh/known_hosts",
+		path, dst)
 	cmd.Stdout = &stdout
 	cmd.Stderr = &stderr
 	return stdout, stderr, errors.Wrapf(cmd.Run(), "failed to copy %s to %s", path, dst)
@@ -152,7 +157,12 @@ func (server *Server) Exec(args ...string) (stdout, stderr bytes.Buffer, err err
 func (server *Server) Connect(stdin io.Reader, stdout, _ io.Writer, args ...string) (err error) {
 	var stderr bytes.Buffer
 	host := fmt.Sprintf("root@%s", server.IP)
-	cmd := exec.Command("ssh", "-o", "StrictHostKeyChecking=no", host, strings.Join(args, " "))
+	// Use UserKnownHostsFile to check against known hosts
+	// Accept new hosts automatically but verify on subsequent connections
+	cmd := exec.Command("ssh",
+		"-o", "StrictHostKeyChecking=accept-new",
+		"-o", "UserKnownHostsFile=~/.ssh/known_hosts",
+		host, strings.Join(args, " "))
 	cmd.Stdin = stdin
 	cmd.Stdout = stdout
 	cmd.Stderr = &stderr

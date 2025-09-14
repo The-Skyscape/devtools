@@ -307,6 +307,22 @@ application.Serve(views,
 - `EnvBackend` - Read-only environment variable storage
 - `HybridBackend` - Combines multiple backends with fallback
 
+## Directory Structure Philosophy
+
+**IMPORTANT**: The devtools library provides the framework and utilities. Applications using devtools should follow these patterns:
+
+### services/ Directory (Application-level, not in devtools)
+**Purpose**: Docker container management services that applications need
+**Pattern**: Wraps containers.Service from devtools to manage Docker containers
+**Examples**: VS Code server, AI models, databases, etc.
+
+### internal/ Directory (Application-level, not in devtools)
+**Purpose**: Business logic and algorithms specific to the application
+**Pattern**: Implements domain logic that's beyond devtools' scope
+**Examples**: Financial calculations, AI orchestration, workspace provisioning
+
+The devtools library provides the building blocks (containers, database, auth, etc.) while applications compose these into services and business logic.
+
 ## Integration Points
 
 - **Docker Runtime** - All container operations require Docker daemon

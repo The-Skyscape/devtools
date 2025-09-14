@@ -19,19 +19,25 @@ import (
 type Service struct {
 	Host
 
-	ID           string
-	Status       string
-	Name         string
-	Image        string
-	Network      string
-	Privileged   bool
-	Entrypoint   string
-	Command      string
+	ID            string
+	Status        string
+	Name          string
+	Image         string
+	Network       string
+	Entrypoint    string
+	Command       string
 	RestartPolicy string // e.g., "always", "unless-stopped", "on-failure"
-	Ports        map[int]int
-	Mounts       map[string]string
-	Copied       map[string]string
-	Env          map[string]string
+	Ports         map[int]int
+	Mounts        map[string]string
+	Copied        map[string]string
+	Env           map[string]string
+
+	// Resource limits for container security
+	MemoryLimit   string // e.g., "512m", "2g"
+	CPULimit      string // e.g., "0.5", "2.0" (number of CPUs)
+	PidsLimit     int    // Maximum number of PIDs (0 = unlimited)
+	ReadOnly      bool   // Make root filesystem read-only
+	SecurityOpts  []string // Security options like "no-new-privileges"
 }
 
 // Stop stops and removes the Docker container
@@ -137,6 +143,35 @@ func (s *Service) ExecInContainerWithOutput(command ...string) (string, error) {
 	}
 
 	return stdout.String(), nil
+}
+
+// WithSecurityDefaults applies secure default settings to the container
+// This includes memory limits, CPU limits, and security options
+func (s *Service) WithSecurityDefaults() *Service {
+	// Set reasonable resource limits if not already set
+	if s.MemoryLimit == "" {
+		s.MemoryLimit = "512m" // Default 512MB memory limit
+	}
+	if s.CPULimit == "" {
+		s.CPULimit = "1.0" // Default 1 CPU limit
+	}
+	if s.PidsLimit == 0 {
+		s.PidsLimit = 256 // Default PID limit to prevent fork bombs
+	}
+
+	// Add security options if not already present
+	hasNoNewPrivileges := false
+	for _, opt := range s.SecurityOpts {
+		if opt == "no-new-privileges" {
+			hasNoNewPrivileges = true
+			break
+		}
+	}
+	if !hasNoNewPrivileges {
+		s.SecurityOpts = append(s.SecurityOpts, "no-new-privileges")
+	}
+
+	return s
 }
 
 // Restart restarts the container

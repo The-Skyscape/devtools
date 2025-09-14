@@ -3,6 +3,7 @@ package authentication
 import (
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/The-Skyscape/devtools/pkg/application"
@@ -30,6 +31,10 @@ type Controller struct {
 
 	// Frontend state
 	cookieName string
+
+	// Session management
+	inactivityTimeout time.Duration
+	absoluteTimeout   time.Duration
 
 	// Setup functions
 	setupView  string
@@ -131,7 +136,19 @@ func (auth Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := auth.Sessions.Insert(&Session{UserID: user.ID})
+	// Get configured timeouts or use defaults
+	absoluteTimeout := auth.absoluteTimeout
+	if absoluteTimeout == 0 {
+		absoluteTimeout = DefaultAbsoluteTimeout
+	}
+
+	session, err := auth.Sessions.Insert(&Session{
+		UserID:       user.ID,
+		LastActivity: time.Now(),
+		ExpiresAt:    time.Now().Add(absoluteTimeout),
+		IPAddress:    getClientIP(r),
+		UserAgent:    r.Header.Get("User-Agent"),
+	})
 	if err != nil {
 		auth.Render(w, r, "error-message", err)
 		return
@@ -143,7 +160,7 @@ func (auth Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
 		Value:    token,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
-		Expires:  time.Now().Add(time.Hour * 24 * 4),
+		Expires:  session.ExpiresAt,
 		HttpOnly: true,
 		Secure:   r.Proto == "https",
 	})
@@ -175,7 +192,19 @@ func (auth Controller) HandleSignin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	session, err := auth.Sessions.Insert(&Session{UserID: user.ID})
+	// Get configured timeouts or use defaults
+	absoluteTimeout := auth.absoluteTimeout
+	if absoluteTimeout == 0 {
+		absoluteTimeout = DefaultAbsoluteTimeout
+	}
+
+	session, err := auth.Sessions.Insert(&Session{
+		UserID:       user.ID,
+		LastActivity: time.Now(),
+		ExpiresAt:    time.Now().Add(absoluteTimeout),
+		IPAddress:    getClientIP(r),
+		UserAgent:    r.Header.Get("User-Agent"),
+	})
 	if err != nil {
 		auth.Render(w, r, "error-message", err)
 		return
@@ -187,7 +216,7 @@ func (auth Controller) HandleSignin(w http.ResponseWriter, r *http.Request) {
 		Value:    token,
 		Path:     "/",
 		SameSite: http.SameSiteLaxMode,
-		Expires:  time.Now().Add(time.Hour * 24 * 4),
+		Expires:  session.ExpiresAt,
 		HttpOnly: true,
 		Secure:   r.Proto == "https",
 	})
@@ -219,4 +248,27 @@ func (auth Controller) HandleSignout(w http.ResponseWriter, r *http.Request) {
 	}
 
 	auth.Redirect(w, r, auth.signoutRedir)
+}
+
+// getClientIP extracts the client's IP address from the request
+func getClientIP(r *http.Request) string {
+	// Check X-Forwarded-For header (for proxies/load balancers)
+	if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+		// Take the first IP if multiple are present
+		if idx := strings.Index(forwarded, ","); idx != -1 {
+			return strings.TrimSpace(forwarded[:idx])
+		}
+		return forwarded
+	}
+
+	// Check X-Real-IP header
+	if realIP := r.Header.Get("X-Real-IP"); realIP != "" {
+		return realIP
+	}
+
+	// Fall back to RemoteAddr
+	if idx := strings.LastIndex(r.RemoteAddr, ":"); idx != -1 {
+		return r.RemoteAddr[:idx]
+	}
+	return r.RemoteAddr
 }

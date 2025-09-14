@@ -23,8 +23,8 @@ func setupTestCollection(t *testing.T) (*Collection, *sql.DB) {
 		t.Fatalf("Failed to enable foreign keys: %v", err)
 	}
 	
-	// Create DynamicDB wrapper
-	dynamicDB := database.NewDynamicDB(sqlDB)
+	// Create DynamicDB wrapper (use the SQL DB directly as the interface)
+	var dynamicDB database.Database = sqlDB
 	
 	// Create collection
 	collection := Manage(dynamicDB)
@@ -38,11 +38,13 @@ func setupTestCollection(t *testing.T) (*Collection, *sql.DB) {
 }
 
 func TestManage(t *testing.T) {
-	collection, _ := setupTestCollection(t)
-	
+	col, _ := setupTestCollection(t)
+	if col == nil {
+		t.Fatal("Expected collection to be created")
+	}
 }
 
-func TestGetUser(t *testing.T) {
+func TestCollectionGetUser(t *testing.T) {
 	collection, _ := setupTestCollection(t)
 	
 	// Create test user
@@ -57,6 +59,9 @@ func TestGetUser(t *testing.T) {
 	}
 	
 	insertedUser, err := collection.Users.Insert(testUser)
+	if err != nil {
+		t.Fatalf("Failed to insert test user: %v", err)
+	}
 	
 	tests := []struct {
 		name        string
@@ -92,10 +97,19 @@ func TestGetUser(t *testing.T) {
 	
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			user, err := collection.GetUser(tt.identifier)
-			
+			foundUser, err := collection.GetUser(tt.identifier)
+
 			if tt.expectError {
+				if err == nil {
+					t.Errorf("Expected error but got none")
+				}
 			} else {
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+				if foundUser == nil {
+					t.Errorf("Expected user but got nil")
+				}
 			}
 		})
 	}
@@ -172,16 +186,31 @@ func TestSignup(t *testing.T) {
 			collection, _ := setupTestCollection(t)
 			
 			user, err := collection.Signup(tt.userName, tt.email, tt.handle, tt.password, tt.isAdmin)
-			
+
 			if tt.expectError {
+				if err == nil {
+					t.Error("Expected error but got none")
+				}
 			} else {
-				
+				if err != nil {
+					t.Errorf("Unexpected error: %v", err)
+				}
+				if user == nil {
+					t.Fatal("Expected user but got nil")
+				}
+
 				// Verify user fields
-				
+				if user.Name != tt.userName {
+					t.Errorf("Expected name %s, got %s", tt.userName, user.Name)
+				}
+
 				// Verify role assignment
 				expectedRole := "developer"
 				if tt.isAdmin {
 					expectedRole = "admin"
+				}
+				if user.Role != expectedRole {
+					t.Errorf("Expected role %s, got %s", expectedRole, user.Role)
 				}
 				
 				// Verify avatar URL format
@@ -344,8 +373,8 @@ func TestSigninConsistentErrorMessages(t *testing.T) {
 	}
 	
 	// Verify both errors have the same message
-	if len(errorMessages) == 2 {
-			"Error messages should be identical to prevent user enumeration")
+	if len(errorMessages) == 2 && errorMessages[0] != errorMessages[1] {
+		t.Errorf("Error messages should be identical to prevent user enumeration: got %q and %q", errorMessages[0], errorMessages[1])
 	}
 }
 
