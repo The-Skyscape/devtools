@@ -26,6 +26,25 @@ func (c *Collection) Controller(opts ...Option) *Controller {
 	return &auth
 }
 
+// isSecureRequest checks if the request is over HTTPS
+// It checks multiple indicators since requests may come through proxies
+func isSecureRequest(r *http.Request) bool {
+	// Check X-Forwarded-Proto header (most common with proxies/load balancers)
+	if r.Header.Get("X-Forwarded-Proto") == "https" {
+		return true
+	}
+	// Check if TLS is present (direct HTTPS connection)
+	if r.TLS != nil {
+		return true
+	}
+	// Check URL scheme
+	if r.URL != nil && r.URL.Scheme == "https" {
+		return true
+	}
+	// Fallback to Proto field (less reliable)
+	return r.Proto == "https"
+}
+
 type Controller struct {
 	application.Controller
 	*Collection
@@ -172,7 +191,7 @@ func (auth Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 		Expires:  session.ExpiresAt,
 		HttpOnly: true,
-		Secure:   r.Proto == "https",
+		Secure:   isSecureRequest(r),
 	})
 
 	if auth.signupFunc != nil {
@@ -228,7 +247,7 @@ func (auth Controller) HandleSignin(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 		Expires:  session.ExpiresAt,
 		HttpOnly: true,
-		Secure:   r.Proto == "https",
+		Secure:   isSecureRequest(r),
 	})
 
 	if auth.signinFunc != nil {
@@ -253,7 +272,7 @@ func (auth Controller) HandleSignout(w http.ResponseWriter, r *http.Request) {
 			SameSite: http.SameSiteStrictMode,
 			Expires:  time.Now().Add(-1),
 			HttpOnly: true,
-			Secure:   r.Proto == "https",
+			Secure:   isSecureRequest(r),
 		})
 	}
 

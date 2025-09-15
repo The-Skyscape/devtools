@@ -52,7 +52,7 @@ func (c *Controller) Logout(w http.ResponseWriter, r *http.Request) {
 		Path:     "/",
 		MaxAge:   -1,
 		HttpOnly: true,
-		Secure:   r.TLS != nil,
+		Secure:   isSecureRequest(r),
 		SameSite: http.SameSiteStrictMode,
 	})
 }
@@ -65,7 +65,7 @@ func (c *Controller) SetSessionCookie(w http.ResponseWriter, r *http.Request, se
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   r.TLS != nil,
+		Secure:   isSecureRequest(r),
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   60 * 60 * 24 * 30, // 30 days
 	})
