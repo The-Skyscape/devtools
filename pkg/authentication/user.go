@@ -19,6 +19,7 @@ type User struct {
 	IsAdmin  bool
 	Role     string // "admin", "developer", "guest"
 	PassHash []byte
+	Verified bool   // Email verification status
 }
 
 func (user *User) SetupPassword(password string) (err error) {

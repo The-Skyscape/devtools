@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 	"strconv"
-	
+
 	"github.com/The-Skyscape/devtools/pkg/hosting"
 	"github.com/digitalocean/godo"
 	"golang.org/x/oauth2"
@@ -29,7 +29,7 @@ func Connect(apiKey string) *DigitalOceanClient {
 	if apiKey == "" {
 		apiKey = ApiKey
 	}
-	
+
 	return &DigitalOceanClient{
 		Client: godo.NewClient(oauth2.NewClient(
 			context.Background(),

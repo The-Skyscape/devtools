@@ -11,11 +11,12 @@ import (
 
 func (c *Collection) Controller(opts ...Option) *Controller {
 	auth := Controller{
-		Collection:   c,
-		cookieName:   "theskyscape",
-		setupView:    "signup.html",
-		signinView:   "signin.html",
-		signoutRedir: "/",
+		Collection:       c,
+		cookieName:       "theskyscape",
+		setupView:        "signup.html",
+		signinView:       "signin.html",
+		signoutRedir:     "/",
+		verificationView: "email-verification-required.html",
 	}
 
 	for _, opt := range opts {
@@ -48,6 +49,10 @@ type Controller struct {
 
 	// Signout functions
 	signoutRedir string
+
+	// Email verification
+	requireVerification bool
+	verificationView    string
 }
 
 func (auth *Controller) Optional(app *application.App, w http.ResponseWriter, r *http.Request) bool {
@@ -62,6 +67,11 @@ func (auth *Controller) Required(app *application.App, w http.ResponseWriter, r 
 	}
 
 	if u, _, err := auth.Authenticate(r); u != nil && err == nil {
+		// Check if verification is required
+		if auth.requireVerification && !u.Verified {
+			app.Render(w, r, auth.verificationView, nil)
+			return false
+		}
 		return true
 	}
 

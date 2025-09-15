@@ -329,10 +329,10 @@ func deployApplication(server hosting.Server, config *ServerConfig, apiKey strin
 
 	// Execute the deployment script
 	fmt.Printf("🔧 Executing deployment script...\n")
-	
+
 	// Interpolate values into the deploy script (including environment variables)
 	scriptWithValues := fmt.Sprintf(deployScript, deployDomain, email, apiKey, redeployFlag, authSecret, config.Size, envVars)
-	
+
 	// Execute the script as a single command
 	stdout, stderr, err := server.Exec("/bin/bash", "-c", scriptWithValues)
 	if err != nil {
@@ -347,7 +347,6 @@ func deployApplication(server hosting.Server, config *ServerConfig, apiKey strin
 	if stderr.Len() > 0 {
 		fmt.Printf("⚠️  Warnings/Errors:\n%s\n", stderr.String())
 	}
-
 
 	// Save updated config
 	if err := saveServerConfig(config); err != nil {
@@ -376,7 +375,6 @@ func deployApplication(server hosting.Server, config *ServerConfig, apiKey strin
 
 	return nil
 }
-
 
 // waitForSSH waits for SSH to be available on the given IP
 func waitForSSH(ip string, maxSeconds int) error {

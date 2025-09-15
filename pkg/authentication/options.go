@@ -76,3 +76,10 @@ func WithSessionTimeouts(inactivity, absolute time.Duration) Option {
 		auth.absoluteTimeout = absolute
 	}
 }
+
+// WithRequireVerification requires email verification for authentication
+func WithRequireVerification() Option {
+	return func(auth *Controller) {
+		auth.requireVerification = true
+	}
+}
