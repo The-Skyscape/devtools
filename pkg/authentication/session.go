@@ -2,6 +2,7 @@ package authentication
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"os"
 	"time"
@@ -57,31 +58,40 @@ const (
 func (auth *Controller) Authenticate(r *http.Request) (*User, *Session, error) {
 	cookie, err := r.Cookie(auth.cookieName)
 	if err != nil {
+		log.Printf("AUTH: No cookie found with name=%s: %v", auth.cookieName, err)
 		return nil, nil, err
 	}
+	log.Printf("AUTH: Found cookie %s, parsing JWT", auth.cookieName)
 
 	token, err := jwt.Parse(cookie.Value, func(token *jwt.Token) (any, error) {
 		return []byte(os.Getenv("AUTH_SECRET")), nil
 	})
 
 	if err != nil {
+		log.Printf("AUTH: JWT parse failed: %v", err)
 		return nil, nil, err
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
+		log.Printf("AUTH: Failed to get claims from JWT")
 		return nil, nil, err
 	}
+	log.Printf("AUTH: JWT claims: %+v", claims)
 
 	sessionID, ok := claims["sub"].(string)
 	if !ok {
+		log.Printf("AUTH: No 'sub' claim in JWT")
 		return nil, nil, err
 	}
+	log.Printf("AUTH: Session ID from JWT: %s", sessionID)
 
 	session, err := auth.Sessions.Get(sessionID)
 	if err != nil {
+		log.Printf("AUTH: Failed to get session %s: %v", sessionID, err)
 		return nil, nil, err
 	}
+	log.Printf("AUTH: Found session for user %s", session.UserID)
 
 	// Check if session has expired
 	inactivityTimeout := auth.GetInactivityTimeout()

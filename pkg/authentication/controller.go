@@ -2,6 +2,7 @@ package authentication
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -137,12 +138,22 @@ func (auth *Controller) CurrentSession() *Session {
 }
 
 func (auth *Controller) CurrentUser() *User {
+	log.Printf("AUTH: CurrentUser called, Request=%v", auth.Request != nil)
 	if user, ok := auth.Context().Value(userKey).(*User); ok {
+		log.Printf("AUTH: CurrentUser found in context: %s", user.Email)
 		return user
 	}
 
+	if auth.Request == nil {
+		log.Printf("AUTH: CurrentUser failed - Request is nil")
+		return nil
+	}
+
 	if user, _, err := auth.Authenticate(auth.Request); err == nil {
+		log.Printf("AUTH: CurrentUser authenticated: %s", user.Email)
 		return user
+	} else {
+		log.Printf("AUTH: CurrentUser authentication failed: %v", err)
 	}
 
 	return nil
@@ -209,17 +220,21 @@ func (auth Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
 
 func (auth Controller) HandleSignin(w http.ResponseWriter, r *http.Request) {
 	handle, password := r.FormValue("handle"), r.FormValue("password")
+	log.Printf("AUTH: Signin attempt for handle=%s from IP=%s", handle, getClientIP(r))
 
 	user, err := auth.GetUser(handle)
 	if err != nil {
+		log.Printf("AUTH: Signin failed - user not found: %s", handle)
 		auth.Render(w, r, "error-message", err)
 		return
 	}
 
 	if !user.VerifyPassword(password) {
+		log.Printf("AUTH: Signin failed - invalid password for: %s", handle)
 		auth.Render(w, r, "error-message", errors.New("invalid password"))
 		return
 	}
+	log.Printf("AUTH: Password verified for user: %s (ID=%s)", user.Email, user.ID)
 
 	// Get configured timeouts or use defaults
 	absoluteTimeout := auth.absoluteTimeout
@@ -240,6 +255,9 @@ func (auth Controller) HandleSignin(w http.ResponseWriter, r *http.Request) {
 	}
 
 	token, _ := session.Token()
+	secure := isSecureRequest(r)
+	log.Printf("AUTH: Setting signin cookie: name=%s secure=%v expires=%v proto=%s tls=%v forwarded=%s",
+		auth.cookieName, secure, session.ExpiresAt, r.Proto, r.TLS != nil, r.Header.Get("X-Forwarded-Proto"))
 	http.SetCookie(w, &http.Cookie{
 		Name:     auth.cookieName,
 		Value:    token,
@@ -247,8 +265,9 @@ func (auth Controller) HandleSignin(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 		Expires:  session.ExpiresAt,
 		HttpOnly: true,
-		Secure:   isSecureRequest(r),
+		Secure:   secure,
 	})
+	log.Printf("AUTH: Signin successful for %s, redirecting", user.Email)
 
 	if auth.signinFunc != nil {
 		auth.signinFunc(&auth, user)

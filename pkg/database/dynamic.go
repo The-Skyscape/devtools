@@ -91,29 +91,46 @@ func (db *DynamicDB) Fields(ent Entity) (fields []string, types []string, defaul
 	for i := range type_.NumField() {
 		field := type_.Field(i)
 		kind := field.Type.Kind()
+
+		// Skip anonymous fields, pointers, interfaces, and functions
 		if field.Anonymous || kind == reflect.Ptr || kind == reflect.Interface ||
-			kind == reflect.Func || kind == reflect.Struct {
+			kind == reflect.Func {
+			continue
+		}
+
+		// Special handling for time.Time struct
+		isTimeField := field.Type.PkgPath() == "time" && field.Type.Name() == "Time"
+
+		// Skip other structs that aren't time.Time
+		if kind == reflect.Struct && !isTimeField {
 			continue
 		}
 
 		fields = append(fields, field.Name)
-		switch kind {
-		case reflect.String:
-			types = append(types, "TEXT")
-			defaults = append(defaults, cmp.Or(field.Tag.Get("default"), "''"))
-		case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
-			reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
-			types = append(types, "INTEGER")
-			defaults = append(defaults, cmp.Or(field.Tag.Get("default"), "0"))
-		case reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
-			types = append(types, "REAL")
-			defaults = append(defaults, cmp.Or(field.Tag.Get("default"), "0"))
-		case reflect.Bool:
-			types = append(types, "BOOLEAN")
-			defaults = append(defaults, cmp.Or(field.Tag.Get("default"), "FALSE"))
-		default:
-			types = append(types, "ANY")
+
+		// Handle time.Time as TIMESTAMP
+		if isTimeField {
+			types = append(types, "TIMESTAMP")
 			defaults = append(defaults, cmp.Or(field.Tag.Get("default"), "NULL"))
+		} else {
+			switch kind {
+			case reflect.String:
+				types = append(types, "TEXT")
+				defaults = append(defaults, cmp.Or(field.Tag.Get("default"), "''"))
+			case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64,
+				reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr:
+				types = append(types, "INTEGER")
+				defaults = append(defaults, cmp.Or(field.Tag.Get("default"), "0"))
+			case reflect.Float32, reflect.Float64, reflect.Complex64, reflect.Complex128:
+				types = append(types, "REAL")
+				defaults = append(defaults, cmp.Or(field.Tag.Get("default"), "0"))
+			case reflect.Bool:
+				types = append(types, "BOOLEAN")
+				defaults = append(defaults, cmp.Or(field.Tag.Get("default"), "FALSE"))
+			default:
+				types = append(types, "ANY")
+				defaults = append(defaults, cmp.Or(field.Tag.Get("default"), "NULL"))
+			}
 		}
 	}
 
