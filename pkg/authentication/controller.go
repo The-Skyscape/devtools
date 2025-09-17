@@ -206,7 +206,7 @@ func (auth Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if auth.signupFunc != nil {
-		auth.signupFunc(&auth, user)
+		auth.signupFunc(&auth, user).ServeHTTP(w, r)
 		return
 	}
 
@@ -270,7 +270,7 @@ func (auth Controller) HandleSignin(w http.ResponseWriter, r *http.Request) {
 	log.Printf("AUTH: Signin successful for %s, redirecting", user.Email)
 
 	if auth.signinFunc != nil {
-		auth.signinFunc(&auth, user)
+		auth.signinFunc(&auth, user).ServeHTTP(w, r)
 		return
 	}
 

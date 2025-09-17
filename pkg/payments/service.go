@@ -23,18 +23,18 @@ func NewService() *Service {
 func (s *Service) AddProvider(name string, provider Provider) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	if provider == nil {
 		return fmt.Errorf("provider cannot be nil")
 	}
-	
+
 	s.providers[name] = provider
-	
+
 	// Set as active if it's the first provider
 	if s.active == nil {
 		s.active = provider
 	}
-	
+
 	return nil
 }
 
@@ -42,12 +42,12 @@ func (s *Service) AddProvider(name string, provider Provider) error {
 func (s *Service) SetActiveProvider(name string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	provider, ok := s.providers[name]
 	if !ok {
 		return fmt.Errorf("provider %s not found", name)
 	}
-	
+
 	s.active = provider
 	return nil
 }
@@ -56,12 +56,12 @@ func (s *Service) SetActiveProvider(name string) error {
 func (s *Service) GetProvider(name string) (Provider, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	provider, ok := s.providers[name]
 	if !ok {
 		return nil, fmt.Errorf("provider %s not found", name)
 	}
-	
+
 	return provider, nil
 }
 
@@ -250,7 +250,7 @@ func (s *Service) ProviderName() string {
 func (s *Service) ListProviders() []string {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	
+
 	names := make([]string, 0, len(s.providers))
 	for name := range s.providers {
 		names = append(names, name)
