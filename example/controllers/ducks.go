@@ -16,14 +16,14 @@ func Ducks() (string, *DucksController) {
 
 // DucksController handles all duck-related operations
 type DucksController struct {
-	application.Controller  // Always embed for base functionality
-	
+	application.Controller // Always embed for base functionality
+
 	// DucksCollection allows dependency injection for testing
 	// If nil, defaults to models.Ducks
 	DucksCollection interface {
 		Get(string) (*models.Duck, error)
-		Search(string, ...interface{}) ([]*models.Duck, error)
-		Count(string, ...interface{}) int
+		Search(string, ...any) ([]*models.Duck, error)
+		Count(string, ...any) int
 		Insert(*models.Duck) (*models.Duck, error)
 		Delete(*models.Duck) error
 	}
@@ -31,7 +31,7 @@ type DucksController struct {
 
 // Setup registers routes (called once at startup)
 func (c *DucksController) Setup(app *application.App) {
-	c.Controller.Setup(app)  // Always call parent first
+	c.Controller.Setup(app) // Always call parent first
 
 	// Routes
 	http.Handle("GET /", app.Serve("dashboard.html", nil))
@@ -41,15 +41,15 @@ func (c *DucksController) Setup(app *application.App) {
 
 // Handle creates per-request controller copy (for thread safety)
 func (c DucksController) Handle(req *http.Request) application.Handler {
-	c.Request = req  // Store request in the copy
-	return &c        // Return pointer to copy
+	c.Request = req // Store request in the copy
+	return &c       // Return pointer to copy
 }
 
 // getDucks returns the ducks collection (test or production)
 func (c *DucksController) getDucks() interface {
 	Get(string) (*models.Duck, error)
-	Search(string, ...interface{}) ([]*models.Duck, error)
-	Count(string, ...interface{}) int
+	Search(string, ...any) ([]*models.Duck, error)
+	Count(string, ...any) int
 	Insert(*models.Duck) (*models.Duck, error)
 	Delete(*models.Duck) error
 } {
@@ -87,14 +87,14 @@ func (c *DucksController) IsEmpty() bool {
 
 // createDuck handles POST /ducks
 func (c *DucksController) createDuck(w http.ResponseWriter, r *http.Request) {
-	c.SetRequest(r)  // Always first in handlers
+	c.SetRequest(r) // Always first in handlers
 
 	// Validate input
 	validator := c.Validator()
 	validator.CheckRequired("name", r.FormValue("name"))
 	validator.CheckLength("name", r.FormValue("name"), 2, 50)
 	validator.CheckRequired("color", r.FormValue("color"))
-	
+
 	if err := validator.Result(); err != nil {
 		c.RenderError(w, r, err)
 		return
@@ -116,7 +116,7 @@ func (c *DucksController) createDuck(w http.ResponseWriter, r *http.Request) {
 	// Send email notification (demonstrates email API)
 	go func() {
 		models.Emails.Send(
-			"user@example.com",  // Would be user's email
+			"user@example.com", // Would be user's email
 			"New Duck Created!",
 			emailing.WithTemplate("duck-created.html"),
 			emailing.WithRequest(r),
@@ -126,9 +126,8 @@ func (c *DucksController) createDuck(w http.ResponseWriter, r *http.Request) {
 		)
 	}()
 
-	c.Refresh(w, r)  // HTMX full page refresh
+	c.Refresh(w, r) // HTMX full page refresh
 }
-
 
 // deleteDuck handles POST /ducks/{id}/delete
 func (c *DucksController) deleteDuck(w http.ResponseWriter, r *http.Request) {

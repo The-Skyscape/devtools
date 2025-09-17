@@ -15,19 +15,19 @@ var (
 	// ErrNotFound indicates the requested resource doesn't exist.
 	// Templates: error-404.html
 	ErrNotFound = errors.New("not found")
-	
+
 	// ErrUnauthorized indicates missing or invalid authentication.
 	// Templates: error-401.html
 	ErrUnauthorized = errors.New("unauthorized")
-	
+
 	// ErrForbidden indicates the user lacks permission for the resource.
 	// Templates: error-403.html
 	ErrForbidden = errors.New("forbidden")
-	
+
 	// ErrValidation indicates input validation failed.
 	// Templates: validation-errors.html
 	ErrValidation = errors.New("validation failed")
-	
+
 	// ErrInternal indicates an unexpected server error.
 	// Templates: error-message.html
 	ErrInternal = errors.New("internal server error")
@@ -39,7 +39,7 @@ type Handler interface {
 	// Setup is called once during application initialization.
 	// Controllers should register routes and initialize resources here.
 	Setup(*App)
-	
+
 	// Handle creates a request-scoped instance of the controller.
 	// CRITICAL: Must use VALUE receiver to ensure request isolation.
 	// The returned Handler has the request set and can access it.
@@ -49,19 +49,22 @@ type Handler interface {
 // Controller provides base functionality for all application controllers.
 //
 // Request Isolation Pattern:
-//   Each request gets its own controller copy through value receivers.
-//   This eliminates shared state and prevents data races.
+//
+//	Each request gets its own controller copy through value receivers.
+//	This eliminates shared state and prevents data races.
 //
 // Embedding Pattern:
-//   Controllers should embed this type to inherit base functionality:
 //
-//   type MyController struct {
-//       application.Controller
-//   }
+//	Controllers should embed this type to inherit base functionality:
+//
+//	type MyController struct {
+//	    application.Controller
+//	}
 //
 // Template Access:
-//   Public methods (capitalized) are accessible in templates.
-//   Private methods (lowercase) serve as HTTP handlers.
+//
+//	Public methods (capitalized) are accessible in templates.
+//	Private methods (lowercase) serve as HTTP handlers.
 type Controller struct {
 	*App
 	*http.Request
@@ -87,6 +90,15 @@ func (base *Controller) Setup(app *App) {
 //	}
 func (base *Controller) SetRequest(r *http.Request) {
 	base.Request = r
+}
+
+// Host returns the request Host and the app hostPrefix
+func (base *Controller) Host() string {
+	if base.Request == nil {
+		return base.App.Host()
+	}
+
+	return fmt.Sprintf("%s%s", base.Request.Host, base.App.Host())
 }
 
 // Use returns another controller configured for the current request.
@@ -228,7 +240,8 @@ func (c *Controller) Redirect(w http.ResponseWriter, r *http.Request, path strin
 // This is intentional design, not a bug.
 //
 // For HTMX forms, target error containers:
-//   <form hx-post="/submit" hx-target=".error-message">
+//
+//	<form hx-post="/submit" hx-target=".error-message">
 func (c *Controller) RenderError(w http.ResponseWriter, r *http.Request, err error) {
 	// Select template based on error type
 	template := "error-message.html"

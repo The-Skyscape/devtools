@@ -237,3 +237,177 @@ func parseTimePtr(timestamp float64) *time.Time {
 	t := parseTime(timestamp)
 	return &t
 }
+
+// Product represents a Stripe product
+type Product struct {
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Active      bool              `json:"active"`
+	Metadata    map[string]string `json:"metadata"`
+	Created     int64             `json:"created"`
+	Updated     int64             `json:"updated"`
+}
+
+// Price represents a Stripe price
+type Price struct {
+	ID         string            `json:"id"`
+	ProductID  string            `json:"product"`
+	Active     bool              `json:"active"`
+	Currency   string            `json:"currency"`
+	UnitAmount int64             `json:"unit_amount"`
+	Type       string            `json:"type"`
+	Recurring  *PriceRecurring   `json:"recurring"`
+	Metadata   map[string]string `json:"metadata"`
+	Created    int64             `json:"created"`
+}
+
+// PriceRecurring represents recurring price settings
+type PriceRecurring struct {
+	Interval      string `json:"interval"`       // day, week, month, year
+	IntervalCount int    `json:"interval_count"`
+}
+
+// CreateProduct creates a new product in Stripe
+func (c *Client) CreateProduct(name, description string, metadata map[string]string) (*Product, error) {
+	params := url.Values{}
+	params.Set("name", name)
+	if description != "" {
+		params.Set("description", description)
+	}
+	formatMetadata(params, metadata)
+
+	data, err := c.request("POST", "/products", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create product: %w", err)
+	}
+
+	var product Product
+	if err := parseJSON(data, &product); err != nil {
+		return nil, fmt.Errorf("failed to parse product response: %w", err)
+	}
+
+	return &product, nil
+}
+
+// GetProduct retrieves a product by ID
+func (c *Client) GetProduct(productID string) (*Product, error) {
+	data, err := c.request("GET", "/products/"+productID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get product: %w", err)
+	}
+
+	var product Product
+	if err := parseJSON(data, &product); err != nil {
+		return nil, fmt.Errorf("failed to parse product response: %w", err)
+	}
+
+	return &product, nil
+}
+
+// ListProducts lists all products with optional filters
+func (c *Client) ListProducts(limit int) ([]*Product, error) {
+	params := url.Values{}
+	if limit > 0 {
+		params.Set("limit", strconv.Itoa(limit))
+	}
+
+	data, err := c.request("GET", "/products", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list products: %w", err)
+	}
+
+	var response struct {
+		Data []*Product `json:"data"`
+	}
+	if err := parseJSON(data, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse products response: %w", err)
+	}
+
+	return response.Data, nil
+}
+
+// UpdateProduct updates an existing product
+func (c *Client) UpdateProduct(productID string, name, description string, metadata map[string]string) (*Product, error) {
+	params := url.Values{}
+	if name != "" {
+		params.Set("name", name)
+	}
+	if description != "" {
+		params.Set("description", description)
+	}
+	formatMetadata(params, metadata)
+
+	data, err := c.request("POST", "/products/"+productID, params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update product: %w", err)
+	}
+
+	var product Product
+	if err := parseJSON(data, &product); err != nil {
+		return nil, fmt.Errorf("failed to parse product response: %w", err)
+	}
+
+	return &product, nil
+}
+
+// CreatePrice creates a new price for a product
+func (c *Client) CreatePrice(productID string, unitAmount int64, currency string, recurring bool, interval string) (*Price, error) {
+	params := url.Values{}
+	params.Set("product", productID)
+	params.Set("unit_amount", strconv.FormatInt(unitAmount, 10))
+	params.Set("currency", currency)
+
+	if recurring {
+		params.Set("recurring[interval]", interval)
+		params.Set("recurring[interval_count]", "1")
+	}
+
+	data, err := c.request("POST", "/prices", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create price: %w", err)
+	}
+
+	var price Price
+	if err := parseJSON(data, &price); err != nil {
+		return nil, fmt.Errorf("failed to parse price response: %w", err)
+	}
+
+	return &price, nil
+}
+
+// GetPrice retrieves a price by ID
+func (c *Client) GetPrice(priceID string) (*Price, error) {
+	data, err := c.request("GET", "/prices/"+priceID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get price: %w", err)
+	}
+
+	var price Price
+	if err := parseJSON(data, &price); err != nil {
+		return nil, fmt.Errorf("failed to parse price response: %w", err)
+	}
+
+	return &price, nil
+}
+
+// ListPrices lists prices for a product
+func (c *Client) ListPrices(productID string) ([]*Price, error) {
+	params := url.Values{}
+	params.Set("product", productID)
+	params.Set("active", "true")
+
+	data, err := c.request("GET", "/prices", params)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list prices: %w", err)
+	}
+
+	var response struct {
+		Data []*Price `json:"data"`
+	}
+	if err := parseJSON(data, &response); err != nil {
+		return nil, fmt.Errorf("failed to parse prices response: %w", err)
+	}
+
+	return response.Data, nil
+}

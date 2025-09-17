@@ -33,7 +33,7 @@ func False(t *testing.T, condition bool, msg ...string) {
 }
 
 // Equal fails if values are not equal
-func Equal(t *testing.T, expected, actual interface{}) {
+func Equal(t *testing.T, expected, actual any) {
 	t.Helper()
 	if !reflect.DeepEqual(expected, actual) {
 		t.Errorf("\nExpected: %v\nActual:   %v", expected, actual)
@@ -41,7 +41,7 @@ func Equal(t *testing.T, expected, actual interface{}) {
 }
 
 // NotEqual fails if values are equal
-func NotEqual(t *testing.T, v1, v2 interface{}) {
+func NotEqual(t *testing.T, v1, v2 any) {
 	t.Helper()
 	if reflect.DeepEqual(v1, v2) {
 		t.Errorf("Values should not be equal: %v", v1)
@@ -49,7 +49,7 @@ func NotEqual(t *testing.T, v1, v2 interface{}) {
 }
 
 // Nil fails if value is not nil
-func Nil(t *testing.T, value interface{}) {
+func Nil(t *testing.T, value any) {
 	t.Helper()
 	if !isNil(value) {
 		t.Errorf("Expected nil, got %v", value)
@@ -57,7 +57,7 @@ func Nil(t *testing.T, value interface{}) {
 }
 
 // NotNil fails if value is nil
-func NotNil(t *testing.T, value interface{}) {
+func NotNil(t *testing.T, value any) {
 	t.Helper()
 	if isNil(value) {
 		t.Error("Expected non-nil value")
@@ -89,7 +89,7 @@ func Error(t *testing.T, err error) {
 }
 
 // Len fails if length doesn't match
-func Len(t *testing.T, collection interface{}, expected int) {
+func Len(t *testing.T, collection any, expected int) {
 	t.Helper()
 	v := reflect.ValueOf(collection)
 	if v.Len() != expected {

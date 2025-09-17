@@ -7,17 +7,17 @@ import (
 
 // AssertHasMethod checks if a struct has a method with the given name
 // and warns if the method returns an error as second value (which can halt templates)
-func AssertHasMethod(t *testing.T, obj interface{}, methodName string) {
+func AssertHasMethod(t *testing.T, obj any, methodName string) {
 	t.Helper()
-	
+
 	v := reflect.ValueOf(obj)
 	method := v.MethodByName(methodName)
-	
+
 	if !method.IsValid() {
 		t.Errorf("Expected method '%s' not found on %T", methodName, obj)
 		return
 	}
-	
+
 	// Check if method returns an error as second value
 	methodType := method.Type()
 	if methodType.NumOut() == 2 {
@@ -30,6 +30,6 @@ func AssertHasMethod(t *testing.T, obj interface{}, methodName string) {
 }
 
 // AssertMethodExists is an alias for AssertHasMethod for backward compatibility
-func AssertMethodExists(t *testing.T, obj interface{}, methodName string) {
+func AssertMethodExists(t *testing.T, obj any, methodName string) {
 	AssertHasMethod(t, obj, methodName)
 }

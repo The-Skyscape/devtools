@@ -29,7 +29,7 @@ func NewInputValidation(opts ...ValidationOption) *InputValidation {
 	v := &InputValidation{
 		name:           "input-validation",
 		maxBodySize:    10 * 1024 * 1024, // 10MB default
-		maxFieldLength: 10000,             // 10k chars per field default
+		maxFieldLength: 10000,            // 10k chars per field default
 		allowedMethods: []string{"GET", "POST", "PUT", "DELETE", "PATCH"},
 		contentTypeChecks: map[string]func(*http.Request) error{
 			"application/json":                  validateJSON,
@@ -213,7 +213,7 @@ func (v *InputValidation) sanitizePathParams(r *http.Request) {
 
 func validateJSON(r *http.Request) error {
 	// Try to decode JSON to check validity
-	var data interface{}
+	var data any
 	decoder := json.NewDecoder(r.Body)
 	decoder.DisallowUnknownFields() // Strict mode
 

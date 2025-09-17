@@ -133,6 +133,11 @@ func New(views fs.FS, opts ...Option) *App {
 	return &app
 }
 
+// Host returns the hostPrefix for the application example (/prefix/path)
+func (app *App) Host() string {
+	return app.hostPrefix
+}
+
 // Server prepares the application and returns the address and HTTP handler.
 //
 // Initialization Steps:
