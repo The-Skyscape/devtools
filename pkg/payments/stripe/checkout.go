@@ -74,11 +74,6 @@ func (c *Client) CreateCheckoutSession(params *payments.CheckoutParams) (*paymen
 	// Payment method collection
 	// "if_required" means Stripe won't ask for payment method during free trial
 	formParams.Set("payment_method_collection", "if_required")
-	
-	// Enable saving payment methods for future use
-	if params.Mode == "subscription" {
-		formParams.Set("payment_method_options[card][setup_future_usage]", "off_session")
-	}
 
 	// Make request
 	resp, err := c.request("POST", "/checkout/sessions", formParams)
