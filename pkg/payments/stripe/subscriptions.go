@@ -113,7 +113,7 @@ func (c *Client) UpdateSubscription(subscriptionID string, params *payments.Subs
 // CancelSubscription cancels a subscription
 func (c *Client) CancelSubscription(subscriptionID string, immediately bool) (*payments.Subscription, error) {
 	formParams := url.Values{}
-	
+
 	if immediately {
 		// Cancel immediately
 		formParams.Set("invoice_now", "true")
@@ -122,17 +122,52 @@ func (c *Client) CancelSubscription(subscriptionID string, immediately bool) (*p
 		// Cancel at period end
 		formParams.Set("cancel_at_period_end", "true")
 	}
-	
+
 	endpoint := "/subscriptions/" + subscriptionID
 	if immediately {
 		endpoint = "/subscriptions/" + subscriptionID + "/cancel"
 	}
-	
+
 	resp, err := c.request("POST", endpoint, formParams)
 	if err != nil {
 		return nil, err
 	}
-	
+
+	return c.parseSubscription(resp)
+}
+
+// PauseSubscription pauses payment collection for a subscription
+func (c *Client) PauseSubscription(subscriptionID string, resumesAt *time.Time) (*payments.Subscription, error) {
+	formParams := url.Values{}
+
+	// Set pause collection behavior to mark invoices as uncollectible
+	formParams.Set("pause_collection[behavior]", "mark_uncollectible")
+
+	// Set resume date if provided
+	if resumesAt != nil {
+		formParams.Set("pause_collection[resumes_at]", strconv.FormatInt(resumesAt.Unix(), 10))
+	}
+
+	resp, err := c.request("POST", "/subscriptions/"+subscriptionID, formParams)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.parseSubscription(resp)
+}
+
+// ResumeSubscription resumes payment collection for a paused subscription
+func (c *Client) ResumeSubscription(subscriptionID string) (*payments.Subscription, error) {
+	formParams := url.Values{}
+
+	// Remove pause_collection by setting empty value
+	formParams.Set("pause_collection", "")
+
+	resp, err := c.request("POST", "/subscriptions/"+subscriptionID, formParams)
+	if err != nil {
+		return nil, err
+	}
+
 	return c.parseSubscription(resp)
 }
 

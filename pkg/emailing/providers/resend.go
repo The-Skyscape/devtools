@@ -37,7 +37,10 @@ func (p *ResendProvider) Init(vault *security.Collection) error {
 	p.ApiKey = apiKey
 	
 	// Get from address from vault or keep existing
+	// Support both from_address and from_email keys for compatibility
 	if addr, ok := secret["from_address"].(string); ok && addr != "" {
+		p.FromAddr = addr
+	} else if addr, ok := secret["from_email"].(string); ok && addr != "" {
 		p.FromAddr = addr
 	}
 	if name, ok := secret["from_name"].(string); ok && name != "" {

@@ -21,6 +21,8 @@ type Provider interface {
 	GetSubscription(subscriptionID string) (*Subscription, error)
 	UpdateSubscription(subscriptionID string, params *SubscriptionParams) (*Subscription, error)
 	CancelSubscription(subscriptionID string, immediately bool) (*Subscription, error)
+	PauseSubscription(subscriptionID string, resumesAt *time.Time) (*Subscription, error)
+	ResumeSubscription(subscriptionID string) (*Subscription, error)
 
 	// Payment method operations
 	AttachPaymentMethod(customerID, paymentMethodID string) error

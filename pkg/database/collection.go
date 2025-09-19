@@ -120,7 +120,12 @@ func (c *Collection[E]) Insert(ent E) (E, error) {
 	ent.GetModel().SetDB(c.DB)
 	if ent.GetModel().ID == "" {
 		ent.GetModel().ID = uuid.NewString()
+	}
+	// Always set timestamps for new records
+	if ent.GetModel().CreatedAt.IsZero() {
 		ent.GetModel().CreatedAt = time.Now()
+	}
+	if ent.GetModel().UpdatedAt.IsZero() {
 		ent.GetModel().UpdatedAt = time.Now()
 	}
 	return ent, c.DB.Insert(ent)

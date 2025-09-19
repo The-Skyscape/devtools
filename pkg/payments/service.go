@@ -3,6 +3,7 @@ package payments
 import (
 	"fmt"
 	"sync"
+	"time"
 )
 
 // Service manages payment operations through various providers
@@ -166,6 +167,24 @@ func (s *Service) CancelSubscription(subscriptionID string, immediately bool) (*
 		return nil, fmt.Errorf("no active payment provider")
 	}
 	return provider.CancelSubscription(subscriptionID, immediately)
+}
+
+// PauseSubscription pauses payment collection for a subscription using the active provider
+func (s *Service) PauseSubscription(subscriptionID string, resumesAt *time.Time) (*Subscription, error) {
+	provider := s.ActiveProvider()
+	if provider == nil {
+		return nil, fmt.Errorf("no active payment provider")
+	}
+	return provider.PauseSubscription(subscriptionID, resumesAt)
+}
+
+// ResumeSubscription resumes payment collection for a subscription using the active provider
+func (s *Service) ResumeSubscription(subscriptionID string) (*Subscription, error) {
+	provider := s.ActiveProvider()
+	if provider == nil {
+		return nil, fmt.Errorf("no active payment provider")
+	}
+	return provider.ResumeSubscription(subscriptionID)
 }
 
 // Payment method operations

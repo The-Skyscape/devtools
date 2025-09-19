@@ -287,6 +287,47 @@ func (m *MockProvider) CancelSubscription(subscriptionID string, immediately boo
 	return subscription, nil
 }
 
+// PauseSubscription pauses payment collection for a mock subscription
+func (m *MockProvider) PauseSubscription(subscriptionID string, resumesAt *time.Time) (*Subscription, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.shouldFail {
+		return nil, fmt.Errorf("mock error: %s", m.failMessage)
+	}
+
+	subscription, exists := m.subscriptions[subscriptionID]
+	if !exists {
+		return nil, fmt.Errorf("subscription not found: %s", subscriptionID)
+	}
+
+	// Mock pausing by keeping status active but noting it's paused
+	subscription.Status = SubscriptionStatusActive // Paused collection keeps active status
+	// In a real implementation, we'd track pause state separately
+
+	return subscription, nil
+}
+
+// ResumeSubscription resumes payment collection for a mock subscription
+func (m *MockProvider) ResumeSubscription(subscriptionID string) (*Subscription, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.shouldFail {
+		return nil, fmt.Errorf("mock error: %s", m.failMessage)
+	}
+
+	subscription, exists := m.subscriptions[subscriptionID]
+	if !exists {
+		return nil, fmt.Errorf("subscription not found: %s", subscriptionID)
+	}
+
+	// Mock resuming by ensuring status is active
+	subscription.Status = SubscriptionStatusActive
+
+	return subscription, nil
+}
+
 // AttachPaymentMethod attaches a payment method to a customer
 func (m *MockProvider) AttachPaymentMethod(customerID, paymentMethodID string) error {
 	m.mu.Lock()
