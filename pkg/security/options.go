@@ -44,3 +44,10 @@ func WithNetwork(network string) VaultOption {
 		c.Network = network
 	}
 }
+
+// WithPortBinding controls whether to expose vault port on host
+func WithPortBinding(enabled bool) VaultOption {
+	return func(c *VaultConfig) {
+		c.ExposePort = enabled
+	}
+}

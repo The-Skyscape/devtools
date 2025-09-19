@@ -17,6 +17,7 @@ type VaultConfig struct {
 	DevMode       bool
 	RootToken     string
 	Network       string
+	ExposePort    bool // Whether to bind port to host
 }
 
 // VaultService manages Hashicorp Vault for secure secret storage
@@ -45,7 +46,7 @@ func NewVaultService(opts ...VaultOption) *VaultService {
 		DataDir:       fmt.Sprintf("%s/vault", database.DataDir()),
 		DevMode:       true,
 		RootToken:     "skyscape-dev-token",
-		Network:       "host",
+		Network:       "skyscape-internal",
 	}
 
 	// Apply options
@@ -53,9 +54,16 @@ func NewVaultService(opts ...VaultOption) *VaultService {
 		opt(config)
 	}
 
+	// Determine vault URL based on network configuration
+	vaultURL := fmt.Sprintf("http://localhost:%d", config.Port)
+	if config.Network != "host" && config.Network != "" {
+		// Use container name for internal network communication
+		vaultURL = fmt.Sprintf("http://%s:%d", config.ContainerName, config.Port)
+	}
+
 	return &VaultService{
 		config: config,
-		client: NewVaultClient(fmt.Sprintf("http://localhost:%d", config.Port), config.RootToken),
+		client: NewVaultClient(vaultURL, config.RootToken),
 	}
 }
 
@@ -77,6 +85,13 @@ func (v *VaultService) GetService() *containers.Service {
 			"VAULT_ADDR":               "http://0.0.0.0:8200",
 			"VAULT_API_ADDR":           "http://0.0.0.0:8200",
 		},
+	}
+
+	// Only expose port if explicitly configured
+	if v.config.ExposePort {
+		v.service.Ports = map[string]string{
+			fmt.Sprintf("%d", v.config.Port): "8200",
+		}
 	}
 
 	// Configure for dev or production mode
@@ -113,6 +128,13 @@ func (v *VaultService) InitWithHost(host containers.Host) error {
 	}
 
 	log.Println("Initializing Vault service...")
+
+	// Create internal network if specified and doesn't exist
+	if v.config.Network != "" && v.config.Network != "host" {
+		log.Printf("Creating Docker network %s if not exists...", v.config.Network)
+		// Try to create network, ignore error if already exists
+		host.Exec("docker", "network", "create", v.config.Network)
+	}
 
 	// Get the service definition
 	service := v.GetService()

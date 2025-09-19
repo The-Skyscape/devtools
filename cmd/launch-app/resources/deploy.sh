@@ -57,15 +57,21 @@ if [[ "$DECLARE_ENV_VARS" != *"AI_ENABLED"* ]]; then
     DECLARE_ENV_VARS="$DECLARE_ENV_VARS -e AI_ENABLED=\"$AI_ENABLED\""
 fi
 
+# Create internal network if it doesn't exist
+echo "Creating internal Docker network..."
+docker network create skyscape-internal 2>/dev/null || true
+
 # Create new container
 echo "Creating new container..."
 # Build the docker create command with dynamic environment variables
 DOCKER_CREATE_CMD="docker create \
   --name \"$CONTAINER_NAME\" \
   --entrypoint \"$CONTAINER_BINARY\" \
-  --network host \
+  --network skyscape-internal \
   --privileged \
   --restart unless-stopped \
+  -p 80:80 \
+  -p 443:443 \
   -v \"/root/.skyscape:/root/.skyscape\" \
   -v \"/root/.ssh:/root/.ssh\" \
   -v \"/var/run/docker.sock:/var/run/docker.sock\" \
