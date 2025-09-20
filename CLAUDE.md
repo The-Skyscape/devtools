@@ -178,8 +178,12 @@ go run ./example
 - `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` - AWS credentials
 - `GCP_PROJECT_ID`, `GCP_SERVICE_ACCOUNT_KEY`, `GCP_ZONE` - GCP credentials
 
-### Email Package (pkg/emailing)
-The emailing package provides a clean, function-based API for sending emails with lazy template parsing:
+### Email Package (pkg/emailing) - CRITICAL
+The emailing package provides a **FUNCTION-BASED API**, not map-based:
+
+**TEMPLATE SYNTAX - NEVER USE DOTS:**
+- ✅ CORRECT: `{{Name}}`, `{{Product}}`, `{{Email}}`
+- ❌ WRONG: `{{.Name}}`, `{{.Product}}`, `{{.Email}}`
 
 ```go
 // Send an email with options
@@ -190,7 +194,7 @@ emailing.WithTemplate("filename.html")  // Use HTML template (lazy parsed)
 emailing.WithHTML(htmlContent)          // Direct HTML content
 emailing.WithText(textContent)          // Plain text version
 emailing.WithRequest(r)                  // Inject HTTP request for templates
-emailing.WithData(key, value)           // Register data as function returning value
+emailing.WithData(key, value)           // Register data as FUNCTION returning value (accepts any)
 emailing.WithFunc(name, fn)             // Register custom function for lazy evaluation
 emailing.WithType(emailType)            // Set email type for tracking
 emailing.WithReplyTo(email)             // Set reply-to address
