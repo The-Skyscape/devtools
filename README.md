@@ -59,14 +59,20 @@ go build -o app
 # Deploy to cloud
 export DIGITAL_OCEAN_API_KEY="your-token"
 ./launch-app --name my-server --domain app.example.com --binary ./app
+
+# Deploy with DigitalOcean project assignment
+./launch-app --name my-server --domain app.example.com --binary ./app \
+  --project your-project-uuid
 ```
 
 **Features:**
 - Automated DigitalOcean droplet creation
-- Docker containerization with proper networking
+- Docker containerization with secure internal networking
 - SSL certificate generation via Let's Encrypt
 - Server configuration persistence in `servers/` directory
 - Custom binary deployment with embedded Dockerfile
+- DigitalOcean project organization support
+- Automatic resource assignment to specified projects
 
 ## 🚀 Quick Start
 
@@ -97,7 +103,7 @@ go get github.com/The-Skyscape/devtools
   - Email verification system with secure token management
   - Password reset flow with configurable expiration
   - Input validation and sanitization helpers
-- **🔒 Security** - HashiCorp Vault integration with automatic fallback storage
+- **🔒 Security** - HashiCorp Vault integration with network isolation and automatic fallback storage
 - **📝 Audit Logging** - Comprehensive audit trail with risk level classification
 - **🗄️ Database** - Dynamic ORM with SQLite3, migrations, type-safe repositories  
 - **🐳 Containers** - Docker management for local and remote hosts
