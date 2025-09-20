@@ -89,8 +89,8 @@ func (v *VaultService) GetService() *containers.Service {
 
 	// Only expose port if explicitly configured
 	if v.config.ExposePort {
-		v.service.Ports = map[string]string{
-			fmt.Sprintf("%d", v.config.Port): "8200",
+		v.service.Ports = map[int]int{
+			v.config.Port: 8200,
 		}
 	}
 
@@ -122,9 +122,21 @@ func (v *VaultService) InitWithHost(host containers.Host) error {
 	// Check if service already exists and is running
 	existing, err := containers.GetService(host, v.config.ContainerName)
 	if err == nil && existing != nil && existing.IsRunning() {
-		log.Println("Vault service already running")
-		v.service = existing
-		return nil
+		// Check if the existing container has exposed ports when we don't want them
+		hasExposedPorts := len(existing.Ports) > 0
+		if !v.config.ExposePort && hasExposedPorts {
+			log.Printf("Vault service has exposed ports but ExposePort=false, recreating...")
+			existing.Stop()
+			existing.Remove()
+		} else if v.config.ExposePort && !hasExposedPorts {
+			log.Printf("Vault service doesn't have exposed ports but ExposePort=true, recreating...")
+			existing.Stop()
+			existing.Remove()
+		} else {
+			log.Println("Vault service already running with correct configuration")
+			v.service = existing
+			return nil
+		}
 	}
 
 	log.Println("Initializing Vault service...")

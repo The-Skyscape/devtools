@@ -19,14 +19,15 @@ import (
 )
 
 type Server struct {
-	client *DigitalOceanClient
-	ID     int
-	Name   string
-	Size   string
-	Region string
-	Image  string
-	Status string
-	IP     string
+	client  *DigitalOceanClient
+	ID      int
+	Name    string
+	Size    string
+	Region  string
+	Image   string
+	Status  string
+	IP      string
+	Project string // DigitalOcean project ID
 }
 
 func (server *Server) GetID() string {
@@ -84,6 +85,22 @@ func (server *Server) Launch(opts ...hosting.LaunchOption) (err error) {
 
 	server.ID = droplet.ID
 	server.Status = droplet.Status
+
+	// Assign to project if specified
+	if server.Project != "" {
+		fmt.Printf("Assigning droplet %d to project %s\n", droplet.ID, server.Project)
+		_, _, err = server.client.Projects.AssignResources(ctx, server.Project,
+			fmt.Sprintf("do:droplet:%d", droplet.ID))
+		if err != nil {
+			// Log but don't fail if project assignment fails
+			fmt.Printf("⚠️  Warning: Failed to assign droplet to project %s: %v\n", server.Project, err)
+		} else {
+			fmt.Printf("✅ Successfully assigned droplet %d to project %s\n", droplet.ID, server.Project)
+		}
+	} else {
+		fmt.Printf("ℹ️  No project ID specified for droplet %d\n", droplet.ID)
+	}
+
 	for server.IP == "" {
 		time.Sleep(10 * time.Second)
 		if err = server.load(); err != nil {

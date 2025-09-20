@@ -53,6 +53,7 @@ var (
 	name     string
 	binary   string
 	env      string
+	project  string
 )
 
 // Root command
@@ -138,6 +139,7 @@ func init() {
 	rootCmd.PersistentFlags().StringVar(&name, "name", "", "Server name (required)")
 	rootCmd.PersistentFlags().StringVar(&binary, "binary", "", "Path to application binary")
 	rootCmd.PersistentFlags().StringVar(&env, "env", "", "Environment variables (comma-separated KEY=value pairs)")
+	rootCmd.PersistentFlags().StringVar(&project, "project", "", "DigitalOcean project ID (optional)")
 
 	// Mark required flags
 	createCmd.MarkPersistentFlagRequired("name")
@@ -172,15 +174,22 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("☁️  Creating DigitalOcean droplet '%s'...\n", name)
+	if project != "" {
+		fmt.Printf("📁  Using DigitalOcean project: %s\n", project)
+	}
 
-	// Connect to DigitalOcean and launch new server
-	deployedServer, err := digitalocean.Connect(apiKey).Launch(
+	// Connect to DigitalOcean with project support
+	platform := digitalocean.ConnectWithProject(apiKey, project)
+
+	// Launch new server
+	deployedServer, err := platform.Launch(
 		&digitalocean.Server{
-			Name:   name,
-			Size:   size,
-			Region: region,
-			Image:  "docker-20-04",
-			Status: "new",
+			Name:    name,
+			Size:    size,
+			Region:  region,
+			Image:   "docker-20-04",
+			Status:  "new",
+			Project: project,
 		},
 		hosting.WithSetupScript(setupServer),
 	)

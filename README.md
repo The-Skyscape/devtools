@@ -474,13 +474,7 @@ Available template functions:
 
 ```bash
 # Build CLI tools
-make build
-
-# Install to system PATH
-make install
-
-# Clean build artifacts
-make clean
+make 
 
 # Run tests
 go test ./...

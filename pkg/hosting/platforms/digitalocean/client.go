@@ -19,12 +19,18 @@ var ApiKey = os.Getenv("DIGITAL_OCEAN_API_KEY")
 // It provides a clean abstraction over DigitalOcean's API.
 type DigitalOceanClient struct {
 	*godo.Client
+	DefaultProject string // Default project ID for new resources
 }
 
 // Connect creates a new DigitalOcean client with the provided API key.
 // If no API key is provided, it falls back to the global ApiKey variable.
 // This allows both explicit configuration and environment-based configuration.
 func Connect(apiKey string) *DigitalOceanClient {
+	return ConnectWithProject(apiKey, "")
+}
+
+// ConnectWithProject creates a new DigitalOcean client with the provided API key and default project ID.
+func ConnectWithProject(apiKey string, projectID string) *DigitalOceanClient {
 	// Use provided key or fall back to global variable
 	if apiKey == "" {
 		apiKey = ApiKey
@@ -37,6 +43,7 @@ func Connect(apiKey string) *DigitalOceanClient {
 				AccessToken: apiKey,
 			}),
 		)),
+		DefaultProject: projectID,
 	}
 }
 
@@ -51,6 +58,10 @@ func (client *DigitalOceanClient) Launch(s *Server, opts ...hosting.LaunchOption
 	// }
 
 	s.client = client
+	// Use client's default project if server doesn't specify one
+	if s.Project == "" && client.DefaultProject != "" {
+		s.Project = client.DefaultProject
+	}
 	return s, s.Launch(opts...)
 }
 

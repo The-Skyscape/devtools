@@ -10,8 +10,13 @@ import (
 
 // CreateVolume creates a new block storage volume
 func (client *DigitalOceanClient) CreateVolume(name string, sizeGB int, region string) (*godo.Volume, error) {
+	return client.CreateVolumeWithProject(name, sizeGB, region, "")
+}
+
+// CreateVolumeWithProject creates a new block storage volume and assigns it to a project
+func (client *DigitalOceanClient) CreateVolumeWithProject(name string, sizeGB int, region string, projectID string) (*godo.Volume, error) {
 	ctx := context.Background()
-	
+
 	createRequest := &godo.VolumeCreateRequest{
 		Region:        region,
 		Name:          name,
@@ -19,17 +24,32 @@ func (client *DigitalOceanClient) CreateVolume(name string, sizeGB int, region s
 		SizeGigaBytes: int64(sizeGB),
 		FilesystemType: "ext4",
 	}
-	
+
 	volume, _, err := client.Storage.CreateVolume(ctx, createRequest)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create volume: %w", err)
 	}
-	
+
+	// Assign to project if specified
+	if projectID != "" {
+		fmt.Printf("Assigning volume %s to project %s\n", volume.ID, projectID)
+		_, _, err = client.Projects.AssignResources(ctx, projectID,
+			fmt.Sprintf("do:volume:%s", volume.ID))
+		if err != nil {
+			// Log but don't fail if project assignment fails
+			fmt.Printf("⚠️  Warning: Failed to assign volume to project %s: %v\n", projectID, err)
+		} else {
+			fmt.Printf("✅ Successfully assigned volume %s to project %s\n", volume.ID, projectID)
+		}
+	} else {
+		fmt.Printf("ℹ️  No project ID specified for volume %s\n", volume.ID)
+	}
+
 	// Wait for volume to be available
 	if err := client.WaitForVolumeReady(volume.ID, 60); err != nil {
 		return nil, fmt.Errorf("volume creation timed out: %w", err)
 	}
-	
+
 	return volume, nil
 }
 

@@ -6,7 +6,6 @@ import (
 	"github.com/The-Skyscape/devtools/pkg/security/vaults/fallback"
 	"github.com/The-Skyscape/devtools/pkg/security/vaults/file"
 	"github.com/The-Skyscape/devtools/pkg/security/vaults/memory"
-	"github.com/The-Skyscape/devtools/pkg/security/vaults/vault"
 )
 
 // Collection manages secrets with automatic fallback using vaults
@@ -32,14 +31,8 @@ func Manage(opts ...Option) *Collection {
 
 	// Add Vault if configured
 	if config.useVault && config.vaultConfig != nil {
-		v := vault.New(
-			vault.WithPort(config.vaultConfig.Port),
-			vault.WithContainerName(config.vaultConfig.ContainerName),
-			vault.WithDataDir(config.vaultConfig.DataDir),
-			vault.WithDevMode(config.vaultConfig.DevMode),
-			vault.WithRootToken(config.vaultConfig.RootToken),
-			vault.WithNetwork(config.vaultConfig.Network),
-		)
+		// Use VaultBackend which respects ExposePort configuration
+		v := NewVaultBackend(config.vaultConfig)
 		vaults = append(vaults, v)
 	}
 
