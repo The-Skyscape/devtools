@@ -16,7 +16,7 @@ import (
 	"github.com/The-Skyscape/devtools/pkg/payments"
 )
 
-// Client is a Stripe API client implementing the payments.Provider interface
+// Client is a Stripe API client implementing the payments.Backend interface
 type Client struct {
 	secretKey     string
 	publishKey    string
@@ -24,11 +24,12 @@ type Client struct {
 	baseURL       string
 	client        *http.Client
 	apiVersion    string
+	products      map[string]*StripeProduct // Product cache by name
 }
 
-// NewClient creates a new Stripe client
-func NewClient(secretKey, publishKey, webhookSecret string) *Client {
-	return &Client{
+// NewClient creates a new Stripe client with configured products
+func NewClient(secretKey, publishKey, webhookSecret string, opts ...payments.BackendOption) *Client {
+	c := &Client{
 		secretKey:     secretKey,
 		publishKey:    publishKey,
 		webhookSecret: webhookSecret,
@@ -37,7 +38,22 @@ func NewClient(secretKey, publishKey, webhookSecret string) *Client {
 		client: &http.Client{
 			Timeout: 30 * time.Second,
 		},
+		products: make(map[string]*StripeProduct),
 	}
+
+	// Apply options to build configuration
+	cfg := &payments.BackendConfig{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
+	// Initialize products from configuration
+	if err := c.initializeProducts(cfg); err != nil {
+		// Log error but don't fail - products can be synced later
+		fmt.Printf("Warning: Failed to initialize products: %v\n", err)
+	}
+
+	return c
 }
 
 // GetName returns the provider name
@@ -290,23 +306,9 @@ func (c *Client) CreateProduct(name, description string, metadata map[string]str
 	return &product, nil
 }
 
-// GetProduct retrieves a product by ID
-func (c *Client) GetProduct(productID string) (*Product, error) {
-	data, err := c.request("GET", "/products/"+productID, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get product: %w", err)
-	}
 
-	var product Product
-	if err := parseJSON(data, &product); err != nil {
-		return nil, fmt.Errorf("failed to parse product response: %w", err)
-	}
-
-	return &product, nil
-}
-
-// ListProducts lists all products with optional filters
-func (c *Client) ListProducts(limit int) ([]*Product, error) {
+// listProducts lists all products with optional filters (internal use only)
+func (c *Client) listProducts(limit int) ([]*Product, error) {
 	params := url.Values{}
 	if limit > 0 {
 		params.Set("limit", strconv.Itoa(limit))
@@ -410,4 +412,215 @@ func (c *Client) ListPrices(productID string) ([]*Price, error) {
 	}
 
 	return response.Data, nil
+}
+
+// StripeProduct implements the payments.Product interface
+type StripeProduct struct {
+	id          string
+	name        string
+	description string
+	priceID     string
+	amount      int64
+	currency    string
+	interval    string
+	metadata    map[string]string
+}
+
+func (p *StripeProduct) ID() string                 { return p.id }
+func (p *StripeProduct) Name() string               { return p.name }
+func (p *StripeProduct) Description() string        { return p.description }
+func (p *StripeProduct) PriceID() string            { return p.priceID }
+func (p *StripeProduct) Amount() int64              { return p.amount }
+func (p *StripeProduct) Currency() string           { return p.currency }
+func (p *StripeProduct) Interval() string           { return p.interval }
+func (p *StripeProduct) Metadata() map[string]string { return p.metadata }
+
+// StripeCustomer implements the payments.Customer interface
+type StripeCustomer struct {
+	id    string
+	email string
+	name  string
+}
+
+func (c *StripeCustomer) ID() string    { return c.id }
+func (c *StripeCustomer) Email() string { return c.email }
+func (c *StripeCustomer) Name() string  { return c.name }
+
+// StripeCheckout implements the payments.Checkout interface
+type StripeCheckout struct {
+	id             string
+	url            string
+	status         string
+	customerID     string
+	subscriptionID string
+	metadata       map[string]string
+}
+
+func (c *StripeCheckout) ID() string                 { return c.id }
+func (c *StripeCheckout) URL() string                { return c.url }
+func (c *StripeCheckout) Status() string             { return c.status }
+func (c *StripeCheckout) CustomerID() string         { return c.customerID }
+func (c *StripeCheckout) SubscriptionID() string     { return c.subscriptionID }
+func (c *StripeCheckout) Metadata() map[string]string { return c.metadata }
+
+// StripeSubscription implements the payments.Subscription interface
+type StripeSubscription struct {
+	id               string
+	customerID       string
+	productID        string
+	priceID          string
+	status           string
+	currentPeriodEnd int64
+}
+
+func (s *StripeSubscription) ID() string               { return s.id }
+func (s *StripeSubscription) CustomerID() string       { return s.customerID }
+func (s *StripeSubscription) ProductID() string        { return s.productID }
+func (s *StripeSubscription) PriceID() string          { return s.priceID }
+func (s *StripeSubscription) Status() string           { return s.status }
+func (s *StripeSubscription) CurrentPeriodEnd() int64  { return s.currentPeriodEnd }
+
+// StripeEvent implements the payments.Event interface
+type StripeEvent struct {
+	id   string
+	typ  string
+	data map[string]interface{}
+}
+
+func (e *StripeEvent) ID() string                   { return e.id }
+func (e *StripeEvent) Type() string                 { return e.typ }
+func (e *StripeEvent) Data() map[string]interface{} { return e.data }
+
+// initializeProducts ensures products exist in Stripe based on configuration
+func (c *Client) initializeProducts(cfg *payments.BackendConfig) error {
+	for _, product := range cfg.Products {
+		// Check if product exists
+		existingProducts, err := c.listProducts(100)
+		if err != nil {
+			return fmt.Errorf("failed to list products: %w", err)
+		}
+
+		var stripeProduct *Product
+		for _, p := range existingProducts {
+			if p.Name == product.Name {
+				stripeProduct = p
+				break
+			}
+		}
+
+		// Create product if it doesn't exist
+		if stripeProduct == nil {
+			stripeProduct, err = c.CreateProduct(product.Name, product.Description, product.Metadata)
+			if err != nil {
+				return fmt.Errorf("failed to create product %s: %w", product.Name, err)
+			}
+		}
+
+		// Check for existing price
+		prices, err := c.ListPrices(stripeProduct.ID)
+		if err != nil {
+			return fmt.Errorf("failed to list prices for %s: %w", product.Name, err)
+		}
+
+		var stripePrice *Price
+		for _, p := range prices {
+			if p.UnitAmount == product.Price &&
+				p.Currency == product.Currency &&
+				p.Recurring != nil &&
+				p.Recurring.Interval == product.Interval {
+				stripePrice = p
+				break
+			}
+		}
+
+		// Create price if it doesn't exist
+		if stripePrice == nil {
+			stripePrice, err = c.CreatePrice(stripeProduct.ID, product.Price, product.Currency, true, product.Interval)
+			if err != nil {
+				return fmt.Errorf("failed to create price for %s: %w", product.Name, err)
+			}
+		}
+
+		// Cache the product
+		c.products[product.Name] = &StripeProduct{
+			id:          stripeProduct.ID,
+			name:        stripeProduct.Name,
+			description: stripeProduct.Description,
+			priceID:     stripePrice.ID,
+			amount:      stripePrice.UnitAmount,
+			currency:    stripePrice.Currency,
+			interval:    product.Interval,
+			metadata:    stripeProduct.Metadata,
+		}
+	}
+
+	return nil
+}
+
+// Product retrieves a product by ID (implements Backend interface)
+func (c *Client) Product(id string) (payments.Product, error) {
+	// Check cache first
+	for _, p := range c.products {
+		if p.id == id {
+			return p, nil
+		}
+	}
+
+	// Fetch from Stripe
+	stripeProduct, err := c.getStripeProduct(id)
+	if err != nil {
+		return nil, err
+	}
+
+	// Get default price
+	prices, err := c.ListPrices(id)
+	if err != nil {
+		return nil, err
+	}
+	if len(prices) == 0 {
+		return nil, fmt.Errorf("product %s has no prices", id)
+	}
+
+	return &StripeProduct{
+		id:          stripeProduct.ID,
+		name:        stripeProduct.Name,
+		description: stripeProduct.Description,
+		priceID:     prices[0].ID,
+		amount:      prices[0].UnitAmount,
+		currency:    prices[0].Currency,
+		interval:    prices[0].Recurring.Interval,
+		metadata:    stripeProduct.Metadata,
+	}, nil
+}
+
+// ProductByName retrieves a product by name (implements Backend interface)
+func (c *Client) ProductByName(name string) (payments.Product, error) {
+	if product, ok := c.products[name]; ok {
+		return product, nil
+	}
+	return nil, fmt.Errorf("product %s not found", name)
+}
+
+// Products returns all configured products (implements Backend interface)
+func (c *Client) Products() ([]payments.Product, error) {
+	products := make([]payments.Product, 0, len(c.products))
+	for _, p := range c.products {
+		products = append(products, p)
+	}
+	return products, nil
+}
+
+// getStripeProduct is a helper to get the raw Stripe product
+func (c *Client) getStripeProduct(productID string) (*Product, error) {
+	data, err := c.request("GET", "/products/"+productID, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get product: %w", err)
+	}
+
+	var product Product
+	if err := parseJSON(data, &product); err != nil {
+		return nil, fmt.Errorf("failed to parse product response: %w", err)
+	}
+
+	return &product, nil
 }

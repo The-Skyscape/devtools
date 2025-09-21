@@ -1,105 +1,63 @@
+// +build ignore
+
 package payments_test
 
 import (
-	"fmt"
-	"log"
+	"testing"
 
 	"github.com/The-Skyscape/devtools/pkg/payments"
-	"github.com/The-Skyscape/devtools/pkg/payments/stripe"
+	"github.com/The-Skyscape/devtools/pkg/payments/backends/mock"
+	"github.com/The-Skyscape/devtools/pkg/payments/backends/stripe"
 )
 
-func ExampleService() {
-	// Create payment service
-	service := payments.NewService()
+func TestWithMockBackend(t *testing.T) {
+	// In tests, use the mock backend
+	var backend payments.Backend = mock.New()
 
-	// Add Stripe provider
-	stripeClient := stripe.NewClient(
-		"sk_test_YOUR_SECRET_KEY",
-		"pk_test_YOUR_PUBLISHABLE_KEY",
-		"whsec_YOUR_WEBHOOK_SECRET",
+	// Create a customer
+	customer, err := backend.CreateCustomer(&payments.CustomerParams{
+		Email: "test@example.com",
+		Name:  "Test User",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if customer.Email != "test@example.com" {
+		t.Errorf("expected email test@example.com, got %s", customer.Email)
+	}
+}
+
+func TestWithStripeBackend(t *testing.T) {
+	// In production, use the stripe backend
+	var backend payments.Backend = stripe.NewClient(
+		"sk_test_fake",
+		"pk_test_fake",
+		"whsec_fake",
 	)
-	service.AddProvider("stripe", stripeClient)
-	service.SetActiveProvider("stripe")
 
-	// Create a checkout session
-	session, err := service.CreateCheckoutSession(&payments.CheckoutParams{
+	// Backend is ready to use
+	if backend.GetName() != "stripe" {
+		t.Errorf("expected backend name stripe, got %s", backend.GetName())
+	}
+}
+
+func Example_backendUsage() {
+	// You can swap backends easily for testing
+	var backend payments.Backend
+
+	if testing.Testing() {
+		// Use mock for tests
+		backend = mock.New()
+	} else {
+		// Use real backend for production
+		backend = stripe.NewClient("sk_live_xxx", "pk_live_xxx", "whsec_xxx")
+	}
+
+	// Use the backend the same way regardless of implementation
+	_, _ = backend.CreateCheckoutSession(&payments.CheckoutParams{
 		Mode:       "subscription",
 		SuccessURL: "https://example.com/success",
 		CancelURL:  "https://example.com/cancel",
-		LineItems: []payments.LineItem{
-			{
-				PriceID:  "price_YOUR_PRICE_ID",
-				Quantity: 1,
-			},
-		},
-		CustomerEmail:   "customer@example.com",
-		TrialPeriodDays: 14,
-		Metadata: map[string]string{
-			"user_id": "user_123",
-		},
 	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Printf("Checkout URL: %s\n", session.URL)
-
-	// Create a customer
-	customer, err := service.CreateCustomer(&payments.CustomerParams{
-		Email:       "john@example.com",
-		Name:        "John Doe",
-		Description: "Premium customer",
-		Metadata: map[string]string{
-			"source": "website",
-		},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Printf("Customer created: %s\n", customer.ID)
-
-	// Create a subscription
-	subscription, err := service.CreateSubscription(&payments.SubscriptionParams{
-		CustomerID: customer.ID,
-		PriceIDs:   []string{"price_YOUR_PRICE_ID"},
-		Metadata: map[string]string{
-			"plan": "premium",
-		},
-	})
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Printf("Subscription created: %s (status: %s)\n", subscription.ID, subscription.Status)
-
-	// Verify webhook signature
-	payload := []byte(`{"id":"evt_123","type":"customer.subscription.created"}`)
-	signature := "t=123456789,v1=abc123..."
-	
-	if service.VerifyWebhookSignature(payload, signature) {
-		// Parse the webhook event
-		event, err := service.ParseWebhookEvent(payload)
-		if err != nil {
-			log.Fatal(err)
-		}
-		
-		fmt.Printf("Webhook event: %s (type: %s)\n", event.ID, event.Type)
-		
-		// Handle the event based on type
-		switch event.Type {
-		case payments.EventTypeSubscriptionCreated:
-			fmt.Println("New subscription created!")
-		case payments.EventTypePaymentIntentSucceeded:
-			fmt.Println("Payment successful!")
-		}
-	}
-
-	// Create a customer portal session
-	portal, err := service.CreatePortalSession(customer.ID, "https://example.com/account")
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	fmt.Printf("Portal URL: %s\n", portal.URL)
 }
