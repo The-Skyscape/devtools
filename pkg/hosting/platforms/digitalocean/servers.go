@@ -108,7 +108,13 @@ func (server *Server) Launch(opts ...hosting.LaunchOption) (err error) {
 		}
 	}
 
+	// Give the server time to boot up after getting an IP
+	// Even though we have waitForSSH later, the server needs initial boot time
+	// before SSH service starts listening
+	fmt.Printf("Waiting for server to initialize after getting IP...\n")
 	time.Sleep(30 * time.Second)
+
+	// Apply launch options
 	for _, opt := range opts {
 		if err := opt(server); err != nil {
 			return errors.Wrap(err, "failed to apply option")
