@@ -5,7 +5,6 @@ import (
 	"os"
 	"strconv"
 
-	"github.com/The-Skyscape/devtools/pkg/hosting"
 	"github.com/digitalocean/godo"
 	"golang.org/x/oauth2"
 )
@@ -47,22 +46,13 @@ func ConnectWithProject(apiKey string, projectID string) *DigitalOceanClient {
 	}
 }
 
-func (client *DigitalOceanClient) Launch(s *Server, opts ...hosting.LaunchOption) (*Server, error) {
-	// &Server{
-	// 	client: client,
-	// 	Name:   name,
-	// 	Size:   "s-1vcpu-1gb",
-	// 	Region: "sfo2",
-	// 	Image:  "docker-20-04",
-	// 	Status: "new",
-	// }
-
+func (client *DigitalOceanClient) Launch(s *Server) (*Server, error) {
 	s.client = client
 	// Use client's default project if server doesn't specify one
 	if s.Project == "" && client.DefaultProject != "" {
 		s.Project = client.DefaultProject
 	}
-	return s, s.Launch(opts...)
+	return s, s.Launch()
 }
 
 func (client *DigitalOceanClient) GetServer(id string) (*Server, error) {

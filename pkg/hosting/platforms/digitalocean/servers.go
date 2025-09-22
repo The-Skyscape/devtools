@@ -12,8 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/The-Skyscape/devtools/pkg/hosting"
-
 	"github.com/digitalocean/godo"
 	"github.com/pkg/errors"
 )
@@ -59,7 +57,7 @@ func (server *Server) load() error {
 	return nil
 }
 
-func (server *Server) Launch(opts ...hosting.LaunchOption) (err error) {
+func (server *Server) Launch() (err error) {
 	ctx := context.Background()
 
 	if server.ID != 0 {
@@ -113,13 +111,6 @@ func (server *Server) Launch(opts ...hosting.LaunchOption) (err error) {
 	// before SSH service starts listening
 	fmt.Printf("Waiting for server to initialize after getting IP...\n")
 	time.Sleep(30 * time.Second)
-
-	// Apply launch options
-	for _, opt := range opts {
-		if err := opt(server); err != nil {
-			return errors.Wrap(err, "failed to apply option")
-		}
-	}
 
 	return
 }
