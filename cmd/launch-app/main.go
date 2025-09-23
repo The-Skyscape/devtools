@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -179,40 +178,43 @@ func runCreate(cmd *cobra.Command, args []string) error {
 	}
 
 	// Connect to DigitalOcean with project support
-	platform := digitalocean.ConnectWithProject(apiKey, project)
+	var platform *digitalocean.DigitalOceanClient
+	if project != "" {
+		platform = digitalocean.Connect(apiKey, digitalocean.WithProjectID(project))
+	} else {
+		platform = digitalocean.Connect(apiKey)
+	}
+
+	// Create server configuration
+	server := &hosting.Server{
+		Name:   name,
+		Size:   size,
+		Loc:    region,
+		Status: "new",
+	}
 
 	// Launch new server
-	deployedServer, err := platform.Launch(
-		&digitalocean.Server{
-			Name:    name,
-			Size:    size,
-			Region:  region,
-			Image:   "docker-20-04",
-			Status:  "new",
-			Project: project,
-		},
-		hosting.WithSetupScript(setupServer),
-	)
+	deployedServer, err := platform.NewServer(server)
 
 	if err != nil {
 		return errors.Wrap(err, "failed to launch server")
 	}
 
 	fmt.Printf("✅ Server created successfully!\n")
-	fmt.Printf("📍 Server ID: %s\n", deployedServer.GetID())
-	fmt.Printf("🌍 IP Address: %s\n", deployedServer.GetIP())
+	fmt.Printf("📍 Server ID: %s\n", deployedServer.ID)
+	fmt.Printf("🌍 IP Address: %s\n", deployedServer.IP)
 
 	// Wait for server to boot up and SSH to be ready
 	fmt.Printf("⏳ Waiting for server to be ready...\n")
-	if err := waitForSSH(deployedServer.GetIP(), 60); err != nil {
+	if err := waitForSSH(deployedServer.IP, 60); err != nil {
 		return errors.Wrap(err, "server failed to become ready")
 	}
 	fmt.Printf("✅ Server is ready for deployment!\n")
 
 	// Save server config
 	config := &ServerConfig{
-		ID:        deployedServer.GetID(),
-		IP:        deployedServer.GetIP(),
+		ID:        deployedServer.ID,
+		IP:        deployedServer.IP,
 		Name:      name,
 		Size:      size,
 		Region:    region,
@@ -247,7 +249,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get the server from platform if we have API key and server ID
-	var deployedServer hosting.ServerRef
+	var deployedServer *hosting.Server
 	if apiKey != "" && config.ID != "" {
 		platform := digitalocean.Connect(apiKey)
 		deployedServer, err = platform.GetServer(config.ID)
@@ -283,7 +285,7 @@ func runDestroy(cmd *cobra.Command, args []string) error {
 }
 
 // deployApplication handles the core deployment logic
-func deployApplication(server hosting.ServerRef, config *ServerConfig, apiKey string, isRedeploy bool) error {
+func deployApplication(server *hosting.Server, config *ServerConfig, apiKey string, isRedeploy bool) error {
 	fmt.Printf("🚀 Deploying application...\n")
 
 	// Upload application files
@@ -295,7 +297,7 @@ func deployApplication(server hosting.ServerRef, config *ServerConfig, apiKey st
 	}
 
 	// Upload Dockerfile
-	if _, _, err := server.Dump("/root/Dockerfile", dockerfile); err != nil {
+	if _, _, err := server.Dump("/root/Dockerfile", dockerfile, false); err != nil {
 		return errors.Wrap(err, "failed to upload Dockerfile")
 	}
 
@@ -303,8 +305,15 @@ func deployApplication(server hosting.ServerRef, config *ServerConfig, apiKey st
 	if domain != "" && apiKey != "" {
 		if parts := strings.SplitN(domain, ".", 2); len(parts) == 2 {
 			sub, root := parts[0], parts[1]
-			fmt.Printf("🌐 Configuring DNS: %s.%s -> %s\n", sub, root, server.GetIP())
-			if err := server.Alias(sub, root); err != nil {
+			fmt.Printf("🌐 Configuring DNS: %s.%s -> %s\n", sub, root, server.IP)
+			// Create domain configuration
+			domain := &hosting.Domain{
+				Name: root,
+				Type: "A",
+				Sub:  sub,
+			}
+			platform := digitalocean.Connect(apiKey)
+			if err := platform.AssignDomain(server, domain); err != nil {
 				fmt.Printf("⚠️  DNS configuration failed: %v\n", err)
 			} else {
 				fmt.Printf("✅ DNS configured successfully!\n")
@@ -365,7 +374,7 @@ func deployApplication(server hosting.ServerRef, config *ServerConfig, apiKey st
 	// Final output
 	fmt.Printf("\n🎉 Deployment complete!\n\n")
 	fmt.Printf("Your application is now running at:\n")
-	fmt.Printf("  🔗 http://%s\n", server.GetIP())
+	fmt.Printf("  🔗 http://%s\n", server.IP)
 	if config.Domain != "" {
 		fmt.Printf("  🔗 https://%s\n", config.Domain)
 	}
@@ -375,12 +384,12 @@ func deployApplication(server hosting.ServerRef, config *ServerConfig, apiKey st
 	} else {
 		fmt.Printf("\n📋 Server Details:\n")
 		fmt.Printf("  ID: %s\n", config.ID)
-		fmt.Printf("  IP: %s\n", server.GetIP())
+		fmt.Printf("  IP: %s\n", server.IP)
 		fmt.Printf("  Size: %s\n", size)
 		fmt.Printf("  Region: %s\n", region)
 	}
 	fmt.Printf("\n📝 To connect via SSH:\n")
-	fmt.Printf("  ssh root@%s\n", server.GetIP())
+	fmt.Printf("  ssh root@%s\n", server.IP)
 
 	return nil
 }
@@ -493,20 +502,15 @@ func destroyServer(name string, apiKey string) error {
 
 	fmt.Printf("\n🗑️  Destroying server '%s'...\n", config.Name)
 
-	// Initialize platform and get server by ID
+	// Initialize platform
 	platform := digitalocean.Connect(apiKey)
-	ctx := context.Background()
 
 	if config.ID != "" {
-		server, err := platform.GetServer(config.ID)
-		if err != nil {
-			fmt.Printf("⚠️  Failed to get server from DigitalOcean: %v\n", err)
+		// Destroy the server using platform
+		if err := platform.DestroyServer(config.ID); err != nil {
+			fmt.Printf("⚠️  Failed to destroy server in DigitalOcean: %v\n", err)
 			fmt.Printf("    Server may have been deleted manually\n")
 		} else {
-			// Destroy the server
-			if err := server.Destroy(ctx); err != nil {
-				return errors.Wrap(err, "failed to destroy server")
-			}
 			fmt.Printf("✅ Server destroyed in DigitalOcean\n")
 		}
 	} else {
