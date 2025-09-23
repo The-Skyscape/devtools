@@ -37,7 +37,7 @@ func New() *Platform {
 }
 
 // Launch creates a new mock server
-func (p *Platform) Launch(opts ...interface{}) (hosting.Server, error) {
+func (p *Platform) Launch(opts ...interface{}) (hosting.ServerRef, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -68,7 +68,7 @@ func (p *Platform) Launch(opts ...interface{}) (hosting.Server, error) {
 }
 
 // Server retrieves a server by ID
-func (p *Platform) Server(id string) (hosting.Server, error) {
+func (p *Platform) Server(id string) (hosting.ServerRef, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -85,7 +85,7 @@ func (p *Platform) Server(id string) (hosting.Server, error) {
 }
 
 // Servers returns all servers
-func (p *Platform) Servers() ([]hosting.Server, error) {
+func (p *Platform) Servers() ([]hosting.ServerRef, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -93,7 +93,7 @@ func (p *Platform) Servers() ([]hosting.Server, error) {
 		return nil, fmt.Errorf("mock error: %s", p.failMessage)
 	}
 
-	servers := make([]hosting.Server, 0, len(p.servers))
+	servers := make([]hosting.ServerRef, 0, len(p.servers))
 	for _, s := range p.servers {
 		servers = append(servers, s)
 	}
@@ -101,7 +101,7 @@ func (p *Platform) Servers() ([]hosting.Server, error) {
 }
 
 // Volume retrieves a volume by ID
-func (p *Platform) Volume(id string) (hosting.Volume, error) {
+func (p *Platform) Volume(id string) (hosting.VolumeRef, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -118,7 +118,7 @@ func (p *Platform) Volume(id string) (hosting.Volume, error) {
 }
 
 // Volumes returns all volumes
-func (p *Platform) Volumes() ([]hosting.Volume, error) {
+func (p *Platform) Volumes() ([]hosting.VolumeRef, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -126,7 +126,7 @@ func (p *Platform) Volumes() ([]hosting.Volume, error) {
 		return nil, fmt.Errorf("mock error: %s", p.failMessage)
 	}
 
-	volumes := make([]hosting.Volume, 0, len(p.volumes))
+	volumes := make([]hosting.VolumeRef, 0, len(p.volumes))
 	for _, v := range p.volumes {
 		volumes = append(volumes, v)
 	}
@@ -134,7 +134,7 @@ func (p *Platform) Volumes() ([]hosting.Volume, error) {
 }
 
 // Domain retrieves a domain by name
-func (p *Platform) Domain(name string) (hosting.Domain, error) {
+func (p *Platform) Domain(name string) (hosting.DomainRef, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -151,7 +151,7 @@ func (p *Platform) Domain(name string) (hosting.Domain, error) {
 }
 
 // Domains returns all domains
-func (p *Platform) Domains() ([]hosting.Domain, error) {
+func (p *Platform) Domains() ([]hosting.DomainRef, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -159,7 +159,7 @@ func (p *Platform) Domains() ([]hosting.Domain, error) {
 		return nil, fmt.Errorf("mock error: %s", p.failMessage)
 	}
 
-	domains := make([]hosting.Domain, 0, len(p.domains))
+	domains := make([]hosting.DomainRef, 0, len(p.domains))
 	for _, d := range p.domains {
 		domains = append(domains, d)
 	}
@@ -215,7 +215,7 @@ func (s *Server) IP() string { return s.ip }
 func (s *Server) Name() string { return s.name }
 
 // Mount attaches a volume to the server
-func (s *Server) Mount(volume hosting.Volume) (hosting.Volume, error) {
+func (s *Server) Mount(volume hosting.VolumeRef) (hosting.VolumeRef, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -239,7 +239,7 @@ func (s *Server) Mount(volume hosting.Volume) (hosting.Volume, error) {
 }
 
 // Volumes returns all volumes attached to the server
-func (s *Server) Volumes() ([]hosting.Volume, error) {
+func (s *Server) Volumes() ([]hosting.VolumeRef, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -247,7 +247,7 @@ func (s *Server) Volumes() ([]hosting.Volume, error) {
 		return nil, fmt.Errorf("mock error: %s", s.platform.failMessage)
 	}
 
-	volumes := make([]hosting.Volume, 0, len(s.volumes))
+	volumes := make([]hosting.VolumeRef, 0, len(s.volumes))
 	for _, v := range s.volumes {
 		volumes = append(volumes, v)
 	}
@@ -255,7 +255,7 @@ func (s *Server) Volumes() ([]hosting.Volume, error) {
 }
 
 // Alias creates a domain alias for the server
-func (s *Server) Alias(domain hosting.Domain) (hosting.Domain, error) {
+func (s *Server) Alias(domain hosting.DomainRef) (hosting.DomainRef, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -281,7 +281,7 @@ func (s *Server) Alias(domain hosting.Domain) (hosting.Domain, error) {
 }
 
 // Domains returns all domains pointing to the server
-func (s *Server) Domains() ([]hosting.Domain, error) {
+func (s *Server) Domains() ([]hosting.DomainRef, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
@@ -289,7 +289,7 @@ func (s *Server) Domains() ([]hosting.Domain, error) {
 		return nil, fmt.Errorf("mock error: %s", s.platform.failMessage)
 	}
 
-	domains := make([]hosting.Domain, 0, len(s.domains))
+	domains := make([]hosting.DomainRef, 0, len(s.domains))
 	for _, d := range s.domains {
 		domains = append(domains, d)
 	}
@@ -409,7 +409,7 @@ func (v *Volume) ID() string { return v.id }
 func (v *Volume) Name() string { return v.name }
 
 // Server returns the server this volume is attached to
-func (v *Volume) Server() (hosting.Server, error) {
+func (v *Volume) Server() (hosting.ServerRef, error) {
 	if v.serverID == "" {
 		return nil, nil
 	}
@@ -439,7 +439,7 @@ func (d *Domain) Name() string { return d.name }
 func (d *Domain) Data() string { return d.data }
 
 // Server returns the server this domain points to
-func (d *Domain) Server() (hosting.Server, error) {
+func (d *Domain) Server() (hosting.ServerRef, error) {
 	if d.serverID == "" {
 		return nil, nil
 	}

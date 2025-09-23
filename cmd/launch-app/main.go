@@ -247,7 +247,7 @@ func runDeploy(cmd *cobra.Command, args []string) error {
 	}
 
 	// Get the server from platform if we have API key and server ID
-	var deployedServer hosting.Server
+	var deployedServer hosting.ServerRef
 	if apiKey != "" && config.ID != "" {
 		platform := digitalocean.Connect(apiKey)
 		deployedServer, err = platform.GetServer(config.ID)
@@ -283,7 +283,7 @@ func runDestroy(cmd *cobra.Command, args []string) error {
 }
 
 // deployApplication handles the core deployment logic
-func deployApplication(server hosting.Server, config *ServerConfig, apiKey string, isRedeploy bool) error {
+func deployApplication(server hosting.ServerRef, config *ServerConfig, apiKey string, isRedeploy bool) error {
 	fmt.Printf("🚀 Deploying application...\n")
 
 	// Upload application files
