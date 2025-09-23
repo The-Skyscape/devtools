@@ -1,10 +1,7 @@
 package mock
 
 import (
-	"bytes"
-	"context"
 	"fmt"
-	"io"
 	"sync"
 
 	"github.com/The-Skyscape/devtools/pkg/hosting"
@@ -12,9 +9,9 @@ import (
 
 // Platform provides a mock hosting platform for testing
 type Platform struct {
-	servers map[string]*Server
-	volumes map[string]*Volume
-	domains map[string]*Domain
+	servers map[string]*hosting.Server
+	volumes map[string]*hosting.Volume
+	domains map[string]*hosting.Domain
 	mu      sync.RWMutex
 
 	// Test control
@@ -30,14 +27,17 @@ type Platform struct {
 // New creates a new mock platform
 func New() *Platform {
 	return &Platform{
-		servers: make(map[string]*Server),
-		volumes: make(map[string]*Volume),
-		domains: make(map[string]*Domain),
+		servers: make(map[string]*hosting.Server),
+		volumes: make(map[string]*hosting.Volume),
+		domains: make(map[string]*hosting.Domain),
 	}
 }
 
-// Launch creates a new mock server
-func (p *Platform) Launch(opts ...interface{}) (hosting.ServerRef, error) {
+// Ensure Platform implements hosting.Platform
+var _ hosting.Platform = (*Platform)(nil)
+
+// NewServer creates a new mock server
+func (p *Platform) NewServer(server *hosting.Server) (*hosting.Server, error) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -46,29 +46,23 @@ func (p *Platform) Launch(opts ...interface{}) (hosting.ServerRef, error) {
 	}
 
 	p.serverCount++
-	server := &Server{
-		id:       fmt.Sprintf("srv_%d", p.serverCount),
-		name:     fmt.Sprintf("server-%d", p.serverCount),
-		ip:       fmt.Sprintf("10.0.0.%d", p.serverCount),
-		platform: p,
-		volumes:  make(map[string]*Volume),
-		domains:  make(map[string]*Domain),
+	server.Platform = p
+	server.ID = fmt.Sprintf("srv_%d", p.serverCount)
+	if server.IP == "" {
+		server.IP = fmt.Sprintf("10.0.0.%d", p.serverCount)
 	}
-
-	// Apply options directly to the server
-	for _, opt := range opts {
-		if fn, ok := opt.(ServerOption); ok {
-			fn(server)
-		}
+	if server.Name == "" {
+		server.Name = fmt.Sprintf("server-%d", p.serverCount)
 	}
+	server.Status = "active"
 
-	p.servers[server.id] = server
+	p.servers[server.ID] = server
 
 	return server, nil
 }
 
-// Server retrieves a server by ID
-func (p *Platform) Server(id string) (hosting.ServerRef, error) {
+// GetServer retrieves a server by ID
+func (p *Platform) GetServer(id string) (*hosting.Server, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -84,8 +78,8 @@ func (p *Platform) Server(id string) (hosting.ServerRef, error) {
 	return server, nil
 }
 
-// Servers returns all servers
-func (p *Platform) Servers() ([]hosting.ServerRef, error) {
+// AllServers returns all servers
+func (p *Platform) AllServers() ([]*hosting.Server, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -93,15 +87,53 @@ func (p *Platform) Servers() ([]hosting.ServerRef, error) {
 		return nil, fmt.Errorf("mock error: %s", p.failMessage)
 	}
 
-	servers := make([]hosting.ServerRef, 0, len(p.servers))
+	servers := make([]*hosting.Server, 0, len(p.servers))
 	for _, s := range p.servers {
 		servers = append(servers, s)
 	}
 	return servers, nil
 }
 
-// Volume retrieves a volume by ID
-func (p *Platform) Volume(id string) (hosting.VolumeRef, error) {
+// DestroyServer destroys a server by ID
+func (p *Platform) DestroyServer(id string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.shouldFail {
+		return fmt.Errorf("mock error: %s", p.failMessage)
+	}
+
+	if _, exists := p.servers[id]; !exists {
+		return fmt.Errorf("server not found: %s", id)
+	}
+
+	delete(p.servers, id)
+	return nil
+}
+
+// NewVolume creates a new volume
+func (p *Platform) NewVolume(volume *hosting.Volume) (*hosting.Volume, error) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.shouldFail {
+		return nil, fmt.Errorf("mock error: %s", p.failMessage)
+	}
+
+	p.volumeCount++
+	volume.Platform = p
+	volume.ID = fmt.Sprintf("vol_%d", p.volumeCount)
+	if volume.Name == "" {
+		volume.Name = fmt.Sprintf("volume-%d", p.volumeCount)
+	}
+
+	p.volumes[volume.ID] = volume
+
+	return volume, nil
+}
+
+// GetVolume retrieves a volume by ID
+func (p *Platform) GetVolume(id string) (*hosting.Volume, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -117,8 +149,8 @@ func (p *Platform) Volume(id string) (hosting.VolumeRef, error) {
 	return volume, nil
 }
 
-// Volumes returns all volumes
-func (p *Platform) Volumes() ([]hosting.VolumeRef, error) {
+// AllVolumes returns all volumes
+func (p *Platform) AllVolumes() ([]*hosting.Volume, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -126,32 +158,58 @@ func (p *Platform) Volumes() ([]hosting.VolumeRef, error) {
 		return nil, fmt.Errorf("mock error: %s", p.failMessage)
 	}
 
-	volumes := make([]hosting.VolumeRef, 0, len(p.volumes))
+	volumes := make([]*hosting.Volume, 0, len(p.volumes))
 	for _, v := range p.volumes {
 		volumes = append(volumes, v)
 	}
 	return volumes, nil
 }
 
-// Domain retrieves a domain by name
-func (p *Platform) Domain(name string) (hosting.DomainRef, error) {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
+// MountVolume attaches a volume to a server
+func (p *Platform) MountVolume(volume *hosting.Volume, server *hosting.Server) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
 
 	if p.shouldFail {
-		return nil, fmt.Errorf("mock error: %s", p.failMessage)
+		return fmt.Errorf("mock error: %s", p.failMessage)
 	}
 
-	domain, exists := p.domains[name]
-	if !exists {
-		return nil, fmt.Errorf("domain not found: %s", name)
-	}
-
-	return domain, nil
+	// Simulate mounting
+	return nil
 }
 
-// Domains returns all domains
-func (p *Platform) Domains() ([]hosting.DomainRef, error) {
+// UnmountVolume detaches a volume from a server
+func (p *Platform) UnmountVolume(volume *hosting.Volume, server *hosting.Server) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.shouldFail {
+		return fmt.Errorf("mock error: %s", p.failMessage)
+	}
+
+	// Simulate unmounting
+	return nil
+}
+
+// DestroyVolume destroys a volume by ID
+func (p *Platform) DestroyVolume(id string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.shouldFail {
+		return fmt.Errorf("mock error: %s", p.failMessage)
+	}
+
+	if _, exists := p.volumes[id]; !exists {
+		return fmt.Errorf("volume not found: %s", id)
+	}
+
+	delete(p.volumes, id)
+	return nil
+}
+
+// LookupDomain looks up a domain record
+func (p *Platform) LookupDomain(domain *hosting.Domain) (*hosting.Domain, error) {
 	p.mu.RLock()
 	defer p.mu.RUnlock()
 
@@ -159,11 +217,53 @@ func (p *Platform) Domains() ([]hosting.DomainRef, error) {
 		return nil, fmt.Errorf("mock error: %s", p.failMessage)
 	}
 
-	domains := make([]hosting.DomainRef, 0, len(p.domains))
-	for _, d := range p.domains {
-		domains = append(domains, d)
+	key := fmt.Sprintf("%s.%s", domain.Sub, domain.Name)
+	existing, exists := p.domains[key]
+	if !exists {
+		return nil, nil // Not found is not an error
 	}
-	return domains, nil
+
+	return existing, nil
+}
+
+// AssignDomain assigns a domain to a server
+func (p *Platform) AssignDomain(server *hosting.Server, domain *hosting.Domain) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.shouldFail {
+		return fmt.Errorf("mock error: %s", p.failMessage)
+	}
+
+	p.domainCount++
+	domain.Platform = p
+	domain.ID = fmt.Sprintf("dom_%d", p.domainCount)
+	domain.Data = server.IP
+
+	key := fmt.Sprintf("%s.%s", domain.Sub, domain.Name)
+	p.domains[key] = domain
+
+	return nil
+}
+
+// DestroyDomain destroys a domain by ID
+func (p *Platform) DestroyDomain(id string) error {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+
+	if p.shouldFail {
+		return fmt.Errorf("mock error: %s", p.failMessage)
+	}
+
+	// Find and delete domain by ID
+	for key, domain := range p.domains {
+		if domain.ID == id {
+			delete(p.domains, key)
+			return nil
+		}
+	}
+
+	return fmt.Errorf("domain not found with ID: %s", id)
 }
 
 // Test control methods
@@ -184,264 +284,31 @@ func (p *Platform) Reset() {
 	p.failMessage = ""
 }
 
-// Server implements the hosting.Server interface
-type Server struct {
-	id       string
-	name     string
-	ip       string
-	platform *Platform
-	volumes  map[string]*Volume
-	domains  map[string]*Domain
-	env      map[string]string
-	mu       sync.RWMutex
+// GetServerExecCalls returns the exec calls made to a server (for testing)
+func (p *Platform) GetServerExecCalls(serverID string) [][]string {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 
-	// Track operations
-	execCalls [][]string
-	copyCalls []copyCall
-	destroyed bool
+	server, exists := p.servers[serverID]
+	if !exists || server == nil {
+		return nil
+	}
+
+	// Mock implementation - just return empty for now
+	// In real tests, you might want to track these separately
+	return [][]string{}
 }
 
-type copyCall struct {
-	src, dst string
-}
+// GetServerCopyCalls returns the copy calls made to a server (for testing)
+func (p *Platform) GetServerCopyCalls(serverID string) []struct{ Src, Dst string } {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
 
-// ID returns the server ID
-func (s *Server) ID() string { return s.id }
-
-// IP returns the server IP
-func (s *Server) IP() string { return s.ip }
-
-// Name returns the server name
-func (s *Server) Name() string { return s.name }
-
-// Mount attaches a volume to the server
-func (s *Server) Mount(volume hosting.VolumeRef) (hosting.VolumeRef, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.platform.shouldFail {
-		return nil, fmt.Errorf("mock error: %s", s.platform.failMessage)
+	server, exists := p.servers[serverID]
+	if !exists || server == nil {
+		return nil
 	}
 
-	// Create a mock volume
-	s.platform.volumeCount++
-	v := &Volume{
-		id:       fmt.Sprintf("vol_%d", s.platform.volumeCount),
-		name:     fmt.Sprintf("volume-%d", s.platform.volumeCount),
-		serverID: s.id,
-		platform: s.platform,
-	}
-
-	s.volumes[v.id] = v
-	s.platform.volumes[v.id] = v
-
-	return v, nil
-}
-
-// Volumes returns all volumes attached to the server
-func (s *Server) Volumes() ([]hosting.VolumeRef, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if s.platform.shouldFail {
-		return nil, fmt.Errorf("mock error: %s", s.platform.failMessage)
-	}
-
-	volumes := make([]hosting.VolumeRef, 0, len(s.volumes))
-	for _, v := range s.volumes {
-		volumes = append(volumes, v)
-	}
-	return volumes, nil
-}
-
-// Alias creates a domain alias for the server
-func (s *Server) Alias(domain hosting.DomainRef) (hosting.DomainRef, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.platform.shouldFail {
-		return nil, fmt.Errorf("mock error: %s", s.platform.failMessage)
-	}
-
-	// Create a mock domain
-	s.platform.domainCount++
-	d := &Domain{
-		id:       fmt.Sprintf("dom_%d", s.platform.domainCount),
-		typ:      "A",
-		name:     fmt.Sprintf("domain-%d", s.platform.domainCount),
-		data:     s.ip,
-		serverID: s.id,
-		platform: s.platform,
-	}
-
-	s.domains[d.id] = d
-	s.platform.domains[d.name] = d
-
-	return d, nil
-}
-
-// Domains returns all domains pointing to the server
-func (s *Server) Domains() ([]hosting.DomainRef, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	if s.platform.shouldFail {
-		return nil, fmt.Errorf("mock error: %s", s.platform.failMessage)
-	}
-
-	domains := make([]hosting.DomainRef, 0, len(s.domains))
-	for _, d := range s.domains {
-		domains = append(domains, d)
-	}
-	return domains, nil
-}
-
-// Env sets an environment variable
-func (s *Server) Env(key, value string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.platform.shouldFail {
-		return fmt.Errorf("mock error: %s", s.platform.failMessage)
-	}
-
-	if s.env == nil {
-		s.env = make(map[string]string)
-	}
-	s.env[key] = value
-	return nil
-}
-
-// Copy simulates file copying
-func (s *Server) Copy(src, dst string) (bytes.Buffer, bytes.Buffer, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var stdout, stderr bytes.Buffer
-
-	if s.platform.shouldFail {
-		return stdout, stderr, fmt.Errorf("mock error: %s", s.platform.failMessage)
-	}
-
-	s.copyCalls = append(s.copyCalls, copyCall{src: src, dst: dst})
-	stdout.WriteString(fmt.Sprintf("Copied %s to %s\n", src, dst))
-
-	return stdout, stderr, nil
-}
-
-// Dump simulates writing data to a file
-func (s *Server) Dump(path string, data []byte) (bytes.Buffer, bytes.Buffer, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var stdout, stderr bytes.Buffer
-
-	if s.platform.shouldFail {
-		return stdout, stderr, fmt.Errorf("mock error: %s", s.platform.failMessage)
-	}
-
-	stdout.WriteString(fmt.Sprintf("Dumped %d bytes to %s\n", len(data), path))
-
-	return stdout, stderr, nil
-}
-
-// Exec simulates command execution
-func (s *Server) Exec(args ...string) (bytes.Buffer, bytes.Buffer, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	var stdout, stderr bytes.Buffer
-
-	if s.platform.shouldFail {
-		return stdout, stderr, fmt.Errorf("mock error: %s", s.platform.failMessage)
-	}
-
-	s.execCalls = append(s.execCalls, args)
-	stdout.WriteString(fmt.Sprintf("Mock execution of: %v\n", args))
-
-	return stdout, stderr, nil
-}
-
-// Connect simulates an interactive connection
-func (s *Server) Connect(stdin io.Reader, stdout io.Writer, stderr io.Writer, args ...string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.platform.shouldFail {
-		return fmt.Errorf("mock error: %s", s.platform.failMessage)
-	}
-
-	fmt.Fprintf(stdout, "Connected to mock server %s\n", s.id)
-	return nil
-}
-
-// Destroy simulates server destruction
-func (s *Server) Destroy(ctx context.Context) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	if s.platform.shouldFail {
-		return fmt.Errorf("mock error: %s", s.platform.failMessage)
-	}
-
-	s.destroyed = true
-
-	// Remove from platform
-	s.platform.mu.Lock()
-	delete(s.platform.servers, s.id)
-	s.platform.mu.Unlock()
-
-	return nil
-}
-
-// Volume implements the hosting.Volume interface
-type Volume struct {
-	id       string
-	name     string
-	serverID string
-	platform *Platform
-}
-
-// ID returns the volume ID
-func (v *Volume) ID() string { return v.id }
-
-// Name returns the volume name
-func (v *Volume) Name() string { return v.name }
-
-// Server returns the server this volume is attached to
-func (v *Volume) Server() (hosting.ServerRef, error) {
-	if v.serverID == "" {
-		return nil, nil
-	}
-	return v.platform.Server(v.serverID)
-}
-
-// Domain implements the hosting.Domain interface
-type Domain struct {
-	id       string
-	typ      string
-	name     string
-	data     string
-	serverID string
-	platform *Platform
-}
-
-// ID returns the domain ID
-func (d *Domain) ID() string { return d.id }
-
-// Type returns the record type
-func (d *Domain) Type() string { return d.typ }
-
-// Name returns the domain name
-func (d *Domain) Name() string { return d.name }
-
-// Data returns the record data
-func (d *Domain) Data() string { return d.data }
-
-// Server returns the server this domain points to
-func (d *Domain) Server() (hosting.ServerRef, error) {
-	if d.serverID == "" {
-		return nil, nil
-	}
-	return d.platform.Server(d.serverID)
+	// Mock implementation - just return empty for now
+	return []struct{ Src, Dst string }{}
 }

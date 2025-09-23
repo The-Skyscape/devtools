@@ -1,6 +1,7 @@
 package digitalocean
 
 import (
+	"cmp"
 	"context"
 	"os"
 
@@ -27,24 +28,33 @@ var _ hosting.Platform = &DigitalOceanClient{}
 // Connect creates a new DigitalOcean client with the provided API key.
 // If no API key is provided, it falls back to the global ApiKey variable.
 // This allows both explicit configuration and environment-based configuration.
-func Connect(apiKey string) *DigitalOceanClient {
-	return ConnectWithProject(apiKey, "")
-}
-
-// ConnectWithProject creates a new DigitalOcean client with the provided API key and default project ID.
-func ConnectWithProject(apiKey string, projectID string) *DigitalOceanClient {
-	// Use provided key or fall back to global variable
-	if apiKey == "" {
-		apiKey = ApiKey
-	}
-
-	return &DigitalOceanClient{
+func Connect(apiKey string, opts ...ClientOption) *DigitalOceanClient {
+	client := &DigitalOceanClient{
 		Client: godo.NewClient(oauth2.NewClient(
 			context.Background(),
 			oauth2.StaticTokenSource(&oauth2.Token{
-				AccessToken: apiKey,
+				AccessToken: cmp.Or(apiKey, ApiKey),
 			}),
 		)),
-		DefaultProject: projectID,
+	}
+
+	for _, opt := range opts {
+		opt(client)
+	}
+
+	return client
+}
+
+type ClientOption func(client *DigitalOceanClient)
+
+func WithProjectID(projectID string) ClientOption {
+	return func(client *DigitalOceanClient) {
+		client.DefaultProject = projectID
+	}
+}
+
+func WithImage(image string) ClientOption {
+	return func(client *DigitalOceanClient) {
+		client.DefaultImage = image
 	}
 }
