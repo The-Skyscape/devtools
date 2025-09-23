@@ -3,8 +3,8 @@ package digitalocean
 import (
 	"context"
 	"os"
-	"strconv"
 
+	"github.com/The-Skyscape/devtools/pkg/hosting"
 	"github.com/digitalocean/godo"
 	"golang.org/x/oauth2"
 )
@@ -19,7 +19,10 @@ var ApiKey = os.Getenv("DIGITAL_OCEAN_API_KEY")
 type DigitalOceanClient struct {
 	*godo.Client
 	DefaultProject string // Default project ID for new resources
+	DefaultImage   string // Default image for new resources
 }
+
+var _ hosting.Platform = &DigitalOceanClient{}
 
 // Connect creates a new DigitalOcean client with the provided API key.
 // If no API key is provided, it falls back to the global ApiKey variable.
@@ -44,23 +47,4 @@ func ConnectWithProject(apiKey string, projectID string) *DigitalOceanClient {
 		)),
 		DefaultProject: projectID,
 	}
-}
-
-func (client *DigitalOceanClient) Launch(s *Server) (*Server, error) {
-	s.client = client
-	// Use client's default project if server doesn't specify one
-	if s.Project == "" && client.DefaultProject != "" {
-		s.Project = client.DefaultProject
-	}
-	return s, s.Launch()
-}
-
-func (client *DigitalOceanClient) GetServer(id string) (*Server, error) {
-	intID, err := strconv.Atoi(id)
-	if err != nil {
-		return nil, err
-	}
-
-	server := &Server{client: client, ID: intID}
-	return server, server.load()
 }

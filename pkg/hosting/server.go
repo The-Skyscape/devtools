@@ -12,7 +12,7 @@ import (
 )
 
 type Server struct {
-	platform Platform
+	Platform Platform
 	ID       string
 	IP       string
 	Loc      string
@@ -74,5 +74,5 @@ func (server *Server) Dump(path string, data []byte, executable bool) (stdout, s
 }
 
 func (server *Server) Destroy() error {
-	return server.platform.DestroyServer(server.ID)
+	return server.Platform.DestroyServer(server.ID)
 }

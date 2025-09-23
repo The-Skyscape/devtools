@@ -30,7 +30,7 @@ const (
 // functions. There are no needs to reuse this code, a lot of
 // it is boring crypto code that the CPU can cache if it is
 // in one function so read it like a wizard's spell if you must.
-func (s *Server) accessKey() (key *godo.Key, err error) {
+func (client *DigitalOceanClient) accessKey() (key *godo.Key, err error) {
 	ctx := context.Background()
 
 	var homeDir string
@@ -43,7 +43,7 @@ func (s *Server) accessKey() (key *godo.Key, err error) {
 
 	privKey := fmt.Sprintf("%s/%s", sshDir, ID_RSA)
 	pubKey := fmt.Sprintf("%s/%s", sshDir, ID_RSA_PUB)
-	
+
 	// Check if we need to generate keys
 	if _, err = os.Stat(privKey); err != nil || os.IsNotExist(err) {
 		// Generate new SSH key pair
@@ -80,7 +80,7 @@ func (s *Server) accessKey() (key *godo.Key, err error) {
 			return nil, errors.Wrap(err, "failed to write public key")
 		}
 	}
-	
+
 	// Also check if public key exists (in case private key exists but public doesn't)
 	if _, err = os.Stat(pubKey); err != nil {
 		// Regenerate public key from private key
@@ -88,22 +88,22 @@ func (s *Server) accessKey() (key *godo.Key, err error) {
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to read private key")
 		}
-		
+
 		block, _ := pem.Decode(privBytes)
 		if block == nil {
 			return nil, errors.New("failed to decode private key")
 		}
-		
+
 		privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to parse private key")
 		}
-		
+
 		publicKey, err := ssh.NewPublicKey(&privateKey.PublicKey)
 		if err != nil {
 			return nil, errors.Wrap(err, "failed to create public key from private")
 		}
-		
+
 		if err = os.WriteFile(pubKey, ssh.MarshalAuthorizedKey(publicKey), 0644); err != nil {
 			return nil, errors.Wrap(err, "failed to write regenerated public key")
 		}
@@ -117,7 +117,7 @@ func (s *Server) accessKey() (key *godo.Key, err error) {
 
 	// Check if key already exists in DigitalOcean
 	var keys []godo.Key
-	if keys, _, err = s.client.Keys.List(ctx, nil); err != nil {
+	if keys, _, err = client.Keys.List(ctx, nil); err != nil {
 		return nil, errors.Wrap(err, "failed to get keys from Digital Ocean")
 	}
 
@@ -128,7 +128,7 @@ func (s *Server) accessKey() (key *godo.Key, err error) {
 		}
 	}
 
-	key, _, err = s.client.Keys.Create(ctx, &godo.KeyCreateRequest{
+	key, _, err = client.Keys.Create(ctx, &godo.KeyCreateRequest{
 		Name:      RSA_KEY_NAME,
 		PublicKey: string(pubBytes),
 	})

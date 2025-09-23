@@ -3,241 +3,147 @@ package digitalocean
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"time"
 
+	"github.com/The-Skyscape/devtools/pkg/hosting"
 	"github.com/digitalocean/godo"
+	"github.com/pkg/errors"
 )
 
-// CreateVolume creates a new block storage volume
-func (client *DigitalOceanClient) CreateVolume(name string, sizeGB int, region string) (*godo.Volume, error) {
-	return client.CreateVolumeWithProject(name, sizeGB, region, "")
-}
-
-// CreateVolumeWithProject creates a new block storage volume and assigns it to a project
-func (client *DigitalOceanClient) CreateVolumeWithProject(name string, sizeGB int, region string, projectID string) (*godo.Volume, error) {
+func (client *DigitalOceanClient) NewVolume(volume *hosting.Volume) (*hosting.Volume, error) {
 	ctx := context.Background()
+	volume.Platform = client
 
-	createRequest := &godo.VolumeCreateRequest{
-		Region:        region,
-		Name:          name,
-		Description:   fmt.Sprintf("Persistent storage for workspace %s", name),
-		SizeGigaBytes: int64(sizeGB),
+	if volume.ID != "" {
+		return nil, errors.New("Volume has already been created: " + volume.ID)
+	}
+
+	v, _, err := client.Storage.CreateVolume(ctx, &godo.VolumeCreateRequest{
+		Region:         volume.Loc,
+		Name:           volume.Name,
+		Description:    fmt.Sprintf("Persistent storage for workspace %s", volume.Name),
+		SizeGigaBytes:  int64(volume.Size),
 		FilesystemType: "ext4",
-	}
+	})
 
-	volume, _, err := client.Storage.CreateVolume(ctx, createRequest)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create volume: %w", err)
+		return nil, errors.Wrap(err, "failed to create volume")
 	}
 
-	// Assign to project if specified
-	if projectID != "" {
-		fmt.Printf("Assigning volume %s to project %s\n", volume.ID, projectID)
-		_, _, err = client.Projects.AssignResources(ctx, projectID,
-			fmt.Sprintf("do:volume:%s", volume.ID))
+	if client.DefaultProject != "" {
+		fmt.Printf("Assigning volume %s to project %s\n", v.ID, client.DefaultProject)
+		_, _, err = client.Projects.AssignResources(ctx, client.DefaultProject,
+			fmt.Sprintf("do:volume:%s", v.ID))
 		if err != nil {
 			// Log but don't fail if project assignment fails
-			fmt.Printf("⚠️  Warning: Failed to assign volume to project %s: %v\n", projectID, err)
+			fmt.Printf("⚠️  Warning: Failed to assign volume to project %s: %v\n", client.DefaultProject, err)
 		} else {
-			fmt.Printf("✅ Successfully assigned volume %s to project %s\n", volume.ID, projectID)
+			fmt.Printf("✅ Successfully assigned volume %s to project %s\n", v.ID, client.DefaultProject)
 		}
-	} else {
-		fmt.Printf("ℹ️  No project ID specified for volume %s\n", volume.ID)
 	}
 
 	// Wait for volume to be available
-	if err := client.WaitForVolumeReady(volume.ID, 60); err != nil {
-		return nil, fmt.Errorf("volume creation timed out: %w", err)
-	}
+	time.Sleep(5 * time.Second)
 
+	volume.ID = v.ID
 	return volume, nil
 }
 
-// AttachVolume attaches a volume to a droplet
-func (client *DigitalOceanClient) AttachVolume(volumeID string, dropletID int) error {
+func (client *DigitalOceanClient) GetVolume(volumeID string) (*hosting.Volume, error) {
 	ctx := context.Background()
-	
-	action, _, err := client.StorageActions.Attach(ctx, volumeID, dropletID)
-	if err != nil {
-		return fmt.Errorf("failed to attach volume: %w", err)
-	}
-	
-	// Wait for action to complete
-	if err := client.WaitForAction(action.ID, 60); err != nil {
-		return fmt.Errorf("volume attach timed out: %w", err)
-	}
-	
-	return nil
-}
 
-// DetachVolume detaches a volume from its droplet
-func (client *DigitalOceanClient) DetachVolume(volumeID string) error {
-	ctx := context.Background()
-	
-	// Get the volume to find which droplet it's attached to
 	volume, _, err := client.Storage.GetVolume(ctx, volumeID)
 	if err != nil {
-		return fmt.Errorf("failed to get volume: %w", err)
+		return nil, errors.Wrap(err, "failed to get volume")
 	}
-	
-	if len(volume.DropletIDs) == 0 {
-		// Volume is not attached to any droplet
-		return nil
-	}
-	
-	// Detach from the first (and should be only) droplet
-	action, _, err := client.StorageActions.DetachByDropletID(ctx, volumeID, volume.DropletIDs[0])
-	if err != nil {
-		return fmt.Errorf("failed to detach volume: %w", err)
-	}
-	
-	// Wait for action to complete
-	if err := client.WaitForAction(action.ID, 60); err != nil {
-		return fmt.Errorf("volume detach timed out: %w", err)
-	}
-	
-	return nil
+
+	return &hosting.Volume{
+		Platform: client,
+		ID:       volume.ID,
+		Loc:      volume.Region.Slug,
+		Name:     volume.Name,
+		Size:     int(volume.SizeGigaBytes),
+	}, nil
 }
 
-// ResizeVolume resizes a volume to a new size
-func (client *DigitalOceanClient) ResizeVolume(volumeID string, newSizeGB int) error {
+func (client *DigitalOceanClient) AllVolumes() ([]*hosting.Volume, error) {
 	ctx := context.Background()
-	
-	// Get the volume to find its region
-	volume, _, err := client.Storage.GetVolume(ctx, volumeID)
-	if err != nil {
-		return fmt.Errorf("failed to get volume: %w", err)
-	}
-	
-	if int64(newSizeGB) <= volume.SizeGigaBytes {
-		return fmt.Errorf("new size must be larger than current size (%d GB)", volume.SizeGigaBytes)
-	}
-	
-	action, _, err := client.StorageActions.Resize(ctx, volumeID, newSizeGB, volume.Region.Slug)
-	if err != nil {
-		return fmt.Errorf("failed to resize volume: %w", err)
-	}
-	
-	// Wait for action to complete (resizing can take longer)
-	if err := client.WaitForAction(action.ID, 300); err != nil {
-		return fmt.Errorf("volume resize timed out: %w", err)
-	}
-	
-	return nil
-}
 
-// DeleteVolume deletes a volume
-func (client *DigitalOceanClient) DeleteVolume(volumeID string) error {
-	ctx := context.Background()
-	
-	// First ensure it's detached
-	if err := client.DetachVolume(volumeID); err != nil {
-		return fmt.Errorf("failed to detach before delete: %w", err)
-	}
-	
-	// Small delay to ensure detach is complete
-	time.Sleep(2 * time.Second)
-	
-	_, err := client.Storage.DeleteVolume(ctx, volumeID)
-	if err != nil {
-		return fmt.Errorf("failed to delete volume: %w", err)
-	}
-	
-	return nil
-}
+	spaces, _, err := client.Storage.ListVolumes(ctx, &godo.ListVolumeParams{
+		ListOptions: &godo.ListOptions{},
+	})
 
-// GetVolume retrieves a volume by ID
-func (client *DigitalOceanClient) GetVolume(volumeID string) (*godo.Volume, error) {
-	ctx := context.Background()
-	
-	volume, _, err := client.Storage.GetVolume(ctx, volumeID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get volume: %w", err)
+		return nil, errors.Wrap(err, "failed to list volumes")
 	}
-	
-	return volume, nil
-}
 
-// ListVolumes lists all volumes in the account
-func (client *DigitalOceanClient) ListVolumes() ([]godo.Volume, error) {
-	ctx := context.Background()
-	
-	volumes := []godo.Volume{}
-	opt := &godo.ListOptions{
-		Page:    1,
-		PerPage: 100,
-	}
-	
-	for {
-		volumePage, resp, err := client.Storage.ListVolumes(ctx, &godo.ListVolumeParams{
-			ListOptions: opt,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to list volumes: %w", err)
+	volumes := []*hosting.Volume{}
+	for _, space := range spaces {
+		volume := &hosting.Volume{
+			Platform: client,
+			ID:       space.ID,
+			Loc:      space.Region.Slug,
+			Name:     space.Name,
+			Size:     int(space.SizeGigaBytes),
 		}
-		
-		volumes = append(volumes, volumePage...)
-		
-		if resp.Links == nil || resp.Links.IsLastPage() {
-			break
-		}
-		
-		opt.Page++
+
+		volumes = append(volumes, volume)
 	}
-	
+
 	return volumes, nil
 }
 
-// WaitForVolumeReady waits for a volume to be in "available" state
-func (client *DigitalOceanClient) WaitForVolumeReady(volumeID string, timeoutSeconds int) error {
-	ctx := context.Background()
-	start := time.Now()
-	timeout := time.Duration(timeoutSeconds) * time.Second
-	
-	for {
-		volume, _, err := client.Storage.GetVolume(ctx, volumeID)
-		if err != nil {
-			return fmt.Errorf("failed to check volume status: %w", err)
-		}
-		
-		// Volume is ready when it has no pending actions
-		if len(volume.DropletIDs) == 0 {
-			// Not attached, which means it's available
-			return nil
-		}
-		
-		if time.Since(start) > timeout {
-			return fmt.Errorf("timeout waiting for volume to be ready")
-		}
-		
-		time.Sleep(2 * time.Second)
+func (client *DigitalOceanClient) MountVolume(volume *hosting.Volume, server *hosting.Server) error {
+	if volume == nil {
+		return errors.New("volume is nil")
 	}
+
+	if server == nil {
+		return errors.New("server is nil")
+	}
+
+	serverID, err := strconv.Atoi(server.ID)
+	if err != nil {
+		return errors.Wrap(err, "invalid server ID: "+server.ID)
+	}
+
+	ctx := context.Background()
+	_, _, err = client.StorageActions.Attach(ctx, volume.ID, serverID)
+	if err != nil {
+		return errors.Wrap(err, "failed to attach volume")
+	}
+
+	time.Sleep(5 * time.Second)
+	return nil
 }
 
-// WaitForAction waits for a DigitalOcean action to complete
-func (client *DigitalOceanClient) WaitForAction(actionID int, timeoutSeconds int) error {
-	ctx := context.Background()
-	start := time.Now()
-	timeout := time.Duration(timeoutSeconds) * time.Second
-	
-	for {
-		action, _, err := client.Actions.Get(ctx, actionID)
-		if err != nil {
-			return fmt.Errorf("failed to check action status: %w", err)
-		}
-		
-		if action.Status == "completed" {
-			return nil
-		}
-		
-		if action.Status == "errored" {
-			return fmt.Errorf("action failed: %s", action.Type)
-		}
-		
-		if time.Since(start) > timeout {
-			return fmt.Errorf("timeout waiting for action to complete")
-		}
-		
-		time.Sleep(2 * time.Second)
+func (client *DigitalOceanClient) UnmountVolume(volume *hosting.Volume, server *hosting.Server) error {
+	if volume == nil {
+		return errors.New("volume is nil")
 	}
+
+	if server == nil {
+		return errors.New("server is nil")
+	}
+
+	serverID, err := strconv.Atoi(server.ID)
+	if err != nil {
+		return errors.Wrap(err, "invalid server ID: "+server.ID)
+	}
+
+	ctx := context.Background()
+	_, _, err = client.StorageActions.DetachByDropletID(ctx, volume.ID, serverID)
+	if err != nil {
+		return errors.Wrap(err, "failed to detach volume")
+	}
+
+	time.Sleep(5 * time.Second)
+	return nil
+}
+
+func (client *DigitalOceanClient) DestroyVolume(volumeID string) error {
+	ctx := context.Background()
+	_, err := client.Storage.DeleteVolume(ctx, volumeID)
+	return errors.Wrap(err, "failed to delete volume")
 }

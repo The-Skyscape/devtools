@@ -1,108 +1,62 @@
 package digitalocean
 
 import (
-	"bytes"
+	"cmp"
 	"context"
-	_ "embed"
 	"fmt"
-	"io"
-	"os"
-	"os/exec"
 	"strconv"
-	"strings"
 	"time"
 
+	"github.com/The-Skyscape/devtools/pkg/hosting"
 	"github.com/digitalocean/godo"
 	"github.com/pkg/errors"
 )
 
-type Server struct {
-	client  *DigitalOceanClient
-	ID      int
-	Name    string
-	Size    string
-	Region  string
-	Image   string
-	Status  string
-	IP      string
-	Project string // DigitalOcean project ID
-}
-
-func (server *Server) GetID() string {
-	return strconv.Itoa(server.ID)
-}
-
-func (server *Server) GetIP() string {
-	return server.IP
-}
-
-func (server *Server) GetName() string {
-	return server.Name
-}
-
-func (server *Server) load() error {
+func (client *DigitalOceanClient) NewServer(server *hosting.Server) (*hosting.Server, error) {
 	ctx := context.Background()
-	if server.ID == 0 {
-		return errors.New("missing droplet id from server")
-	} else if droplet, _, err := server.client.Droplets.Get(ctx, server.ID); err != nil {
-		return errors.Wrap(err, "failed to get droplet")
-	} else {
-		server.Name = droplet.Name
-		server.Size = droplet.SizeSlug
-		server.Region = droplet.Region.Name
-		server.Image = droplet.Image.Name
-		server.Status = droplet.Status
-		server.IP, _ = droplet.PublicIPv4()
-	}
-	return nil
-}
+	server.Platform = client
 
-func (server *Server) Launch() (err error) {
-	ctx := context.Background()
-
-	if server.ID != 0 {
-		return errors.New("server already launched")
+	if server.ID != "" {
+		return nil, errors.New("Server has already been created: " + server.ID)
 	}
 
-	var accessKey *godo.Key
-	if accessKey, err = server.accessKey(); err != nil {
-		return errors.Wrap(err, "failed to get access key")
+	accessKey, err := client.accessKey()
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get access key")
 	}
 
-	droplet, _, err := server.client.Droplets.Create(ctx, &godo.DropletCreateRequest{
+	slug := cmp.Or(client.DefaultImage, "docker-20-04")
+	droplet, _, err := client.Droplets.Create(ctx, &godo.DropletCreateRequest{
 		Name:    server.Name,
-		Region:  server.Region,
+		Region:  server.Loc,
 		Size:    server.Size,
-		Image:   godo.DropletCreateImage{Slug: server.Image},
+		Image:   godo.DropletCreateImage{Slug: slug},
 		SSHKeys: []godo.DropletCreateSSHKey{{Fingerprint: accessKey.Fingerprint}},
 	})
 
 	if err != nil {
-		return errors.Wrap(err, "failed to create droplet")
+		return nil, errors.Wrap(err, "failed to create droplet")
 	}
 
-	server.ID = droplet.ID
+	server.ID = fmt.Sprintf("%d", droplet.ID)
 	server.Status = droplet.Status
 
-	// Assign to project if specified
-	if server.Project != "" {
-		fmt.Printf("Assigning droplet %d to project %s\n", droplet.ID, server.Project)
-		_, _, err = server.client.Projects.AssignResources(ctx, server.Project,
+	if client.DefaultProject != "" {
+		fmt.Printf("Assigning droplet %d to project %s\n", droplet.ID, client.DefaultProject)
+		_, _, err = client.Projects.AssignResources(ctx, client.DefaultProject,
 			fmt.Sprintf("do:droplet:%d", droplet.ID))
 		if err != nil {
 			// Log but don't fail if project assignment fails
-			fmt.Printf("⚠️  Warning: Failed to assign droplet to project %s: %v\n", server.Project, err)
+			fmt.Printf("⚠️  Warning: Failed to assign droplet to project %s: %v\n", client.DefaultProject, err)
 		} else {
-			fmt.Printf("✅ Successfully assigned droplet %d to project %s\n", droplet.ID, server.Project)
+			fmt.Printf("✅ Successfully assigned droplet %d to project %s\n", droplet.ID, client.DefaultProject)
 		}
-	} else {
-		fmt.Printf("ℹ️  No project ID specified for droplet %d\n", droplet.ID)
 	}
 
 	for server.IP == "" {
 		time.Sleep(10 * time.Second)
-		if err = server.load(); err != nil {
-			return errors.Wrap(err, "failed to get droplet")
+		if server, err = client.GetServer(server.ID); err != nil {
+			return nil, errors.Wrap(err, "failed to get droplet")
 		}
 	}
 
@@ -112,73 +66,67 @@ func (server *Server) Launch() (err error) {
 	fmt.Printf("Waiting for server to initialize after getting IP...\n")
 	time.Sleep(30 * time.Second)
 
-	return
+	return server, nil
 }
 
-func (server *Server) Destroy(ctx context.Context) (err error) {
-	_, err = server.client.Droplets.Delete(ctx, server.ID)
+func (client *DigitalOceanClient) GetServer(id string) (*hosting.Server, error) {
+	ctx := context.Background()
+
+	intID, err := strconv.Atoi(id)
+	if intID == 0 || err != nil {
+		return nil, errors.New("missing droplet id from server")
+	}
+
+	droplet, _, err := client.Droplets.Get(ctx, intID)
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to get droplet")
+	}
+
+	ipAddress, _ := droplet.PublicIPv4()
+	return &hosting.Server{
+		Platform: client,
+		ID:       fmt.Sprintf("%d", droplet.ID),
+		IP:       ipAddress,
+		Loc:      droplet.Region.Name,
+		Size:     droplet.SizeSlug,
+		Name:     droplet.Name,
+		Status:   droplet.Status,
+	}, nil
+}
+
+func (client *DigitalOceanClient) AllServers() ([]*hosting.Server, error) {
+	ctx := context.Background()
+
+	droplets, _, err := client.Droplets.List(ctx, &godo.ListOptions{})
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to list droplets")
+	}
+
+	servers := make([]*hosting.Server, 0, len(droplets))
+	for _, droplet := range droplets {
+		ipAddress, _ := droplet.PublicIPv4()
+		servers = append(servers, &hosting.Server{
+			Platform: client,
+			ID:       fmt.Sprintf("%d", droplet.ID),
+			IP:       ipAddress,
+			Loc:      droplet.Region.Name,
+			Size:     droplet.SizeSlug,
+			Name:     droplet.Name,
+			Status:   droplet.Status,
+		})
+	}
+
+	return servers, nil
+}
+
+func (client *DigitalOceanClient) DestroyServer(id string) error {
+	ctx := context.Background()
+
+	intID, err := strconv.Atoi(id)
+	if err != nil {
+		return errors.New("missing droplet id from server")
+	}
+
+	_, err = client.Droplets.Delete(ctx, intID)
 	return errors.Wrap(err, "failed to delete droplet")
-}
-
-func (s *Server) Dump(path string, data []byte) (stdout, stderr bytes.Buffer, err error) {
-	file, err := os.CreateTemp("", "skyfile-*")
-	if err != nil {
-		return stdout, stderr, errors.Wrap(err, "failed to create temp file")
-	}
-
-	defer os.Remove(file.Name())
-	defer file.Close()
-
-	if _, err = file.Write(data); err != nil {
-		return stdout, stderr, errors.Wrap(err, "failed to write data to file")
-	}
-
-	if stdout, stderr, err = s.Copy(file.Name(), path); err != nil {
-		return stdout, stderr, errors.Wrap(err, "failed to copy file "+path)
-	}
-
-	// Make the file executable
-	_, _, err = s.Exec("chmod", "+x", path)
-	if err != nil {
-		return stdout, stderr, errors.Wrap(err, "failed to chmod file")
-	}
-	
-	return stdout, stderr, nil
-}
-
-func (server *Server) Copy(path, dst string) (stdout, stderr bytes.Buffer, _ error) {
-	dst = fmt.Sprintf("root@%s:%s", server.IP, dst)
-	// Use UserKnownHostsFile to check against known hosts
-	// Accept new hosts automatically but verify on subsequent connections
-	cmd := exec.Command("scp",
-		"-o", "StrictHostKeyChecking=accept-new",
-		"-o", "UserKnownHostsFile=~/.ssh/known_hosts",
-		path, dst)
-	cmd.Stdout = &stdout
-	cmd.Stderr = &stderr
-	return stdout, stderr, errors.Wrapf(cmd.Run(), "failed to copy %s to %s", path, dst)
-}
-
-func (server *Server) Env(key, value string) error {
-	_, _, err := server.Exec("echo \"export $key=$value\" >> ~/.bashrc")
-	return errors.Wrap(err, "failed to export key")
-}
-
-func (server *Server) Exec(args ...string) (stdout, stderr bytes.Buffer, err error) {
-	return stdout, stderr, server.Connect(nil, &stdout, &stderr, args...)
-}
-
-func (server *Server) Connect(stdin io.Reader, stdout, _ io.Writer, args ...string) (err error) {
-	var stderr bytes.Buffer
-	host := fmt.Sprintf("root@%s", server.IP)
-	// Use UserKnownHostsFile to check against known hosts
-	// Accept new hosts automatically but verify on subsequent connections
-	cmd := exec.Command("ssh",
-		"-o", "StrictHostKeyChecking=accept-new",
-		"-o", "UserKnownHostsFile=~/.ssh/known_hosts",
-		host, strings.Join(args, " "))
-	cmd.Stdin = stdin
-	cmd.Stdout = stdout
-	cmd.Stderr = &stderr
-	return errors.Wrap(cmd.Run(), strings.Join(args, " ")+" "+stderr.String())
 }

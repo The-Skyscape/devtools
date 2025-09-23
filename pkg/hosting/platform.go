@@ -3,7 +3,7 @@ package hosting
 // Platform defines the minimal interface for hosting platforms
 type Platform interface {
 	// Server operations
-	NewLaunch(server *Server) (*Server, error)
+	NewServer(server *Server) (*Server, error)
 	GetServer(id string) (*Server, error)
 	AllServers() ([]*Server, error)
 	DestroyServer(id string) error
@@ -13,12 +13,11 @@ type Platform interface {
 	GetVolume(id string) (*Volume, error)
 	AllVolumes() ([]*Volume, error)
 	MountVolume(volume *Volume, server *Server) error
+	UnmountVolume(volume *Volume, server *Server) error
 	DestroyVolume(id string) error
 
 	// Domain operations
-	NewDomain(domain *Domain) (*Domain, error)
-	GetDomain(name string) (*Domain, error)
-	AllDomains() ([]*Domain, error)
-	AssignDomain(domain *Domain, server *Server) error
-	DestroyDomain(name string) error
+	LookupDomain(domain *Domain) (*Domain, error)
+	AssignDomain(server *Server, domain *Domain) error
+	DestroyDomain(id string) error
 }

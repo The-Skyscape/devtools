@@ -2,58 +2,84 @@ package digitalocean
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"strconv"
 
+	"github.com/The-Skyscape/devtools/pkg/hosting"
 	"github.com/digitalocean/godo"
+	"github.com/pkg/errors"
 )
 
-func (s *Server) Alias(sub, domain string) (err error) {
+func (client *DigitalOceanClient) LookupDomain(domain *hosting.Domain) (*hosting.Domain, error) {
+	if domain == nil {
+		return nil, errors.New("domain is nil")
+	}
+
 	ctx := context.Background()
-	records, _, err := s.client.Domains.Records(ctx, domain, &godo.ListOptions{})
+	records, _, err := client.Domains.Records(ctx, domain.Name, &godo.ListOptions{})
 	if err != nil {
-		return err
+		return nil, errors.Wrap(err, "failed to list domain records")
 	}
 
 	for _, record := range records {
-		if record.Type == "A" && record.Name == sub && record.Data == s.IP {
-			log.Printf("DNS record already exists for domain: %s.%s ", sub, domain)
-			return nil
+		if record.Type == domain.Type && record.Name == domain.Sub {
+			return &hosting.Domain{
+				Platform: client,
+				ID:       fmt.Sprintf("%d", record.ID),
+				Sub:      record.Name,
+				Name:     domain.Name,
+				Type:     record.Type,
+				Data:     record.Data,
+			}, nil
 		}
 	}
 
-	record := &godo.DomainRecordEditRequest{Type: "A", Name: sub, Data: s.IP, TTL: 3600}
-	if _, _, err = s.client.Domains.CreateRecord(ctx, domain, record); err != nil {
-		return err
-	}
-
-	log.Printf("Created A record for domain: %s.%s with IP: %s", sub, domain, s.IP)
-	return
+	return nil, nil
 }
 
-// RemoveDNSRecord removes the DNS A record for the given subdomain
-func (s *Server) RemoveDNSRecord(sub, domain string) error {
+func (client *DigitalOceanClient) AssignDomain(server *hosting.Server, domain *hosting.Domain) error {
+	if server == nil {
+		return errors.New("server is nil")
+	}
+
+	if domain == nil {
+		return errors.New("domain is nil")
+	}
+
+	if existing, _ := client.LookupDomain(domain); existing != nil {
+		return errors.New("a record already exists for that domain")
+	}
+
 	ctx := context.Background()
-	
-	// List all records for the domain
-	records, _, err := s.client.Domains.Records(ctx, domain, &godo.ListOptions{})
+	_, _, err := client.Domains.CreateRecord(ctx, domain.Name, &godo.DomainRecordEditRequest{
+		Type:     domain.Type,
+		Name:     domain.Sub,
+		Data:     server.IP,
+		Priority: 10,
+		Port:     80,
+		TTL:      3600,
+	})
+
+	return errors.Wrap(err, "failed to create domain record")
+}
+
+func (client *DigitalOceanClient) DestroyDomain(id string) error {
+	ctx := context.Background()
+	domain, _, err := client.Domains.Get(ctx, id)
 	if err != nil {
-		log.Printf("Failed to list DNS records for %s: %v", domain, err)
-		return err
+		return errors.Wrap(err, "failed to lookup domain")
 	}
-	
-	// Find and delete the A record for this subdomain
-	for _, record := range records {
-		if record.Type == "A" && record.Name == sub {
-			_, err := s.client.Domains.DeleteRecord(ctx, domain, record.ID)
-			if err != nil {
-				log.Printf("Failed to delete DNS record %s.%s: %v", sub, domain, err)
-				return err
-			}
-			log.Printf("Deleted A record for domain: %s.%s", sub, domain)
-			return nil
-		}
+
+	domainID, err := strconv.Atoi(id)
+	if err != nil {
+		return errors.Wrap(err, "failed to parse domain ID")
 	}
-	
-	log.Printf("No DNS record found for %s.%s to delete", sub, domain)
+
+	// Delete the domain
+	_, err = client.Domains.DeleteRecord(ctx, domain.Name, domainID)
+	if err != nil {
+		return errors.Wrap(err, "failed to delete domain")
+	}
+
 	return nil
 }
