@@ -27,8 +27,8 @@ func (m *Model) GetModel() *Model { return m }
 func (m *Model) SetDB(d Database) { m.DB = d }
 
 func DataDir() string {
-	if os.Getenv("INTERNAL_DATA") != "" {
-		return os.Getenv("INTERNAL_DATA")
+	if os.Getenv("DATA_DIR") != "" {
+		return os.Getenv("DATA_DIR")
 	}
 	root, _ := os.UserHomeDir()
 	root = cmp.Or(root, "/tmp")
