@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/The-Skyscape/devtools/pkg/hosting"
 	"github.com/digitalocean/godo"
@@ -25,7 +26,7 @@ func (client *DigitalOceanClient) LookupDomain(domain *hosting.Domain) (*hosting
 		if record.Type == domain.Type && record.Name == domain.Sub {
 			return &hosting.Domain{
 				Platform: client,
-				ID:       fmt.Sprintf("%d", record.ID),
+				ID:       fmt.Sprintf("%d:%s", record.ID, domain.Name), // Format: "recordID:domainName"
 				Sub:      record.Name,
 				Name:     domain.Name,
 				Type:     record.Type,
@@ -34,7 +35,7 @@ func (client *DigitalOceanClient) LookupDomain(domain *hosting.Domain) (*hosting
 		}
 	}
 
-	return nil, nil
+	return nil, errors.New("domain not found: " + domain.Name)
 }
 
 func (client *DigitalOceanClient) AssignDomain(server *hosting.Server, domain *hosting.Domain) error {
@@ -63,23 +64,17 @@ func (client *DigitalOceanClient) AssignDomain(server *hosting.Server, domain *h
 	return errors.Wrap(err, "failed to create domain record")
 }
 
-func (client *DigitalOceanClient) DestroyDomain(id string) error {
-	ctx := context.Background()
-	domain, _, err := client.Domains.Get(ctx, id)
-	if err != nil {
-		return errors.Wrap(err, "failed to lookup domain")
+func (client *DigitalOceanClient) DestroyDomain(recordInfo string) error {
+	parts := strings.Split(recordInfo, ":")
+	if len(parts) != 2 {
+		return errors.New("invalid domain record info format, expected 'recordID:domainName'")
 	}
 
-	domainID, err := strconv.Atoi(id)
+	recordID, err := strconv.Atoi(parts[0])
 	if err != nil {
-		return errors.Wrap(err, "failed to parse domain ID")
+		return errors.Wrap(err, "failed to parse record ID")
 	}
 
-	// Delete the domain
-	_, err = client.Domains.DeleteRecord(ctx, domain.Name, domainID)
-	if err != nil {
-		return errors.Wrap(err, "failed to delete domain")
-	}
-
-	return nil
+	_, err = client.Domains.DeleteRecord(context.Background(), parts[1], recordID)
+	return errors.Wrap(err, "failed to delete domain record")
 }
