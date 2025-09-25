@@ -33,11 +33,11 @@ type Service struct {
 	Env           map[string]string
 
 	// Resource limits for container security
-	MemoryLimit   string // e.g., "512m", "2g"
-	CPULimit      string // e.g., "0.5", "2.0" (number of CPUs)
-	PidsLimit     int    // Maximum number of PIDs (0 = unlimited)
-	ReadOnly      bool   // Make root filesystem read-only
-	SecurityOpts  []string // Security options like "no-new-privileges"
+	MemoryLimit  string   // e.g., "512m", "2g"
+	CPULimit     string   // e.g., "0.5", "2.0" (number of CPUs)
+	PidsLimit    int      // Maximum number of PIDs (0 = unlimited)
+	ReadOnly     bool     // Make root filesystem read-only
+	SecurityOpts []string // Security options like "no-new-privileges"
 }
 
 // Stop stops and removes the Docker container
@@ -94,7 +94,12 @@ func (s *Service) Copy(srcPath, destPath string) error {
 }
 
 func (s *Service) Proxy(port int) http.Handler {
-	targetURL, err := url.Parse(fmt.Sprintf("http://localhost:%d", port))
+	name := s.Name
+	if s.Network == "host" {
+		name = "localhost"
+	}
+
+	targetURL, err := url.Parse(fmt.Sprintf("http://%s:%d", name, port))
 	if err != nil {
 		// This should never happen with a valid port number
 		// Return a handler that returns an error response
@@ -256,9 +261,9 @@ func (s *Service) Stats() (*ContainerStats, error) {
 	s.SetStderr(&stderr)
 
 	// Get container stats in a parseable format
-	args := []string{"docker", "stats", s.Name, "--no-stream", "--format", 
+	args := []string{"docker", "stats", s.Name, "--no-stream", "--format",
 		"{{.Container}},{{.CPUPerc}},{{.MemUsage}},{{.MemPerc}},{{.NetIO}},{{.BlockIO}}"}
-	
+
 	if err := s.Host.Exec(args...); err != nil {
 		return nil, errors.Wrapf(err, "failed to get stats: %s", stderr.String())
 	}
@@ -268,7 +273,7 @@ func (s *Service) Stats() (*ContainerStats, error) {
 		Name: s.Name,
 		ID:   s.ID,
 	}
-	
+
 	// Basic parsing - can be enhanced
 	output := strings.TrimSpace(stdout.String())
 	if output != "" {
@@ -279,13 +284,13 @@ func (s *Service) Stats() (*ContainerStats, error) {
 			if cpu, err := strconv.ParseFloat(cpuStr, 64); err == nil {
 				stats.CPUPercent = cpu
 			}
-			
-			// Parse memory percentage  
+
+			// Parse memory percentage
 			memStr := strings.TrimSuffix(parts[3], "%")
 			if mem, err := strconv.ParseFloat(memStr, 64); err == nil {
 				stats.MemPercent = mem
 			}
-			
+
 			// Store raw network and block I/O strings
 			if len(parts) >= 5 {
 				stats.NetIO = parts[4]
