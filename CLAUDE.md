@@ -84,7 +84,7 @@ export DIGITAL_OCEAN_API_KEY="your-token"
 - **`pkg/application/`** - Web application framework with MVC pattern, template rendering, and SSL support
 - **`pkg/containers/`** - Docker container management with local and remote host abstractions
 - **`pkg/hosting/`** - Multi-cloud server deployment using the **Platform-Resource Pattern** (see detailed docs below)
-- **`pkg/authentication/`** - User authentication, sessions, and JWT token management
+- **`pkg/authentication/`** - User authentication with Collection pattern, sessions, email verification, and password reset
 - **`pkg/security/`** - HashiCorp Vault integration with automatic fallback storage for secrets management
 - **`pkg/database/`** - Database abstraction layer supporting SQLite3 with dynamic queries
 - **`pkg/email/`** - Email provider abstraction with Resend, SendGrid, and Postmark implementations

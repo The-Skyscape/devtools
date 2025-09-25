@@ -99,9 +99,10 @@ go get github.com/The-Skyscape/devtools
 ## 📦 Core Framework Features
 
 - **🌐 Web Framework** - MVC with embedded templates, HTMX, and DaisyUI
-- **🔐 Authentication** - JWT sessions, bcrypt hashing, role-based access
-  - Email verification system with secure token management
-  - Password reset flow with configurable expiration
+- **🔐 Authentication** - Complete auth system with Collection pattern
+  - JWT sessions with secure cookie management
+  - Email verification and password reset flows
+  - Built-in Controller for easy integration
   - Input validation and sanitization helpers
 - **🔒 Security** - HashiCorp Vault integration with network isolation and automatic fallback storage
 - **📝 Audit Logging** - Comprehensive audit trail with risk level classification
@@ -410,48 +411,60 @@ logs, _ := logger.Query().Recent(100)
 
 ## 🔐 Enhanced Authentication
 
-### Email Verification
+The authentication package provides a Collection that wraps database operations with auth-specific functionality:
+
+### Using the Collection
 ```go
 import "github.com/The-Skyscape/devtools/pkg/authentication"
 
-// Create verification token
-verification := authentication.CreateEmailVerification(userID, email, 24) // 24 hours
+// Create collection (wraps database)
+Auth := authentication.Manage(db)
 
-// Check if expired
-if verification.IsExpired() {
-    // Handle expired token
+// User operations
+user, err := Auth.Signup(name, email, handle, password, isAdmin)
+user, err := Auth.Signin(emailOrHandle, password)
+user, err := Auth.Users.Get(userID)
+
+// Email verification
+token, err := Auth.VerifyEmail(user)
+err := Auth.VerifyToken(token)
+
+// Password reset
+token, err := Auth.ResetPassword(user)
+err := Auth.ConsumeToken(token, newPassword)
+
+// Session management
+session, err := Auth.Sessions.Insert(&authentication.Session{UserID: userID})
+```
+
+### Using the Controller (Optional)
+```go
+// The Controller provides HTTP handlers and template methods
+controller := Auth.Controller()
+
+// Add to application
+application.Serve(views,
+    application.WithController("auth", controller),
+    // other controllers...
+)
+
+// In templates
+{{if auth.CurrentUser}}
+    Welcome {{auth.CurrentUser.Name}}!
+{{end}}
+```
+
+### Access Control
+```go
+// Use built-in middleware
+app.Serve("GET /admin", "admin.html", Auth.Required)
+app.Serve("GET /public", "home.html", Auth.Optional)
+
+// Or check manually
+user, session, err := Auth.Authenticate(r)
+if err != nil {
+    // Not authenticated
 }
-
-// Mark as used
-verification.MarkAsUsed()
-```
-
-### Password Reset
-```go
-// Create reset token
-token, _ := authentication.CreatePasswordResetToken(userID, ip, userAgent, 60) // 60 minutes
-
-// Validate password strength
-config := authentication.DefaultResetPasswordConfig()
-err := authentication.ValidatePasswordStrength(password, config)
-
-// Hash password
-hashedPassword, _ := authentication.HashPassword(password)
-```
-
-### Input Validation
-```go
-// Validate inputs
-authentication.IsValidEmail("user@example.com")
-authentication.IsValidUsername("john_doe")
-authentication.IsValidName("John Doe")
-
-// With configuration
-config := authentication.DefaultValidationConfig()
-authentication.IsValidEmailWithConfig(email, config)
-
-// Check for disposable emails
-authentication.IsDisposableEmail("user@tempmail.com")
 ```
 
 ## 🎨 Template Helpers
