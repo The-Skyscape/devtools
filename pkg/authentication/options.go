@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"log"
 	"net/http"
-	"time"
 )
 
 type Option func(*Controller)
@@ -50,36 +49,5 @@ func WithSignoutURL(url string) Option {
 		} else {
 			d.signoutRedir = url
 		}
-	}
-}
-
-// WithInactivityTimeout sets the session inactivity timeout
-// Sessions expire after this duration of inactivity
-func WithInactivityTimeout(timeout time.Duration) Option {
-	return func(auth *Controller) {
-		auth.inactivityTimeout = timeout
-	}
-}
-
-// WithAbsoluteTimeout sets the absolute session timeout
-// Sessions expire after this duration regardless of activity
-func WithAbsoluteTimeout(timeout time.Duration) Option {
-	return func(auth *Controller) {
-		auth.absoluteTimeout = timeout
-	}
-}
-
-// WithSessionTimeouts sets both inactivity and absolute timeouts
-func WithSessionTimeouts(inactivity, absolute time.Duration) Option {
-	return func(auth *Controller) {
-		auth.inactivityTimeout = inactivity
-		auth.absoluteTimeout = absolute
-	}
-}
-
-// WithRequireVerification requires email verification for authentication
-func WithRequireVerification() Option {
-	return func(auth *Controller) {
-		auth.requireVerification = true
 	}
 }

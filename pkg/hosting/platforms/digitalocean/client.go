@@ -19,6 +19,7 @@ var ApiKey = os.Getenv("DIGITAL_OCEAN_API_KEY")
 // It provides a clean abstraction over DigitalOcean's API.
 type DigitalOceanClient struct {
 	*godo.Client
+	ApiKey         string
 	DefaultProject string // Default project ID for new resources
 	DefaultImage   string // Default image for new resources
 }
@@ -30,6 +31,7 @@ var _ hosting.Platform = &DigitalOceanClient{}
 // This allows both explicit configuration and environment-based configuration.
 func Connect(apiKey string, opts ...ClientOption) *DigitalOceanClient {
 	client := &DigitalOceanClient{
+		ApiKey: apiKey,
 		Client: godo.NewClient(oauth2.NewClient(
 			context.Background(),
 			oauth2.StaticTokenSource(&oauth2.Token{

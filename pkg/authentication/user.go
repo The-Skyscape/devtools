@@ -9,17 +9,15 @@ import (
 func (*User) Table() string { return "users" }
 
 type User struct {
-	*Collection
-
+	auth *Collection
 	database.Model
 	Avatar   string
 	Name     string
 	Email    string
 	Handle   string
 	IsAdmin  bool
-	Role     string // "admin", "developer", "guest"
 	PassHash []byte
-	Verified bool   // Email verification status
+	Verified bool // Email verification status
 }
 
 func (user *User) SetupPassword(password string) (err error) {
@@ -28,9 +26,10 @@ func (user *User) SetupPassword(password string) (err error) {
 		return err
 	}
 
-	return user.Users.Update(user)
+	return user.auth.Users.Update(user)
 }
 
 func (user *User) VerifyPassword(password string) bool {
-	return bcrypt.CompareHashAndPassword(user.PassHash, []byte(password)) == nil
+	err := bcrypt.CompareHashAndPassword([]byte(user.PassHash), []byte(password))
+	return err == nil
 }

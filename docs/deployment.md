@@ -45,7 +45,7 @@ DEBUG=true
 LOG_LEVEL=debug
 
 # Development data directory
-INTERNAL_DATA=./dev-data
+DATA_DIR=./dev-data
 ```
 
 ## Docker Deployment
@@ -72,7 +72,7 @@ COPY --from=builder /app/views ./views
 
 # Create data directory
 RUN mkdir -p /data
-ENV INTERNAL_DATA=/data
+ENV DATA_DIR=/data
 
 EXPOSE 5000
 CMD ["./main"]
@@ -102,7 +102,7 @@ services:
     environment:
       - AUTH_SECRET=${AUTH_SECRET}
       - THEME=corporate
-      - INTERNAL_DATA=/data
+      - DATA_DIR=/data
     volumes:
       - app-data:/data
       - ./ssl:/ssl:ro

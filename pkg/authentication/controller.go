@@ -2,48 +2,29 @@ package authentication
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/The-Skyscape/devtools/pkg/application"
+	"golang.org/x/crypto/bcrypt"
 )
 
-func (c *Collection) Controller(opts ...Option) *Controller {
-	auth := Controller{
-		Collection:       c,
-		cookieName:       "theskyscape",
-		setupView:        "signup.html",
-		signinView:       "signin.html",
-		signoutRedir:     "/",
-		verificationView: "email-verification-required.html",
+func (col *Collection) Controller(opts ...Option) *Controller {
+	auth := &Controller{
+		Collection:   col,
+		cookieName:   "theskyscape",
+		cookieTTL:    time.Hour * 24 * 30, // 30 days
+		setupView:    "signup.html",
+		signinView:   "signin.html",
+		signoutRedir: "/",
 	}
 
 	for _, opt := range opts {
-		opt(&auth)
+		opt(auth)
 	}
 
-	return &auth
-}
-
-// isSecureRequest checks if the request is over HTTPS
-// It checks multiple indicators since requests may come through proxies
-func isSecureRequest(r *http.Request) bool {
-	// Check X-Forwarded-Proto header (most common with proxies/load balancers)
-	if r.Header.Get("X-Forwarded-Proto") == "https" {
-		return true
-	}
-	// Check if TLS is present (direct HTTPS connection)
-	if r.TLS != nil {
-		return true
-	}
-	// Check URL scheme
-	if r.URL != nil && r.URL.Scheme == "https" {
-		return true
-	}
-	// Fallback to Proto field (less reliable)
-	return r.Proto == "https"
+	return auth
 }
 
 type Controller struct {
@@ -52,10 +33,7 @@ type Controller struct {
 
 	// Frontend state
 	cookieName string
-
-	// Session management
-	inactivityTimeout time.Duration
-	absoluteTimeout   time.Duration
+	cookieTTL  time.Duration
 
 	// Setup functions
 	setupView  string
@@ -71,46 +49,7 @@ type Controller struct {
 	signoutRedir string
 
 	// Email verification
-	requireVerification bool
-	verificationView    string
-}
-
-func (auth *Controller) Optional(app *application.App, w http.ResponseWriter, r *http.Request) bool {
-	// Optional always allows access
-	return true
-}
-
-func (auth *Controller) Required(app *application.App, w http.ResponseWriter, r *http.Request) bool {
-	if auth.Users.Count("") == 0 {
-		app.Render(w, r, "signup.html", nil)
-		return false
-	}
-
-	if u, _, err := auth.Authenticate(r); u != nil && err == nil {
-		// Check if verification is required
-		if auth.requireVerification && !u.Verified {
-			app.Render(w, r, auth.verificationView, nil)
-			return false
-		}
-		return true
-	}
-
-	app.Render(w, r, "signin.html", nil)
-	return false
-}
-
-func (auth *Controller) AdminOnly(app *application.App, w http.ResponseWriter, r *http.Request) bool {
-	if auth.Users.Count("") == 0 {
-		app.Render(w, r, "signup.html", nil)
-		return false
-	}
-
-	if u, _, err := auth.Authenticate(r); u != nil && err == nil && u.IsAdmin {
-		return true
-	}
-
-	app.Render(w, r, "signin.html", nil)
-	return false
+	verifyView string
 }
 
 func (auth *Controller) Setup(app *application.App) {
@@ -126,44 +65,28 @@ func (auth Controller) Handle(r *http.Request) application.Handler {
 }
 
 func (auth *Controller) CurrentSession() *Session {
-	if s, ok := auth.Context().Value(sessionKey).(*Session); ok {
-		return s
-	}
-
-	if _, s, err := auth.Authenticate(auth.Request); err == nil {
-		return s
-	}
-
-	return nil
-}
-
-func (auth *Controller) CurrentUser() *User {
-	log.Printf("AUTH: CurrentUser called, Request=%v", auth.Request != nil)
-	if user, ok := auth.Context().Value(userKey).(*User); ok {
-		log.Printf("AUTH: CurrentUser found in context: %s", user.Email)
-		return user
-	}
-
-	if auth.Request == nil {
-		log.Printf("AUTH: CurrentUser failed - Request is nil")
+	_, session, err := auth.Authenticate(auth.Request)
+	if err != nil {
 		return nil
 	}
 
-	if user, _, err := auth.Authenticate(auth.Request); err == nil {
-		log.Printf("AUTH: CurrentUser authenticated: %s", user.Email)
-		return user
-	} else {
-		log.Printf("AUTH: CurrentUser authentication failed: %v", err)
+	return session
+}
+
+func (auth *Controller) CurrentUser() *User {
+	user, _, err := auth.Authenticate(auth.Request)
+	if err != nil {
+		return nil
 	}
 
-	return nil
+	return user
 }
 
 func (auth *Controller) IsAuthenticated() bool {
 	return auth.CurrentUser() != nil
 }
 
-func (auth Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
+func (auth *Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
 	name, handle, email, password := r.FormValue("name"), r.FormValue("handle"), r.FormValue("email"), r.FormValue("password")
 	if name == "" || handle == "" || email == "" || password == "" {
 		auth.Render(w, r, "error-message", errors.New("missing required fields"))
@@ -176,19 +99,11 @@ func (auth Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get configured timeouts or use defaults
-	absoluteTimeout := auth.absoluteTimeout
-	if absoluteTimeout == 0 {
-		absoluteTimeout = DefaultAbsoluteTimeout
-	}
-
 	session, err := auth.Sessions.Insert(&Session{
-		UserID:       user.ID,
-		LastActivity: time.Now(),
-		ExpiresAt:    time.Now().Add(absoluteTimeout),
-		IPAddress:    getClientIP(r),
-		UserAgent:    r.Header.Get("User-Agent"),
+		UserID:    user.ID,
+		ExpiresAt: time.Now().Add(auth.cookieTTL),
 	})
+
 	if err != nil {
 		auth.Render(w, r, "error-message", err)
 		return
@@ -206,7 +121,7 @@ func (auth Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if auth.signupFunc != nil {
-		auth.signupFunc(&auth, user).ServeHTTP(w, r)
+		auth.signupFunc(auth, user).ServeHTTP(w, r)
 		return
 	}
 
@@ -218,36 +133,23 @@ func (auth Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
 	auth.Refresh(w, r)
 }
 
-func (auth Controller) HandleSignin(w http.ResponseWriter, r *http.Request) {
+func (auth *Controller) HandleSignin(w http.ResponseWriter, r *http.Request) {
 	handle, password := r.FormValue("handle"), r.FormValue("password")
-	log.Printf("AUTH: Signin attempt for handle=%s from IP=%s", handle, getClientIP(r))
 
-	user, err := auth.GetUser(handle)
+	user, err := auth.LookupUser(handle)
 	if err != nil {
-		log.Printf("AUTH: Signin failed - user not found: %s", handle)
 		auth.Render(w, r, "error-message", err)
 		return
 	}
 
-	if !user.VerifyPassword(password) {
-		log.Printf("AUTH: Signin failed - invalid password for: %s", handle)
+	if err = bcrypt.CompareHashAndPassword(user.PassHash, []byte(password)); err != nil {
 		auth.Render(w, r, "error-message", errors.New("invalid password"))
 		return
 	}
-	log.Printf("AUTH: Password verified for user: %s (ID=%s)", user.Email, user.ID)
-
-	// Get configured timeouts or use defaults
-	absoluteTimeout := auth.absoluteTimeout
-	if absoluteTimeout == 0 {
-		absoluteTimeout = DefaultAbsoluteTimeout
-	}
 
 	session, err := auth.Sessions.Insert(&Session{
-		UserID:       user.ID,
-		LastActivity: time.Now(),
-		ExpiresAt:    time.Now().Add(absoluteTimeout),
-		IPAddress:    getClientIP(r),
-		UserAgent:    r.Header.Get("User-Agent"),
+		UserID:    user.ID,
+		ExpiresAt: time.Now().Add(auth.cookieTTL),
 	})
 	if err != nil {
 		auth.Render(w, r, "error-message", err)
@@ -256,8 +158,6 @@ func (auth Controller) HandleSignin(w http.ResponseWriter, r *http.Request) {
 
 	token, _ := session.Token()
 	secure := isSecureRequest(r)
-	log.Printf("AUTH: Setting signin cookie: name=%s secure=%v expires=%v proto=%s tls=%v forwarded=%s",
-		auth.cookieName, secure, session.ExpiresAt, r.Proto, r.TLS != nil, r.Header.Get("X-Forwarded-Proto"))
 	http.SetCookie(w, &http.Cookie{
 		Name:     auth.cookieName,
 		Value:    token,
@@ -267,10 +167,9 @@ func (auth Controller) HandleSignin(w http.ResponseWriter, r *http.Request) {
 		HttpOnly: true,
 		Secure:   secure,
 	})
-	log.Printf("AUTH: Signin successful for %s, redirecting", user.Email)
 
 	if auth.signinFunc != nil {
-		auth.signinFunc(&auth, user).ServeHTTP(w, r)
+		auth.signinFunc(auth, user).ServeHTTP(w, r)
 		return
 	}
 
@@ -288,8 +187,7 @@ func (auth Controller) HandleSignout(w http.ResponseWriter, r *http.Request) {
 			Name:     auth.cookieName,
 			Value:    "",
 			Path:     "/",
-			SameSite: http.SameSiteStrictMode,
-			Expires:  time.Now().Add(-1),
+			MaxAge:   -1,
 			HttpOnly: true,
 			Secure:   isSecureRequest(r),
 		})
@@ -319,4 +217,26 @@ func getClientIP(r *http.Request) string {
 		return r.RemoteAddr[:idx]
 	}
 	return r.RemoteAddr
+}
+
+// isSecureRequest checks if the request is over HTTPS
+// It checks multiple indicators since requests may come through proxies
+func isSecureRequest(r *http.Request) bool {
+	// Check X-Forwarded-Proto header (most common with proxies/load balancers)
+	if r.Header.Get("X-Forwarded-Proto") == "https" {
+		return true
+	}
+
+	// Check if TLS is present (direct HTTPS connection)
+	if r.TLS != nil {
+		return true
+	}
+
+	// Check URL scheme
+	if r.URL != nil && r.URL.Scheme == "https" {
+		return true
+	}
+
+	// Fallback to Proto field (less reliable)
+	return r.Proto == "https"
 }

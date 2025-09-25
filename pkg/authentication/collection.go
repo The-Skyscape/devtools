@@ -1,12 +1,11 @@
 package authentication
 
 import (
-	"errors"
 	"fmt"
 	"time"
 
 	"github.com/The-Skyscape/devtools/pkg/database"
-
+	"github.com/pkg/errors"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -35,7 +34,7 @@ type Collection struct {
 	PasswordResetTokens *database.Collection[*PasswordResetToken]
 }
 
-func (c *Collection) GetUser(ident string) (*User, error) {
+func (c *Collection) LookupUser(ident string) (*User, error) {
 	return database.Cursor(c.db, new(User), `
 
 		WHERE ID = $1 OR Email = $1 OR Handle = $1
@@ -49,12 +48,6 @@ func (c *Collection) Signup(name, email, handle, password string, isAdmin bool) 
 		return nil, err
 	}
 
-	// Determine role based on whether this is the first user
-	role := "developer"
-	if isAdmin {
-		role = "admin"
-	}
-
 	return c.Users.Insert(&User{
 		Avatar:   fmt.Sprintf("https://robohash.org/%s?set=set4", email),
 		Name:     name,
@@ -62,78 +55,67 @@ func (c *Collection) Signup(name, email, handle, password string, isAdmin bool) 
 		Handle:   handle,
 		PassHash: passhash,
 		IsAdmin:  isAdmin,
-		Role:     role,
+		Verified: false,
 	})
 }
 
 func (c *Collection) Signin(ident string, password string) (user *User, err error) {
-	if user, err = c.GetUser(ident); err != nil {
+	if user, err = c.LookupUser(ident); err != nil {
 		return nil, errors.New("user not found")
 	}
 
-	if !user.VerifyPassword(password) {
-		return nil, errors.New("user not found")
-	}
-
-	return user, nil
+	err = bcrypt.CompareHashAndPassword(user.PassHash, []byte(password))
+	return user, errors.Wrap(err, "failed to verify password")
 }
 
-// CreatePasswordResetToken generates and stores a password reset token for a user
-func (c *Collection) CreatePasswordResetToken(user *User) (string, error) {
+// ResetPassword generates and stores a password reset token for a user
+func (c *Collection) ResetPassword(user *User) (*PasswordResetToken, error) {
 	if user == nil {
-		return "", errors.New("user not found")
+		return nil, errors.New("user not found")
 	}
 
-	token, err := GenerateResetToken()
-	if err != nil {
-		return "", err
-	}
-
-	_, err = c.PasswordResetTokens.Insert(&PasswordResetToken{
+	return c.PasswordResetTokens.Insert(&PasswordResetToken{
 		UserID:    user.ID,
-		Token:     token,
+		Token:     database.RandomString(32),
 		ExpiresAt: time.Now().Add(24 * time.Hour),
 	})
-
-	return token, err
 }
 
-// CreateEmailVerification generates and stores an email verification token for a user
-func (c *Collection) CreateEmailVerification(user *User) (string, error) {
+// VerifyEmail generates and stores an email verification token for a user
+func (c *Collection) VerifyEmail(user *User) (*EmailVerification, error) {
 	if user == nil {
-		return "", errors.New("user not found")
-	}
-
-	token, err := GenerateVerificationToken()
-	if err != nil {
-		return "", err
+		return nil, errors.New("user not found")
 	}
 
 	// Check for existing unused verification
-	existing, _ := c.EmailVerifications.First("WHERE UserID = ? AND Used = 0", user.ID)
-	if existing != nil {
-		existing.Token = token
+	existing, err := c.EmailVerifications.First(`
+		WHERE UserID = ? AND Used = false
+	`, user.ID)
+
+	if err != nil {
+		existing.Token = database.RandomString(32)
 		existing.ExpiresAt = time.Now().Add(7 * 24 * time.Hour)
-		err = c.EmailVerifications.Update(existing)
-	} else {
-		_, err = c.EmailVerifications.Insert(&EmailVerification{
-			UserID:    user.ID,
-			Email:     user.Email,
-			Token:     token,
-			ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
-		})
+		return existing, c.EmailVerifications.Update(existing)
 	}
 
-	return token, err
+	return c.EmailVerifications.Insert(&EmailVerification{
+		UserID:    user.ID,
+		Email:     user.Email,
+		Token:     database.RandomString(32),
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	})
 }
 
-// VerifyEmail verifies an email using the provided token
-func (c *Collection) VerifyEmail(token string) error {
+// VerifyToken verifies an email using the provided token
+func (c *Collection) VerifyToken(token string) error {
 	if token == "" {
 		return errors.New("invalid verification token")
 	}
 
-	verification, _ := c.EmailVerifications.First("WHERE Token = ? AND Used = 0", token)
+	verification, _ := c.EmailVerifications.First(`
+		WHERE Token = ? AND Used = false
+	`, token)
+
 	if verification == nil {
 		return errors.New("invalid or expired verification link")
 	}
@@ -159,8 +141,8 @@ func (c *Collection) VerifyEmail(token string) error {
 	return nil
 }
 
-// ResetPassword resets a user's password using the provided token
-func (c *Collection) ResetPassword(token, newPassword string) error {
+// ConsumeToken resets a user's password using the provided token
+func (c *Collection) ConsumeToken(token, newPassword string) error {
 	if token == "" || newPassword == "" {
 		return errors.New("invalid token or password")
 	}

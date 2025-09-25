@@ -8,12 +8,12 @@ import (
 	"github.com/pkg/errors"
 )
 
-func Remote(s hosting.ServerRef) *RemoteHost {
+func Remote(s *hosting.Server) *RemoteHost {
 	return &RemoteHost{server: s}
 }
 
 type RemoteHost struct {
-	server hosting.ServerRef
+	server *hosting.Server
 	stdin  io.Reader
 	stdout io.Writer
 	stderr io.Writer

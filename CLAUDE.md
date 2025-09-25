@@ -83,7 +83,7 @@ export DIGITAL_OCEAN_API_KEY="your-token"
 
 - **`pkg/application/`** - Web application framework with MVC pattern, template rendering, and SSL support
 - **`pkg/containers/`** - Docker container management with local and remote host abstractions
-- **`pkg/hosting/`** - Multi-cloud server deployment (DigitalOcean, AWS, GCP) with unified Platform interface
+- **`pkg/hosting/`** - Multi-cloud server deployment using the **Platform-Resource Pattern** (see detailed docs below)
 - **`pkg/authentication/`** - User authentication, sessions, and JWT token management
 - **`pkg/security/`** - HashiCorp Vault integration with automatic fallback storage for secrets management
 - **`pkg/database/`** - Database abstraction layer supporting SQLite3 with dynamic queries
@@ -91,8 +91,38 @@ export DIGITAL_OCEAN_API_KEY="your-token"
 
 ### Key Design Patterns
 
-- **Interface-based abstractions**: `Host`, `Platform`, and `Service` interfaces allow swapping implementations
-- **Option pattern**: Configuration through variadic option functions (e.g., `WithFileUpload()`, `WithSetupScript()`)
+#### Platform-Resource Pattern (CRITICAL for new packages)
+This is the core pattern used in hosting and should be used for payments, storage, and other packages:
+
+```go
+// The client IS the platform
+type Platform interface {
+    NewResource(resource *Resource) (*Resource, error)
+    GetResource(id string) (*Resource, error)
+    DestroyResource(id string) error
+}
+
+type Resource struct {
+    Platform Platform  // Bidirectional reference - THIS IS INTENTIONAL
+    ID       string
+    // fields...
+}
+
+// Resource delegates operations to Platform
+func (r *Resource) Destroy() error {
+    return r.Platform.DestroyResource(r.ID)
+}
+```
+
+**Key Points:**
+- Platform creates resources and assigns itself as `resource.Platform`
+- Resources hold Platform reference to delegate operations
+- This is NOT a circular dependency - it's intentional bidirectional collaboration
+- Similar to Go's `http.Request`/`http.Client` pattern
+- Use concrete types (`*Server`, `*Volume`), not unnecessary interfaces (`ServerRef`)
+
+#### Other Patterns
+- **ClientOption pattern**: Configuration through functional options (e.g., `WithProjectID()`, `WithTimeout()`)
 - **Embedded file systems**: Views and static assets embedded using Go's `embed` package
 - **Plugin architecture**: Cloud platforms implemented as separate packages under `platforms/`
 - **Fallback pattern**: SecretsController provides automatic fallback from Vault → File → Memory storage
@@ -468,6 +498,50 @@ func (c *ResourcesController) create(w http.ResponseWriter, r *http.Request) {
    - In template methods: `c.PathValue("id")` (request from Handle)
 4. **Error handling**: Always use `c.RenderError(w, r, err)`
 5. **HTMX responses**: Use `c.Refresh()` or `c.Redirect()`
+
+## Platform-Resource Pattern Implementation Guide
+
+When implementing new packages, follow the pattern established in the hosting package:
+
+### 1. Study the Hosting Package
+The hosting package (`pkg/hosting/`) is the reference implementation. Review:
+- How `Platform` interface is defined
+- How `Server`, `Volume`, `Domain` structs include Platform reference
+- How platform implementations assign themselves during resource creation
+- How resources delegate operations back to their Platform
+
+### 2. Key Implementation Rules
+- **Platform creates resources**: Use `NewResource()` methods that return structs
+- **Platform assigns itself**: `resource.Platform = p` in creation methods
+- **Resources delegate back**: Convenience methods call Platform methods
+- **Use concrete types**: Return `*Resource`, not `ResourceRef` interfaces
+- **ClientOption pattern**: For flexible platform configuration
+
+### 3. Example Structure
+```go
+// Define your Platform interface
+type Platform interface {
+    NewResource(r *Resource) (*Resource, error)
+    GetResource(id string) (*Resource, error)
+    DestroyResource(id string) error
+}
+
+// Resources hold Platform reference
+type Resource struct {
+    Platform Platform  // Set by Platform.NewResource
+    ID       string
+    // ... fields
+}
+
+// Convenience methods delegate to Platform
+func (r *Resource) Destroy() error {
+    return r.Platform.DestroyResource(r.ID)
+}
+```
+
+### 4. Testing with Mock
+Create a mock implementation that follows the same pattern as `pkg/hosting/platforms/mock/`
+for comprehensive testing without real infrastructure.
 
 ## Recent Improvements (Go Best Practices)
 
