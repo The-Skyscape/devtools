@@ -45,26 +45,10 @@ func (c DucksController) Handle(req *http.Request) application.Handler {
 	return &c       // Return pointer to copy
 }
 
-// getDucks returns the ducks collection (test or production)
-func (c *DucksController) getDucks() interface {
-	Get(string) (*models.Duck, error)
-	Search(string, ...any) ([]*models.Duck, error)
-	Count(string, ...any) int
-	Insert(*models.Duck) (*models.Duck, error)
-	Delete(*models.Duck) error
-} {
-	if c.DucksCollection != nil {
-		return c.DucksCollection
-	}
-	return models.Ducks
-}
-
-// Template Methods (accessible in views as {{ducks.MethodName}})
-
 // AllDucks returns all ducks ordered by creation date
 // Returns empty slice on error to prevent template execution halt
 func (c *DucksController) AllDucks() []*models.Duck {
-	ducks, err := c.getDucks().Search("ORDER BY CreatedAt DESC")
+	ducks, err := models.Ducks.Search("ORDER BY CreatedAt DESC")
 	if err != nil {
 		// Log error but return empty slice for template safety
 		// This prevents template execution from halting
@@ -75,20 +59,18 @@ func (c *DucksController) AllDucks() []*models.Duck {
 
 // CountDucks returns total duck count
 func (c *DucksController) CountDucks() int {
-	return c.getDucks().Count("")
+	return models.Ducks.Count("")
 }
 
 // IsEmpty checks if there are no ducks
 func (c *DucksController) IsEmpty() bool {
-	return c.getDucks().Count("") == 0
+	return models.Ducks.Count("") == 0
 }
 
 // HTTP Handlers (private methods for routes)
 
 // createDuck handles POST /ducks
 func (c *DucksController) createDuck(w http.ResponseWriter, r *http.Request) {
-	c.SetRequest(r) // Always first in handlers
-
 	// Validate input
 	validator := c.Validator()
 	validator.CheckRequired("name", r.FormValue("name"))
@@ -108,7 +90,7 @@ func (c *DucksController) createDuck(w http.ResponseWriter, r *http.Request) {
 		UserID:      "", // Would be from auth.CurrentUser()
 	}
 
-	if _, err := c.getDucks().Insert(duck); err != nil {
+	if _, err := models.Ducks.Insert(duck); err != nil {
 		c.RenderError(w, r, err)
 		return
 	}
@@ -131,16 +113,14 @@ func (c *DucksController) createDuck(w http.ResponseWriter, r *http.Request) {
 
 // deleteDuck handles POST /ducks/{id}/delete
 func (c *DucksController) deleteDuck(w http.ResponseWriter, r *http.Request) {
-	c.SetRequest(r)
-
 	id := r.PathValue("id")
-	duck, err := c.getDucks().Get(id)
+	duck, err := models.Ducks.Get(id)
 	if err != nil {
 		c.RenderError(w, r, application.ErrNotFound)
 		return
 	}
 
-	if err := c.getDucks().Delete(duck); err != nil {
+	if err := models.Ducks.Delete(duck); err != nil {
 		c.RenderError(w, r, err)
 		return
 	}

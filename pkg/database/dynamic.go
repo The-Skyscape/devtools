@@ -12,7 +12,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-
 type DynamicDB struct {
 	Database
 	Ents  []Entity
@@ -261,11 +260,11 @@ func (db *DynamicDB) Index(table string, columns ...string) error {
 	if len(columns) == 0 {
 		return nil
 	}
-	
+
 	// Auto-generate index name from table and columns
 	indexName := fmt.Sprintf("idx_%s_%s", table, strings.Join(columns, "_"))
 	indexName = strings.ToLower(strings.ReplaceAll(indexName, " ", "_"))
-	
+
 	return db.Query(fmt.Sprintf(
 		"CREATE INDEX IF NOT EXISTS %s ON %s(%s)",
 		indexName, table, strings.Join(columns, ", "),
@@ -278,11 +277,11 @@ func (db *DynamicDB) UniqueIndex(table string, columns ...string) error {
 	if len(columns) == 0 {
 		return nil
 	}
-	
+
 	// Auto-generate index name from table and columns
 	indexName := fmt.Sprintf("uniq_%s_%s", table, strings.Join(columns, "_"))
 	indexName = strings.ToLower(strings.ReplaceAll(indexName, " ", "_"))
-	
+
 	return db.Query(fmt.Sprintf(
 		"CREATE UNIQUE INDEX IF NOT EXISTS %s ON %s(%s)",
 		indexName, table, strings.Join(columns, ", "),

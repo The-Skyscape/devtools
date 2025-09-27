@@ -81,8 +81,8 @@ func (c *Collection) ResetPassword(user *User) (*PasswordResetToken, error) {
 	})
 }
 
-// VerifyEmail generates and stores an email verification token for a user
-func (c *Collection) VerifyEmail(user *User) (*EmailVerification, error) {
+// NewEmailVerification generates and stores an email verification token for a user
+func (c *Collection) NewEmailVerification(user *User) (*EmailVerification, error) {
 	if user == nil {
 		return nil, errors.New("user not found")
 	}

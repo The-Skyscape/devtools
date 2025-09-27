@@ -10,6 +10,10 @@ import (
 	"{{.Name}}/models"
 )
 
+func Todos() (string, *TodosController) {
+	return "todos", &TodosController{}
+}
+
 // TodosController is the controller for todos
 type TodosController struct {
 	application.Controller
@@ -35,29 +39,56 @@ func (c TodosController) Handle(req *http.Request) application.Handler {
 
 // AllTodos returns all todos for the current user
 func (c *TodosController) AllTodos() ([]*models.Todo, error) {
-	user := c.Auth().CurrentUser(c.Request)
+	auth := c.Use("auth").(*authentication.Controller)
+	user := auth.CurrentUser()
 	if user == nil {
 		return nil, nil
 	}
-	return models.Todos.Search("SELECT * FROM todos WHERE user_id = ? ORDER BY created_at DESC", user.ID)
+
+	return models.Todos.Search(`
+		SELECT *
+		FROM todos
+		WHERE
+			UserID = ?
+		ORDER BY
+			CreatedAt DESC
+	`, user.ID)
 }
 
 // PendingTodos returns pending todos for the current user
 func (c *TodosController) PendingTodos() ([]*models.Todo, error) {
-	user := c.Auth().CurrentUser(c.Request)
+	auth := c.Use("auth").(*authentication.Controller)
+	user := auth.CurrentUser()
 	if user == nil {
 		return nil, nil
 	}
-	return models.Todos.Search("SELECT * FROM todos WHERE user_id = ? AND completed = false ORDER BY created_at DESC", user.ID)
+
+	return models.Todos.Search(`
+		SELECT *
+		FROM todos
+		WHERE UserID = ?
+		  AND Completed = false
+		ORDER BY
+			CreatedAt DESC
+	`, user.ID)
 }
 
 // CompletedTodos returns completed todos for the current user
 func (c *TodosController) CompletedTodos() ([]*models.Todo, error) {
-	user := c.Auth().CurrentUser(c.Request)
+	auth := c.Use("auth").(*authentication.Controller)
+	user := auth.CurrentUser()
 	if user == nil {
 		return nil, nil
 	}
-	return models.Todos.Search("SELECT * FROM todos WHERE user_id = ? AND completed = true ORDER BY updated_at DESC", user.ID)
+
+	return models.Todos.Search(`
+		SELECT *
+		FROM todos
+		WHERE UserID = ?
+		  AND Completed = true
+		ORDER BY
+			CreatedAt DESC
+	`, user.ID)
 }
 
 // TodoStats returns todo statistics
@@ -73,9 +104,8 @@ func (c *TodosController) TodoStats() map[string]int {
 
 // create adds a new todo
 func (c *TodosController) create(w http.ResponseWriter, r *http.Request) {
-	c.SetRequest(r)
-	
-	user := c.Auth().CurrentUser(r)
+	auth := c.Use("auth").(*authentication.Controller)
+	user, _, _ := auth.Authenticate(r)
 	if user == nil {
 		c.Render(w, r, "error-message.html", errors.New("unauthorized"))
 		return
@@ -116,9 +146,8 @@ func (c *TodosController) create(w http.ResponseWriter, r *http.Request) {
 
 // complete marks a todo as completed
 func (c *TodosController) complete(w http.ResponseWriter, r *http.Request) {
-	c.SetRequest(r)
-	
-	user := c.Auth().CurrentUser(r)
+	auth := c.Use("auth").(*authentication.Controller)
+	user, _, _ := auth.Authenticate(r)
 	if user == nil {
 		c.Render(w, r, "error-message.html", errors.New("unauthorized"))
 		return
@@ -147,9 +176,8 @@ func (c *TodosController) complete(w http.ResponseWriter, r *http.Request) {
 
 // uncomplete marks a todo as pending
 func (c *TodosController) uncomplete(w http.ResponseWriter, r *http.Request) {
-	c.SetRequest(r)
-	
-	user := c.Auth().CurrentUser(r)
+	auth := c.Use("auth").(*authentication.Controller)
+	user, _, _ := auth.Authenticate(r)
 	if user == nil {
 		c.Render(w, r, "error-message.html", errors.New("unauthorized"))
 		return
@@ -178,9 +206,8 @@ func (c *TodosController) uncomplete(w http.ResponseWriter, r *http.Request) {
 
 // delete removes a todo
 func (c *TodosController) delete(w http.ResponseWriter, r *http.Request) {
-	c.SetRequest(r)
-	
-	user := c.Auth().CurrentUser(r)
+	auth := c.Use("auth").(*authentication.Controller)
+	user, _, _ := auth.Authenticate(r)
 	if user == nil {
 		c.Render(w, r, "error-message.html", errors.New("unauthorized"))
 		return

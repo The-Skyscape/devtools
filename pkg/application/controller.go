@@ -81,17 +81,6 @@ func (base *Controller) Setup(app *App) {
 	base.App = app
 }
 
-// SetRequest sets the current request on the controller.
-// This is typically called in HTTP handlers to provide request context:
-//
-//	func (c *MyController) handler(w http.ResponseWriter, r *http.Request) {
-//	    c.SetRequest(r)  // Set request for helper methods
-//	    // Handler logic here
-//	}
-func (base *Controller) SetRequest(r *http.Request) {
-	base.Request = r
-}
-
 // Host returns the request Host and the app hostPrefix
 func (base *Controller) Host() string {
 	if base.Request == nil {

@@ -6,6 +6,10 @@ import (
 	"github.com/The-Skyscape/devtools/pkg/application"
 )
 
+func Home() (string, *HomeController) {
+	return "home", &HomeController{}
+}
+
 // HomeController is the controller for the home page
 type HomeController struct {
 	application.Controller
@@ -26,7 +30,7 @@ func (c HomeController) Handle(req *http.Request) application.Handler {
 
 // AppName returns the application name for templates
 func (c *HomeController) AppName() string {
-	return "{{.Name}}"
+	return "paddler"
 }
 
 // AppDescription returns the application description for templates

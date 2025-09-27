@@ -3,7 +3,6 @@ package main
 import (
 	"cmp"
 	"embed"
-	"log"
 	"os"
 
 	"github.com/The-Skyscape/devtools/pkg/application"
@@ -23,18 +22,18 @@ func main() {
 	// The framework will:
 	//  1. Compile templates once at startup (not per request for performance)
 	//  2. Set up middleware chains for security, logging, and compression
-	//  3. Register controllers for template access (e.g., {{auth.CurrentUser}})
+	//  3. Register controllers for template access
 	//  4. Start HTTP server on PORT env var (default: 5000)
 	//  5. Start HTTPS server on 443 if SSL certificates are found
 	application.Serve(views,
 		// Register authentication controller with "auth" namespace.
-		// This makes auth methods available in templates: {{auth.CurrentUser}}
+		// This makes auth methods available in templates: 
 		// The controller handles login, logout, and session management.
 		application.WithController("auth", models.Auth.Controller()),
 		
 		// Register application-specific controllers.
 		// Factory functions return (name, controller) pairs.
-		// The name becomes the template namespace (e.g., "home" → {{home.Method}})
+		// The name becomes the template namespace
 		application.WithController(controllers.Home()),
 		application.WithController(controllers.Todos()),
 		
