@@ -312,3 +312,14 @@ func (p *Platform) GetServerCopyCalls(serverID string) []struct{ Src, Dst string
 	// Mock implementation - just return empty for now
 	return []struct{ Src, Dst string }{}
 }
+
+func (p *Platform) GetMountedServer(volume *hosting.Volume) (*hosting.Server, error) {
+	serverID := volume.ID
+
+	server, exists := p.servers[serverID]
+	if !exists || server == nil {
+		return nil, nil
+	}
+
+	return server, nil
+}

@@ -47,6 +47,11 @@ func Connect(apiKey string, opts ...ClientOption) *DigitalOceanClient {
 	return client
 }
 
+func (client DigitalOceanClient) Project(projectID string) *DigitalOceanClient {
+	client.DefaultProject = projectID
+	return &client
+}
+
 type ClientOption func(client *DigitalOceanClient)
 
 func WithProjectID(projectID string) ClientOption {

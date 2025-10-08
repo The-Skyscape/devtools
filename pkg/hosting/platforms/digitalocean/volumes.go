@@ -3,7 +3,9 @@ package digitalocean
 import (
 	"context"
 	"fmt"
+	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/The-Skyscape/devtools/pkg/hosting"
@@ -67,6 +69,33 @@ func (client *DigitalOceanClient) GetVolume(volumeID string) (*hosting.Volume, e
 	}, nil
 }
 
+func (client *DigitalOceanClient) GetVolumeByName(name string) (*hosting.Volume, error) {
+	ctx := context.Background()
+
+	volumes, _, err := client.Storage.ListVolumes(ctx, &godo.ListVolumeParams{
+		ListOptions: &godo.ListOptions{},
+		Name:        name,
+	})
+
+	if err != nil {
+		return nil, errors.Wrap(err, "failed to list volumes")
+	}
+
+	if len(volumes) == 0 {
+		return nil, errors.New("volume not found")
+	}
+
+	vol := volumes[0]
+	return &hosting.Volume{
+		Platform: client,
+		ID:       vol.ID,
+		Loc:      vol.Region.Slug,
+		Name:     vol.Name,
+		Size:     int(vol.SizeGigaBytes),
+	}, nil
+
+}
+
 func (client *DigitalOceanClient) AllVolumes() ([]*hosting.Volume, error) {
 	ctx := context.Background()
 
@@ -115,7 +144,11 @@ func (client *DigitalOceanClient) MountVolume(volume *hosting.Volume, server *ho
 	}
 
 	time.Sleep(5 * time.Second)
-	return nil
+
+	return server.Connect(nil, os.Stdout, os.Stderr, fmt.Sprintf(`
+		mkdir -p /mnt/%[2]s
+		mount -o defaults,nofail,discard,noatime /dev/disk/by-id/scsi-0DO_Volume_%[1]s /mnt/%[2]s
+	`, volume.Name, strings.ReplaceAll(volume.Name, "-", "_")))
 }
 
 func (client *DigitalOceanClient) UnmountVolume(volume *hosting.Volume, server *hosting.Server) error {
@@ -146,4 +179,31 @@ func (client *DigitalOceanClient) DestroyVolume(volumeID string) error {
 	ctx := context.Background()
 	_, err := client.Storage.DeleteVolume(ctx, volumeID)
 	return errors.Wrap(err, "failed to delete volume")
+}
+
+func (client *DigitalOceanClient) GetMountedServer(vol *hosting.Volume) (*hosting.Server, error) {
+	volume, _, err := client.Storage.GetVolume(context.Background(), vol.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(volume.DropletIDs) == 0 {
+		return nil, errors.New("volume is not mounted")
+	}
+
+	dropletID := volume.DropletIDs[0]
+	droplet, _, err := client.Droplets.Get(context.Background(), dropletID)
+	if err != nil {
+		return nil, err
+	}
+
+	ipAddr, _ := droplet.PublicIPv4()
+	return &hosting.Server{
+		Platform: client,
+		ID:       fmt.Sprintf("%d", droplet.ID),
+		IP:       ipAddr,
+		Loc:      droplet.Region.Slug,
+		Size:     droplet.Size.Slug,
+		Name:     droplet.Name,
+	}, nil
 }

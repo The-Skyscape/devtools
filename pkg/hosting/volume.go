@@ -34,6 +34,7 @@ type Volume struct {
 // A volume can typically only be mounted to one server at a time.
 //
 // Example:
+//
 //	err := volume.Mount(server)
 func (volume *Volume) Mount(server *Server) (err error) {
 	err = volume.Platform.MountVolume(volume, server)
@@ -46,8 +47,13 @@ func (volume *Volume) Mount(server *Server) (err error) {
 // The volume must currently be mounted to the specified server.
 //
 // Example:
+//
 //	err := volume.Unmount(server)
 func (volume *Volume) Unmount(server *Server) (err error) {
 	err = volume.Platform.UnmountVolume(volume, server)
 	return errors.Wrap(err, "failed to unmount volume")
+}
+
+func (volume *Volume) GetMountedServer() (*Server, error) {
+	return volume.Platform.GetMountedServer(volume)
 }

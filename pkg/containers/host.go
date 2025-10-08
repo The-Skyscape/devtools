@@ -62,10 +62,10 @@ func Launch(host Host, s *Service) (err error) {
 	s.SetStdin(&buf)
 	s.SetStdout(&stdout)
 	s.SetStderr(&stderr)
-	
+
 	// Log the script being executed for debugging
 	log.Printf("Launching container %s with image %s", s.Name, s.Image)
-	
+
 	if err := s.Exec("bash"); err != nil {
 		// Include stdout and stderr output in error message and logs
 		log.Printf("Container launch failed for %s", s.Name)
@@ -81,12 +81,12 @@ func Launch(host Host, s *Service) (err error) {
 		}
 		return errors.New(errMsg)
 	}
-	
+
 	// Log success with output
 	if stdoutStr := stdout.String(); stdoutStr != "" {
 		log.Printf("Container %s launched successfully: %s", s.Name, strings.TrimSpace(stdoutStr))
 	}
-	
+
 	return nil
 }
 

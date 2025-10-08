@@ -76,6 +76,8 @@ type Platform interface {
 	// The volume must be currently mounted to the server.
 	UnmountVolume(volume *Volume, server *Server) error
 
+	GetMountedServer(volume *Volume) (*Server, error)
+
 	// DestroyVolume permanently deletes a volume.
 	// The volume must not be mounted to any server.
 	// This operation cannot be undone and all data will be lost.
