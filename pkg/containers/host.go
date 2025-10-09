@@ -2,6 +2,7 @@ package containers
 
 import (
 	"bytes"
+	"cmp"
 	_ "embed"
 	"encoding/json"
 	"fmt"
@@ -37,9 +38,15 @@ func BuildImage(host Host, tag, context string) error {
 //go:embed resources/start-service.sh
 var startService string
 
+// IsRunning checks if the service is currently running
+func IsRunning(host Host, s *Service) bool {
+	s.Host = cmp.Or(s.Host, host)
+	return s.IsRunning()
+}
+
 // Launch creates a Docker container with the service configuration
 func Launch(host Host, s *Service) (err error) {
-	s.Host = host
+	s.Host = cmp.Or(s.Host, host)
 
 	if s.Image == "" {
 		return errors.New("missing image")

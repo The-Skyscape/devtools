@@ -8,6 +8,7 @@ else \
 fi && \
 mkdir -p {{dataDir}}/services/{{.Name}} && \
 chmod -R 777 {{dataDir}}/services/{{.Name}} && \
+echo "Removing old container {{.Name}}..." && \
 docker rm -f {{.Name}} 2>/dev/null || true && \
 echo "Creating container {{.Name}}..." && \
 docker create \

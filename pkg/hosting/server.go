@@ -42,6 +42,9 @@ type Server struct {
 	// Status is the current status of the server.
 	// Common values include "new", "active", "off", "archive".
 	Status string
+
+	// Tags is a list of tags associated with the server.
+	Tags []string
 }
 
 // Connect establishes an SSH connection to the server and executes a command.
@@ -53,6 +56,7 @@ type Server struct {
 // The args are joined with spaces and executed as a single command on the server.
 //
 // Example:
+//
 //	var stdout bytes.Buffer
 //	err := server.Connect(nil, &stdout, nil, "ls", "-la", "/var/log")
 func (server *Server) Connect(stdin io.Reader, stdout, stderr io.Writer, args ...string) (err error) {
@@ -64,19 +68,11 @@ func (server *Server) Connect(stdin io.Reader, stdout, stderr io.Writer, args ..
 	return errors.Wrap(cmd.Run(), strings.Join(args, " "))
 }
 
-// Env sets an environment variable on the server by appending it to ~/.bashrc.
-// The variable will be available in future SSH sessions.
-//
-// Example:
-//	err := server.Env("NODE_ENV", "production")
-func (server *Server) Env(key, value string) error {
-	return server.Connect(nil, nil, nil, "echo \"export $key=$value\" >> ~/.bashrc")
-}
-
 // Exec executes a command on the server and returns the output.
 // Unlike Connect, Exec captures and returns stdout and stderr as bytes.Buffer.
 //
 // Example:
+//
 //	stdout, stderr, err := server.Exec("docker", "ps", "-a")
 //	if err != nil {
 //		fmt.Printf("Error: %v\nStderr: %s\n", err, stderr.String())
@@ -90,6 +86,7 @@ func (server *Server) Exec(args ...string) (stdout, stderr bytes.Buffer, err err
 // The src parameter is the local file path, and dst is the destination path on the server.
 //
 // Example:
+//
 //	stdout, stderr, err := server.Copy("./app.tar.gz", "/opt/app.tar.gz")
 func (server *Server) Copy(src, dst string) (stdout, stderr bytes.Buffer, _ error) {
 	dst = fmt.Sprintf("root@%s:%s", server.IP, dst)
@@ -107,6 +104,7 @@ func (server *Server) Copy(src, dst string) (stdout, stderr bytes.Buffer, _ erro
 // If executable is true, the file will be made executable (chmod +x).
 //
 // Example:
+//
 //	script := []byte("#!/bin/bash\necho 'Hello, World!'")
 //	_, _, err := server.Dump("/usr/local/bin/hello", script, true)
 func (server *Server) Dump(path string, data []byte, executable bool) (stdout, stderr bytes.Buffer, err error) {
@@ -142,6 +140,7 @@ func (server *Server) Dump(path string, data []byte, executable bool) (stdout, s
 // This operation cannot be undone. The server and all its data will be lost.
 //
 // Example:
+//
 //	err := server.Destroy()
 func (server *Server) Destroy() error {
 	return server.Platform.DestroyServer(server.ID)

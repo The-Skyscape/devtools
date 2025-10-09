@@ -30,6 +30,7 @@ func (client *DigitalOceanClient) NewServer(server *hosting.Server) (*hosting.Se
 		Name:    server.Name,
 		Region:  server.Loc,
 		Size:    server.Size,
+		Tags:    server.Tags,
 		Image:   godo.DropletCreateImage{Slug: slug},
 		SSHKeys: []godo.DropletCreateSSHKey{{Fingerprint: accessKey.Fingerprint}},
 	})
