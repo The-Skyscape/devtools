@@ -17,7 +17,7 @@ import (
 )
 
 const (
-	RSA_KEY_NAME = "SkyGuard Access Key"
+	RSA_KEY_NAME = "Skyscape Access Key"
 	RSA_KEY_TYPE = "RSA PRIVATE KEY"
 
 	ID_RSA     = "id_rsa"
@@ -117,13 +117,15 @@ func (client *DigitalOceanClient) accessKey() (key *godo.Key, err error) {
 
 	// Check if key already exists in DigitalOcean
 	var keys []godo.Key
-	if keys, _, err = client.Keys.List(ctx, nil); err != nil {
+	if keys, _, err = client.Keys.List(ctx, &godo.ListOptions{
+		PerPage: 100,
+	}); err != nil {
 		return nil, errors.Wrap(err, "failed to get keys from Digital Ocean")
 	}
 
 	keyData := strings.TrimSpace(string(pubBytes))
 	for _, k := range keys {
-		if k.Name == RSA_KEY_NAME && strings.TrimSpace(k.PublicKey) == keyData {
+		if strings.TrimSpace(k.PublicKey) == keyData {
 			return &k, nil
 		}
 	}
