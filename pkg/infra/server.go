@@ -49,8 +49,10 @@ func (c *CloudProvider) Launch(region, name string, opts ...ServerOption) (*godo
 
 	req := godo.DropletCreateRequest{Name: name, Region: region}
 	for _, opt := range opts {
-		if err := opt.OnInit(c, &req); err != nil {
-			return nil, errors.Wrap(err, "failed to initialize droplet")
+		if opt.OnInit != nil {
+			if err := opt.OnInit(c, &req); err != nil {
+				return nil, errors.Wrap(err, "failed to initialize droplet")
+			}
 		}
 	}
 
@@ -74,8 +76,10 @@ func (c *CloudProvider) Launch(region, name string, opts ...ServerOption) (*godo
 	}
 
 	for _, opt := range opts {
-		if err := opt.OnBoot(c, droplet); err != nil {
-			return nil, errors.Wrap(err, "failed to boot droplet")
+		if opt.OnBoot != nil {
+			if err := opt.OnBoot(c, droplet); err != nil {
+				return nil, errors.Wrap(err, "failed to boot droplet")
+			}
 		}
 	}
 
@@ -90,6 +94,7 @@ type ServerOption struct {
 func WithSize(size string) ServerOption {
 	return ServerOption{
 		OnInit: func(c *CloudProvider, s *godo.DropletCreateRequest) error {
+			log.Printf("Setting server size: %s", size)
 			s.Size = size
 			return nil
 		},
@@ -99,6 +104,7 @@ func WithSize(size string) ServerOption {
 func WithImage(image string) ServerOption {
 	return ServerOption{
 		OnInit: func(c *CloudProvider, s *godo.DropletCreateRequest) error {
+			log.Printf("Setting server image: %s", image)
 			s.Image = godo.DropletCreateImage{Slug: image}
 			return nil
 		},
@@ -108,6 +114,7 @@ func WithImage(image string) ServerOption {
 func WithTags(tags []string) ServerOption {
 	return ServerOption{
 		OnInit: func(c *CloudProvider, s *godo.DropletCreateRequest) error {
+			log.Printf("Setting server tags: %v", tags)
 			s.Tags = tags
 			return nil
 		},
@@ -132,6 +139,7 @@ func WithVolume(name string, size int64) ServerOption {
 			}
 
 			if v == nil {
+				log.Printf("Creating volume: %s (%dGB)", name, size)
 				v, _, err = c.Storage.CreateVolume(ctx, &godo.VolumeCreateRequest{
 					Name:           name,
 					Region:         s.Region.Slug,
@@ -139,6 +147,8 @@ func WithVolume(name string, size int64) ServerOption {
 					FilesystemType: "ext4",
 					Description:    "Skyscape HQ centralized data volume",
 				})
+			} else {
+				log.Printf("Found existing volume: %s", name)
 			}
 
 			if err != nil {
@@ -150,6 +160,7 @@ func WithVolume(name string, size int64) ServerOption {
 				c.Projects.AssignResources(ctx, c.projectID, resourceID)
 			}
 
+			log.Printf("Attaching volume %s to server", name)
 			act, _, err := c.StorageActions.Attach(ctx, v.ID, s.ID)
 			if err != nil {
 				return errors.Wrap(err, "failed to attach volume")
@@ -174,6 +185,7 @@ func WithVolume(name string, size int64) ServerOption {
 func WithCopy(src, dst string) ServerOption {
 	return ServerOption{
 		OnBoot: func(c *CloudProvider, s *godo.Droplet) error {
+			log.Printf("Copying %s to server at %s", src, dst)
 			ip, err := s.PublicIPv4()
 			if err != nil {
 				return errors.Wrap(err, "failed to get private ip")
@@ -193,6 +205,7 @@ func WithCopy(src, dst string) ServerOption {
 func WithSetup(script string) ServerOption {
 	return ServerOption{
 		OnBoot: func(c *CloudProvider, s *godo.Droplet) error {
+			log.Printf("Running setup script on server")
 			ip, err := s.PublicIPv4()
 			if err != nil {
 				return errors.Wrap(err, "failed to get public ip")

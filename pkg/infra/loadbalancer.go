@@ -6,6 +6,7 @@ import (
 	"log"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/digitalocean/godo"
 	"github.com/pkg/errors"
@@ -60,7 +61,10 @@ func WithLoadBalancer(name string, opts ...LoadBalancerOption) CloudOption {
 			// Assign to project
 			if c.projectID != "" {
 				resourceID := fmt.Sprintf("do:loadbalancer:%s", lb.ID)
-				c.Projects.AssignResources(ctx, c.projectID, resourceID)
+				_, _, err = c.Projects.AssignResources(ctx, c.projectID, resourceID)
+				if err != nil {
+					log.Printf("Warning: failed to assign load balancer to project: %v", err)
+				}
 			}
 
 			// Call OnBoot hooks
@@ -102,6 +106,7 @@ func WithDomain(domain string) LoadBalancerOption {
 				TlsPassthrough: false,
 			})
 
+			time.Sleep(5 * time.Second)
 			return nil
 		},
 	}
@@ -112,6 +117,7 @@ func WithTargetTags(tags []string) LoadBalancerOption {
 	return LoadBalancerOption{
 		OnInit: func(c *CloudProvider, req *godo.LoadBalancerRequest) error {
 			if len(tags) > 0 {
+				log.Printf("Setting load balancer target tag: %s", tags[0])
 				req.Tag = tags[0] // DigitalOcean LBs support single tag
 			}
 			return nil
@@ -123,6 +129,7 @@ func WithTargetTags(tags []string) LoadBalancerOption {
 func WithTargetPort(port int) LoadBalancerOption {
 	return LoadBalancerOption{
 		OnInit: func(c *CloudProvider, req *godo.LoadBalancerRequest) error {
+			log.Printf("Setting load balancer target port: %d", port)
 			// Update target port in forwarding rules
 			for i := range req.ForwardingRules {
 				req.ForwardingRules[i].TargetPort = port
@@ -136,6 +143,7 @@ func WithTargetPort(port int) LoadBalancerOption {
 func WithHealthCheck(path string) LoadBalancerOption {
 	return LoadBalancerOption{
 		OnInit: func(c *CloudProvider, req *godo.LoadBalancerRequest) error {
+			log.Printf("Setting load balancer health check path: %s", path)
 			req.HealthCheck = &godo.HealthCheck{
 				Protocol:               "http",
 				Port:                   80,
@@ -154,6 +162,7 @@ func WithHealthCheck(path string) LoadBalancerOption {
 func WithAlgorithm(algo string) LoadBalancerOption {
 	return LoadBalancerOption{
 		OnInit: func(c *CloudProvider, req *godo.LoadBalancerRequest) error {
+			log.Printf("Setting load balancer algorithm: %s", algo)
 			req.Algorithm = algo
 			return nil
 		},
@@ -164,6 +173,7 @@ func WithAlgorithm(algo string) LoadBalancerOption {
 func WithLBSize(size string) LoadBalancerOption {
 	return LoadBalancerOption{
 		OnInit: func(c *CloudProvider, req *godo.LoadBalancerRequest) error {
+			log.Printf("Setting load balancer size: %s", size)
 			req.SizeSlug = size
 			return nil
 		},
@@ -199,6 +209,15 @@ func (c *CloudProvider) ensureCertificate(domain string) (string, error) {
 	cert, _, err := c.Certificates.Create(ctx, certReq)
 	if err != nil {
 		return "", errors.Wrap(err, "failed to create certificate")
+	}
+
+	// Assign certificate to project
+	if c.projectID != "" {
+		resourceID := fmt.Sprintf("do:certificate:%s", cert.ID)
+		_, _, err = c.Projects.AssignResources(ctx, c.projectID, resourceID)
+		if err != nil {
+			log.Printf("Warning: failed to assign certificate to project: %v", err)
+		}
 	}
 
 	return cert.ID, nil

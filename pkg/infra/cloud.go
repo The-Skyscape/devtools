@@ -2,6 +2,7 @@ package infra
 
 import (
 	"context"
+	"log"
 
 	"github.com/digitalocean/godo"
 	"github.com/pkg/errors"
@@ -38,8 +39,10 @@ func Bootstrap(apiKey, project, name string, opts ...CloudOption) (*CloudProvide
 	if c.vpc == nil {
 		req := godo.VPCCreateRequest{Name: name}
 		for _, opt := range opts {
-			if err := opt.OnInit(&c, &req); err != nil {
-				return nil, errors.Wrap(err, "failed to initialize VPC")
+			if opt.OnInit != nil {
+				if err := opt.OnInit(&c, &req); err != nil {
+					return nil, errors.Wrap(err, "failed to initialize VPC")
+				}
 			}
 		}
 
@@ -50,8 +53,10 @@ func Bootstrap(apiKey, project, name string, opts ...CloudOption) (*CloudProvide
 	}
 
 	for _, opt := range opts {
-		if err := opt.OnBoot(&c, c.vpc); err != nil {
-			return nil, errors.Wrap(err, "failed to boot VPC")
+		if opt.OnBoot != nil {
+			if err := opt.OnBoot(&c, c.vpc); err != nil {
+				return nil, errors.Wrap(err, "failed to boot VPC")
+			}
 		}
 	}
 
@@ -66,6 +71,7 @@ type CloudOption struct {
 func WithRegion(region string) CloudOption {
 	return CloudOption{
 		OnInit: func(c *CloudProvider, r *godo.VPCCreateRequest) error {
+			log.Printf("Setting VPC region: %s", region)
 			r.RegionSlug = region
 			return nil
 		},
@@ -75,6 +81,7 @@ func WithRegion(region string) CloudOption {
 func WithIpRange(cidr string) CloudOption {
 	return CloudOption{
 		OnInit: func(c *CloudProvider, r *godo.VPCCreateRequest) error {
+			log.Printf("Setting VPC IP range: %s", cidr)
 			r.IPRange = cidr
 			return nil
 		},
