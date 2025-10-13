@@ -92,6 +92,7 @@ func (client *DigitalOceanClient) GetServer(id string) (*hosting.Server, error) 
 		Size:     droplet.SizeSlug,
 		Name:     droplet.Name,
 		Status:   droplet.Status,
+		Tags:     droplet.Tags,
 	}, nil
 }
 
@@ -114,6 +115,7 @@ func (client *DigitalOceanClient) AllServers() ([]*hosting.Server, error) {
 			Size:     droplet.SizeSlug,
 			Name:     droplet.Name,
 			Status:   droplet.Status,
+			Tags:     droplet.Tags,
 		})
 	}
 

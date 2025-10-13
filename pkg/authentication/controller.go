@@ -89,13 +89,13 @@ func (auth *Controller) IsAuthenticated() bool {
 func (auth *Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
 	name, handle, email, password := r.FormValue("name"), r.FormValue("handle"), r.FormValue("email"), r.FormValue("password")
 	if name == "" || handle == "" || email == "" || password == "" {
-		auth.Render(w, r, "error-message", errors.New("missing required fields"))
+		auth.Render(w, r, "error-message.html", errors.New("missing required fields"))
 		return
 	}
 
 	user, err := auth.Signup(name, email, handle, password, auth.Users.Count("") == 0)
 	if err != nil {
-		auth.Render(w, r, "error-message", err)
+		auth.Render(w, r, "error-message.html", err)
 		return
 	}
 
@@ -105,7 +105,7 @@ func (auth *Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
 	})
 
 	if err != nil {
-		auth.Render(w, r, "error-message", err)
+		auth.Render(w, r, "error-message.html", err)
 		return
 	}
 
@@ -138,12 +138,12 @@ func (auth *Controller) HandleSignin(w http.ResponseWriter, r *http.Request) {
 
 	user, err := auth.LookupUser(handle)
 	if err != nil {
-		auth.Render(w, r, "error-message", err)
+		auth.Render(w, r, "error-message.html", err)
 		return
 	}
 
 	if err = bcrypt.CompareHashAndPassword(user.PassHash, []byte(password)); err != nil {
-		auth.Render(w, r, "error-message", errors.New("invalid password"))
+		auth.Render(w, r, "error-message.html", errors.New("invalid password"))
 		return
 	}
 
@@ -152,7 +152,7 @@ func (auth *Controller) HandleSignin(w http.ResponseWriter, r *http.Request) {
 		ExpiresAt: time.Now().Add(auth.cookieTTL),
 	})
 	if err != nil {
-		auth.Render(w, r, "error-message", err)
+		auth.Render(w, r, "error-message.html", err)
 		return
 	}
 

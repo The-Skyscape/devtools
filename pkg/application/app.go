@@ -288,7 +288,7 @@ func (app *App) Render(w io.Writer, r *http.Request, page string, data any) {
 
 	if err := view.Funcs(funcs).Execute(w, data); err != nil {
 		log.Print("Error rendering: ", err)
-		app.viewEngine.ExecuteTemplate(w, "error-message", err)
+		app.viewEngine.ExecuteTemplate(w, "error-message.html", err)
 	}
 }
 
