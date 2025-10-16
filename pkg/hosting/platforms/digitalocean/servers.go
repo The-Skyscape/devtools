@@ -84,10 +84,12 @@ func (client *DigitalOceanClient) GetServer(id string) (*hosting.Server, error) 
 	}
 
 	ipAddress, _ := droplet.PublicIPv4()
+	privateIP, _ := droplet.PrivateIPv4()
 	return &hosting.Server{
 		Platform: client,
 		ID:       fmt.Sprintf("%d", droplet.ID),
 		IP:       ipAddress,
+		PrivIP:   privateIP,
 		Loc:      droplet.Region.Name,
 		Size:     droplet.SizeSlug,
 		Name:     droplet.Name,
@@ -107,10 +109,12 @@ func (client *DigitalOceanClient) AllServers() ([]*hosting.Server, error) {
 	servers := make([]*hosting.Server, 0, len(droplets))
 	for _, droplet := range droplets {
 		ipAddress, _ := droplet.PublicIPv4()
+		privateIP, _ := droplet.PrivateIPv4()
 		servers = append(servers, &hosting.Server{
 			Platform: client,
 			ID:       fmt.Sprintf("%d", droplet.ID),
 			IP:       ipAddress,
+			PrivIP:   privateIP,
 			Loc:      droplet.Region.Name,
 			Size:     droplet.SizeSlug,
 			Name:     droplet.Name,

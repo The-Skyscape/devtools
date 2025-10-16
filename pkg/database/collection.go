@@ -180,20 +180,6 @@ func (c *Collection[E]) Search(query string, args ...any) ([]E, error) {
 		})
 }
 
-// Find returns a single entity matching the query.
-// Unlike First, it doesn't automatically add LIMIT 1.
-// Returns ErrIterStop when found (which is handled internally).
-func (c *Collection[E]) Find(query string, args ...any) (E, error) {
-	app := c.New()
-	return app, Cursor(c.DB, c.Ent, query, args...).
-		Iter(func(load func(Entity) error) error {
-			if err := load(app); err != nil {
-				return err
-			}
-			return ErrIterStop
-		})
-}
-
 // Index creates an index on the collection's table
 // Example: Repositories.Index("UserID", "Visibility")
 func (c *Collection[E]) Index(columns ...string) error {

@@ -28,6 +28,9 @@ type Server struct {
 	// IP is the public IP address of the server.
 	IP string
 
+	// PrivIP is the private IP address of the server.
+	PrivIP string
+
 	// Loc is the geographic location or region where the server is deployed.
 	// Format is platform-specific (e.g., "nyc3", "us-east-1").
 	Loc string

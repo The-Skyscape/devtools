@@ -198,10 +198,12 @@ func (client *DigitalOceanClient) GetMountedServer(vol *hosting.Volume) (*hostin
 	}
 
 	ipAddr, _ := droplet.PublicIPv4()
+	privateIP, _ := droplet.PrivateIPv4()
 	return &hosting.Server{
 		Platform: client,
 		ID:       fmt.Sprintf("%d", droplet.ID),
 		IP:       ipAddr,
+		PrivIP:   privateIP,
 		Loc:      droplet.Region.Slug,
 		Size:     droplet.Size.Slug,
 		Name:     droplet.Name,

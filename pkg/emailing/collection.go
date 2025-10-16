@@ -15,10 +15,10 @@ type Collection struct {
 
 	vault      *security.Collection // Vault for getting email provider credentials
 	provider   Provider
-	emailFS    embed.FS  // Embedded filesystem with email templates
-	emailFSDir string    // Root directory in the filesystem
-	fromAddr   string    // Default from address
-	fromName   string    // Default from name
+	emailFS    embed.FS // Embedded filesystem with email templates
+	emailFSDir string   // Root directory in the filesystem
+	fromAddr   string   // Default from address
+	fromName   string   // Default from name
 }
 
 // Manage creates a new email collection with the given database and options
@@ -79,10 +79,9 @@ func (c *Collection) LoadTemplates(emailFS embed.FS) error {
 	return nil
 }
 
-
 // GetEmailByMessageID retrieves an email by provider message ID
 func (c *Collection) GetEmailByMessageID(messageID string) (*Email, error) {
-	email, err := c.Emails.Find("WHERE MessageID = ?", messageID)
+	email, err := c.Emails.First("WHERE MessageID = ?", messageID)
 	if err != nil {
 		return nil, err
 	}
@@ -119,4 +118,3 @@ func (c *Collection) GetEmailStats(since time.Time) (map[string]int, error) {
 
 	return stats, nil
 }
-

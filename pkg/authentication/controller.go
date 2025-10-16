@@ -93,6 +93,7 @@ func (auth *Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	handle = strings.ToLower(handle)
 	user, err := auth.Signup(name, email, handle, password, auth.Users.Count("") == 0)
 	if err != nil {
 		auth.Render(w, r, "error-message.html", err)
