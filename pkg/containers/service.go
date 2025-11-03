@@ -27,6 +27,7 @@ type Service struct {
 	Entrypoint    string
 	Command       string
 	RestartPolicy string // e.g., "always", "unless-stopped", "on-failure"
+	Privileged    bool
 	Ports         map[int]int
 	Mounts        map[string]string
 	Copied        map[string]string

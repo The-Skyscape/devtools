@@ -163,26 +163,6 @@ func (db *DynamicDB) qualified(ent Entity, fields []string) (res []string) {
 	return
 }
 
-func (db *DynamicDB) entID(ent Entity) (id string) {
-	value := reflect.ValueOf(ent)
-	if value.Kind() == reflect.Ptr {
-		value = value.Elem()
-	}
-	if value.Kind() != reflect.Struct {
-		return
-	}
-
-	type_ := value.Type()
-	for i := range type_.NumField() {
-		field := type_.Field(i)
-		if field.Name == "ID" {
-			return value.FieldByName(field.Name).String()
-		}
-	}
-
-	return
-}
-
 func (db *DynamicDB) Insert(ent Entity) error {
 	fields, values, addrs := db.Reflect(ent)
 
@@ -248,10 +228,18 @@ func (db *DynamicDB) Update(ent Entity) error {
 }
 
 func (db *DynamicDB) Delete(ent Entity) error {
+	var entityID string
+	fields, values, _ := db.Reflect(ent)
+	for i := range fields {
+		if fields[i] == "ID" {
+			entityID = values[i].(string)
+		}
+	}
+
 	return db.Query(fmt.Sprintf(`
 		DELETE FROM %s
 		WHERE ID = ?
-	`, ent.Table()), db.entID(ent)).Exec()
+	`, ent.Table()), entityID).Exec()
 }
 
 // Index creates an index on the specified table and columns

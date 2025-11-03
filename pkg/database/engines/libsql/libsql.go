@@ -18,6 +18,7 @@ func Open(name, url, token string) *LibSQL {
 	path := filepath.Join(database.DataDir(), name)
 
 	db, err := libsql.NewEmbeddedReplicaConnector(path, url,
+		libsql.WithSyncInterval(time.Second*10),
 		libsql.WithAuthToken(token))
 
 	if err != nil {

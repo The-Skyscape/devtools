@@ -20,6 +20,7 @@ docker create \
   {{if .CPULimit}}--cpus {{.CPULimit}}{{end}} \
   {{if .PidsLimit}}--pids-limit {{.PidsLimit}}{{end}} \
   {{if .ReadOnly}}--read-only{{end}} \
+  {{if .Privileged}}--privileged{{end}} \
   {{range .SecurityOpts}}--security-opt {{.}} {{end}} \
   {{range $key, $val := .Ports}}-p {{$key}}:{{$val}} {{end}} \
   {{range $key, $val := .Mounts}}-v {{$key}}:{{$val}} {{end}} \
