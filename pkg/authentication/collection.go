@@ -49,7 +49,7 @@ func (c *Collection) Signup(name, email, handle, password string, isAdmin bool) 
 	}
 
 	return c.Users.Insert(&User{
-		Avatar:   fmt.Sprintf("https://robohash.org/%s?set=set4", email),
+		Avatar:   fmt.Sprintf("https://robots.skysca.pe/%s?set=set4", email),
 		Name:     name,
 		Email:    email,
 		Handle:   handle,

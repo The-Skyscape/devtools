@@ -318,3 +318,14 @@ func (c *cursor[E]) One() (E, error) {
 		), c.args...).
 		Scan(attrs...)
 }
+
+// Sync forces a sync from the primary database for LibSQL replicas
+func (db *DynamicDB) Sync() error {
+	type Syncer interface {
+		Sync() error
+	}
+	if syncer, ok := db.Database.(Syncer); ok {
+		return syncer.Sync()
+	}
+	return nil
+}

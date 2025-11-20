@@ -3,6 +3,7 @@ package libsql
 import (
 	"database/sql"
 	"log"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -12,24 +13,36 @@ import (
 
 type LibSQL struct {
 	*sql.DB
+	connector *libsql.Connector
 }
 
 func Open(name, url, token string) *LibSQL {
 	path := filepath.Join(database.DataDir(), name)
 
+	if info, err := os.Stat(path); err != nil || time.Since(info.ModTime()) > time.Hour {
+		log.Println("Syncing database (missing or stale)...")
+	}
+
+	log.Println("Opening database:", name)
 	db, err := libsql.NewEmbeddedReplicaConnector(path, url,
-		libsql.WithSyncInterval(time.Second*10),
+		libsql.WithSyncInterval(time.Second*30),
 		libsql.WithAuthToken(token))
 
 	if err != nil {
 		log.Fatal("Failed to replicate to remote db:", err)
 	}
 
-	if _, err = db.Sync(); err != nil {
-		log.Fatal("Failed to sync to remote db:", err)
+	if info, err := os.Stat(path); err != nil || time.Since(info.ModTime()) > time.Hour {
+		log.Println("Syncing database (missing or stale)...")
+		if _, err := db.Sync(); err != nil {
+			log.Fatal("Failed to sync to remote db:", err)
+		}
+	} else {
+		log.Println("Using cached database, syncing in background...")
+		go db.Sync()
 	}
 
-	return &LibSQL{DB: sql.OpenDB(db)}
+	return &LibSQL{DB: sql.OpenDB(db), connector: db}
 }
 
 func (db *LibSQL) Model() database.Model {
@@ -46,4 +59,12 @@ func (db *LibSQL) Query(query string, args ...any) *database.Iter {
 
 func (db *LibSQL) Dynamic() *database.DynamicDB {
 	return database.Dynamic(db)
+}
+
+func (db *LibSQL) Sync() error {
+	if db.connector == nil {
+		return nil
+	}
+	_, err := db.connector.Sync()
+	return err
 }

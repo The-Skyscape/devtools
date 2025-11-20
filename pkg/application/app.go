@@ -33,12 +33,13 @@ import (
 //   - Templates are parsed once and cached for the application lifetime
 //   - Middleware chains are built once during initialization
 type App struct {
-	controllers map[string]Handler
-	viewEngine  *template.Template
-	hostPrefix  string
-	views       []fs.FS
-	theme       string
-	middlewares []Middleware
+	controllers       map[string]Handler
+	viewEngine        *template.Template
+	hostPrefix        string
+	views             []fs.FS
+	theme             string
+	middlewares       []Middleware
+	PublicAccessCheck AccessCheck
 }
 
 // Middleware defines the interface for HTTP request/response interceptors.
@@ -115,12 +116,6 @@ func New(views fs.FS, opts ...Option) *App {
 
 	if views != nil {
 		app.views = append(app.views, views)
-
-		// Auto-serve public directory if it exists
-		if _, err := fs.Sub(views, "views/public"); err == nil {
-			public, _ := fs.Sub(views, "views")
-			http.Handle("GET /public/", http.FileServerFS(public))
-		}
 	}
 
 	// Apply all options
@@ -180,6 +175,15 @@ func (app *App) Server() (string, http.Handler) {
 // This allows both HTTP and HTTPS to be served simultaneously.
 func (app *App) Start() error {
 	addr, handler := app.Server()
+
+	// Auto-serve public directory if it exists
+	if len(app.views) > 1 {
+		views := app.views[1]
+		if _, err := fs.Sub(views, "views/public"); err == nil {
+			public, _ := fs.Sub(views, "views")
+			http.Handle("GET /public/", app.Protect(http.FileServerFS(public), app.PublicAccessCheck))
+		}
+	}
 
 	// Start HTTPS server in background if certificates exist
 	go func() {

@@ -25,6 +25,13 @@ func WithController(name string, ctrl Handler) Option {
 	}
 }
 
+func WithPublicAccess(accessCheck AccessCheck) Option {
+	return func(app *App) error {
+		app.PublicAccessCheck = accessCheck
+		return nil
+	}
+}
+
 // WithController adds a controller to the application
 func (app *App) WithController(name string, controller Handler) error {
 	if _, ok := app.controllers[name]; !ok {
