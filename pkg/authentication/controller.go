@@ -3,6 +3,7 @@ package authentication
 import (
 	"errors"
 	"net/http"
+	"regexp"
 	"strings"
 	"time"
 
@@ -93,7 +94,15 @@ func (auth *Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Lowercase and sanitize handle (only alphanumeric, underscore, hyphen)
 	handle = strings.ToLower(handle)
+	handle = regexp.MustCompile(`[^a-z0-9_-]+`).ReplaceAllString(handle, "")
+
+	if handle == "" {
+		auth.Render(w, r, "error-message.html", errors.New("handle must contain at least one valid character"))
+		return
+	}
+
 	user, err := auth.Signup(name, email, handle, password, auth.Users.Count("") == 0)
 	if err != nil {
 		auth.Render(w, r, "error-message.html", err)
@@ -136,6 +145,9 @@ func (auth *Controller) HandleSignup(w http.ResponseWriter, r *http.Request) {
 
 func (auth *Controller) HandleSignin(w http.ResponseWriter, r *http.Request) {
 	handle, password := r.FormValue("handle"), r.FormValue("password")
+
+	// Lowercase handle for case-insensitive lookup
+	handle = strings.ToLower(handle)
 
 	user, err := auth.LookupUser(handle)
 	if err != nil {

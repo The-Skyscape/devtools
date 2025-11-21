@@ -37,8 +37,8 @@ type Collection struct {
 func (c *Collection) LookupUser(ident string) (*User, error) {
 	return database.Cursor(c.db, new(User), `
 
-		WHERE ID = $1 OR Email = $1 OR Handle = $1
-	
+		WHERE ID = $1 OR Email = $1 OR LOWER(Handle) = LOWER($1)
+
 	`, ident).One()
 }
 
