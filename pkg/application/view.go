@@ -97,6 +97,11 @@ func (app *App) prepareViews() {
 		funcs[name] = func() Handler { return ctrl }
 	}
 
+	// Merge custom functions registered via WithFunc
+	for name, fn := range app.customFuncs {
+		funcs[name] = fn
+	}
+
 	if app.viewEngine == nil {
 		app.viewEngine = template.New("")
 	}

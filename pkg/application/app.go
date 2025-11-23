@@ -40,6 +40,7 @@ type App struct {
 	theme             string
 	middlewares       []Middleware
 	PublicAccessCheck AccessCheck
+	customFuncs       template.FuncMap
 }
 
 // Middleware defines the interface for HTTP request/response interceptors.
@@ -112,6 +113,7 @@ func New(views fs.FS, opts ...Option) *App {
 		views:       []fs.FS{appViews},
 		theme:       "retro",
 		middlewares: []Middleware{},
+		customFuncs: template.FuncMap{},
 	}
 
 	if views != nil {

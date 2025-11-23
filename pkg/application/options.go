@@ -2,7 +2,6 @@ package application
 
 import (
 	"cmp"
-	"html/template"
 	"io/fs"
 	"log"
 )
@@ -13,7 +12,7 @@ type Option func(*App) error
 // WithFunc adds a template function to the application
 func WithFunc(name string, fn any) Option {
 	return func(app *App) error {
-		app.viewEngine.Funcs(template.FuncMap{name: fn})
+		app.customFuncs[name] = fn
 		return nil
 	}
 }
