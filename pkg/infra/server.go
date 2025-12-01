@@ -1,6 +1,7 @@
 package infra
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -240,6 +241,19 @@ func (w *Wrapper) Exec(args ...string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	return errors.Wrap(cmd.Run(), "failed to execute command")
+}
+
+func (w *Wrapper) Dump(path string, data []byte) error {
+	ip, err := w.PublicIPv4()
+	if err != nil {
+		return errors.Wrap(err, "failed to get public ip")
+	}
+	cmd := exec.Command("scp", "-o",
+		"StrictHostKeyChecking=accept-new",
+		fmt.Sprintf("root@%s:%s", ip, path))
+	cmd.Stdin = bytes.NewReader(data)
+
+	return errors.Wrap(cmd.Run(), "failed to dump data")
 }
 
 func WithService(service *containers.Service) ServerOption {

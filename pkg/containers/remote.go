@@ -55,3 +55,9 @@ func (r *RemoteHost) Launch(service *Service) error {
 func (r *RemoteHost) BuildImage(tag, context string) error {
 	return BuildImage(r, tag, context)
 }
+
+// Dump writes data to a file on the remote host using SSH copy
+func (r *RemoteHost) Dump(path string, data []byte) error {
+	_, _, err := r.server.Dump(path, data, false)
+	return err
+}

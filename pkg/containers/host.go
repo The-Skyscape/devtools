@@ -24,6 +24,7 @@ type Host interface {
 	SetStdout(io.Writer)
 	SetStderr(io.Writer)
 	Exec(...string) error
+	Dump(path string, data []byte) error
 }
 
 // BuildImage builds a Docker image on the given host

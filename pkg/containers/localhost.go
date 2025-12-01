@@ -2,6 +2,7 @@ package containers
 
 import (
 	"io"
+	"os"
 	"os/exec"
 
 	"github.com/pkg/errors"
@@ -56,4 +57,9 @@ func (l *LocalHost) Launch(service *Service) error {
 // BuildImage builds a Docker image on the local platform
 func (l *LocalHost) BuildImage(tag, context string) error {
 	return BuildImage(l, tag, context)
+}
+
+// Dump writes data to a file on the local host
+func (l *LocalHost) Dump(path string, data []byte) error {
+	return os.WriteFile(path, data, 0600)
 }

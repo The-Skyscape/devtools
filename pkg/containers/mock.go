@@ -74,6 +74,20 @@ func (h *MockHost) Exec(args ...string) error {
 	return nil
 }
 
+// Dump simulates writing a file (no-op for mock)
+func (h *MockHost) Dump(path string, data []byte) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.shouldFail {
+		return fmt.Errorf("mock error: %s", h.failMessage)
+	}
+
+	// Record the dump as an exec call for testing purposes
+	h.execCalls = append(h.execCalls, []string{"dump", path, string(data)})
+	return nil
+}
+
 // Test control methods
 
 // FailNext causes the next exec to fail
