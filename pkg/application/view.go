@@ -44,20 +44,27 @@ func (v *View) Render(w http.ResponseWriter, r *http.Request, data any) {
 // ServeHTTP implements http.Handler, enforcing access control before rendering.
 //
 // Access Control Flow:
-//  1. If no accessCheck, renders immediately
+//  1. Determines which access check to use (view-specific or app-wide default)
 //  2. Calls accessCheck(app, w, r)
 //  3. If false, accessCheck has sent response (redirect, error)
 //  4. If true, renders the template
 //
 // This allows Views to be used directly as HTTP handlers.
 func (v *View) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if v.accessCheck == nil {
+	// Use view-specific access check, or fall back to app's public access check
+	accessCheck := v.accessCheck
+	if accessCheck == nil {
+		accessCheck = v.app.PublicAccessCheck
+	}
+
+	// If still no access check, render immediately
+	if accessCheck == nil {
 		v.app.Render(w, r, v.name, nil)
 		return
 	}
 
 	// If accessCheck returns false, it has already handled the response
-	if !v.accessCheck(v.app, w, r) {
+	if !accessCheck(v.app, w, r) {
 		return
 	}
 

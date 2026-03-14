@@ -147,7 +147,7 @@ func (client *DigitalOceanClient) MountVolume(volume *hosting.Volume, server *ho
 
 	return server.Connect(nil, os.Stdout, os.Stderr, fmt.Sprintf(`
 		mkdir -p /mnt/%[2]s
-		mount -o defaults,nofail,discard,noatime /dev/disk/by-id/scsi-0DO_Volume_%[1]s /mnt/%[2]s
+		mountpoint -q /mnt/%[2]s || mount -o defaults,nofail,discard,noatime /dev/disk/by-id/scsi-0DO_Volume_%[1]s /mnt/%[2]s
 	`, volume.Name, strings.ReplaceAll(volume.Name, "-", "_")))
 }
 
